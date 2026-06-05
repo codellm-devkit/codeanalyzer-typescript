@@ -24,7 +24,7 @@ export default defineConfig({
         "codeanalyzer-typescript turns a TypeScript/JavaScript project into one typed artifact — symbol table, call graph, and external symbols — using the TypeScript compiler via ts-morph. The TypeScript backend behind CLDK.",
       logo: {
         src: "./src/assets/logo.png",
-        replacesTitle: false,
+        replacesTitle: true,
       },
       favicon: "/favicon.png",
       customCss: ["./src/styles/docs.css"],
