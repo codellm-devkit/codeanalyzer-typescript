@@ -1,0 +1,5 @@
+# The compiled binary is produced per-platform at build time and bundled into
+# the wheel via `artifacts` in pyproject.toml. Never commit it (platform-specific,
+# ~70 MB). Keep this directory present so the package is importable in dev.
+*
+!.gitignore

@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "codeanalyzer-typescript"
+version = "0.1.0"
+description = "Prebuilt codeanalyzer-typescript backend binary for CLDK (codellm-devkit)."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Rahul Krishna", email = "i.m.ralk@gmail.com" },
+]
+keywords = ["cldk", "codellm-devkit", "typescript", "code analysis"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://codellm-devkit.info"
+Repository = "https://github.com/codellm-devkit/codeanalyzer-ts"
+
+# The compiled binary lives under _bin/ and is gitignored (it is produced per
+# platform at build time). `artifacts` re-includes it in the wheel anyway --
+# this mirrors how the Java jar is force-included in the python-sdk wheel.
+[tool.hatch.build.targets.wheel]
+packages = ["src/codeanalyzer_typescript"]
+artifacts = ["src/codeanalyzer_typescript/_bin/*"]
+
+[tool.hatch.build.targets.sdist]
+# No meaningful sdist: the binary cannot be built without Bun, so we ship
+# platform wheels only. Keep the sdist minimal for metadata completeness.
+include = [
+    "src/codeanalyzer_typescript/__init__.py",
+    "README.md",
+    "build_wheels.sh",
+]

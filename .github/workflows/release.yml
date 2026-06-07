@@ -1,0 +1,105 @@
+name: Release (binaries + Python wheels)
+
+# Builds the self-contained codeanalyzer-typescript binary for every supported
+# platform and publishes:
+#   1. the raw binaries as GitHub Release assets (for analysis_backend_path /
+#      $CODEANALYZER_TS_BIN / download-on-first-use use cases), and
+#   2. platform-tagged Python wheels to PyPI as `codeanalyzer-typescript`.
+#
+# Bun cross-compiles all targets from one host, so a single Linux job suffices.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write          # create GitHub Release + delete tag on failure
+  id-token: write          # PyPI Trusted Publishing (OIDC) -- no API token needed
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install analyzer dependencies
+        run: bun install
+
+      # ----- test gate: a broken build must not produce a release -----
+      - name: Typecheck and test
+        id: test
+        continue-on-error: true
+        run: |
+          bun run typecheck
+          bun test
+
+      - name: Delete tag on failure
+        if: steps.test.conclusion == 'failure' && startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "Tests failed. Deleting tag ${GITHUB_REF#refs/tags/}..."
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git push --delete origin "${GITHUB_REF#refs/tags/}"
+          exit 1
+
+      - name: Fail if tests failed (non-tag runs)
+        if: steps.test.conclusion == 'failure'
+        run: exit 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python build tooling
+        run: python -m pip install --upgrade build wheel
+
+      - name: Build platform wheels (cross-compiles every target via Bun)
+        working-directory: packaging/python
+        run: ./build_wheels.sh
+
+      - name: Extract raw binaries from wheels (for GitHub Release)
+        working-directory: packaging/python
+        run: |
+          mkdir -p ../../release-bins
+          for whl in dist/*.whl; do
+            plat="$(basename "$whl" .whl | sed 's/.*-py3-none-//')"
+            tmp="$(mktemp -d)"
+            python -m zipfile -e "$whl" "$tmp"
+            bin="$(find "$tmp/codeanalyzer_typescript/_bin" -type f ! -name '.gitignore')"
+            ext=""; [[ "$bin" == *.exe ]] && ext=".exe"
+            cp "$bin" "../../release-bins/codeanalyzer-typescript-${plat}${ext}"
+          done
+          ls -lh ../../release-bins
+
+      - name: Build changelog (auto-generated from commits/PRs)
+        id: changelog
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: mikepenz/release-changelog-builder-action@v5
+        with:
+          failOnError: "false"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish GitHub Release (raw binaries)
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: release-bins/*
+          body: ${{ steps.changelog.outputs.changelog }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish wheels to PyPI (Trusted Publishing / OIDC)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packaging/python/dist
