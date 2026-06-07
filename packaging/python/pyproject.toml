@@ -31,8 +31,8 @@ Repository = "https://github.com/codellm-devkit/codeanalyzer-ts"
 path = "src/codeanalyzer_typescript/__init__.py"
 
 # The compiled binary lives under _bin/ and is gitignored (it is produced per
-# platform at build time). `artifacts` re-includes it in the wheel anyway --
-# this mirrors how the Java jar is force-included in the python-sdk wheel.
+# platform at build time). `artifacts` re-includes it in the wheel anyway, so the
+# gitignored binary still ships inside the built wheel.
 [tool.hatch.build.targets.wheel]
 packages = ["src/codeanalyzer_typescript"]
 artifacts = ["src/codeanalyzer_typescript/_bin/*"]
