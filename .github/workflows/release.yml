@@ -127,13 +127,44 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: packaging/python/dist
+          # Make re-runs idempotent: a version already on PyPI is skipped rather
+          # than failing the whole job with a 400 (PyPI rejects duplicate uploads).
+          skip-existing: true
 
-      # ----- Homebrew: regenerate the formula from the just-built binaries and
-      # push it to the shared tap. This is the non-Rust equivalent of what
-      # cargo-dist does for you; it is independent of the PyPI path above and
-      # only consumes the raw bun binaries in release-bins/.
-      - name: Generate Homebrew formula
+      # Hand the raw binaries to the separate `homebrew` job below. Passing them
+      # as an artifact (rather than re-downloading the GitHub Release) keeps the
+      # formula checksums byte-identical to what was just published.
+      - name: Upload release binaries for the homebrew job
         if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bins
+          path: release-bins/
+
+  # ----- Homebrew: regenerate the formula from the just-built binaries and push
+  # it to the shared tap. Split into its own job (needs: release) so a tap-push
+  # failure -- e.g. a missing HOMEBREW_TAP_TOKEN -- is isolated from the PyPI and
+  # GitHub Release steps above, and can be re-run on its own without re-uploading
+  # wheels. This is the non-Rust equivalent of what cargo-dist does for you.
+  homebrew:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download release binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bins
+          path: release-bins
+
+      - name: Generate Homebrew formula
         env:
           REPO: ${{ github.repository }}
           VERSION: ${{ steps.ver.outputs.version }}
@@ -142,7 +173,6 @@ jobs:
           cat codeanalyzer-typescript.rb
 
       - name: Push formula to codellm-devkit/homebrew-tap
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}   # PAT with write access to homebrew-tap
           VERSION: ${{ steps.ver.outputs.version }}
