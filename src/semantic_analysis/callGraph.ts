@@ -1,5 +1,5 @@
 /**
- * Level-1 call graph — the tsc (ts-morph checker) resolver. The same type checker that typed the
+ * Call graph — the tsc (ts-morph checker) resolver. The same type checker that typed the
  * symbol table resolves each recorded call site to a callee declaration; we backfill
  * `callee_signature` in place and emit identity-only edges whose endpoints are guaranteed to be
  * real symbol-table signatures (no dangling edges). This is the always-on base graph.
@@ -8,8 +8,6 @@
  * expansion — for a method call whose declared target lives on an interface/base type, we also
  * emit edges to every *instantiated*, concrete subtype's override of that method. RTA edges carry
  * a `ts.dispatch=rta` tag so consumers can tell them apart from the exact declared-type edge.
- *
- * Level 2 enriches this graph with CodeQL (see codeql.ts).
  */
 import { Node, type Project } from "ts-morph";
 import {

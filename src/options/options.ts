@@ -7,7 +7,7 @@ export interface AnalysisOptions {
   /** Output directory for analysis.json; null ⇒ print compact JSON to stdout. */
   output: string | null;
   format: OutputFormat;
-  /** 1 = tsc resolver call graph (default); 2 = + CodeQL enrichment. */
+  /** Analysis depth requested by the caller (1 = symbol table + call graph [default]; 2 = call graph). */
   analysisLevel: 1 | 2;
   /** Restrict analysis to these files (project-relative or absolute). null ⇒ whole project. */
   targetFiles: string[] | null;

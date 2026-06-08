@@ -24,6 +24,12 @@ classifiers = [
 Homepage = "https://codellm-devkit.info"
 Repository = "https://github.com/codellm-devkit/codeanalyzer-ts"
 
+# Installs a `cants` launcher on PATH that exec()s the bundled binary
+# (see src/codeanalyzer_typescript/__main__.py). CLDK still locates the binary
+# directly via bin_path(); this is purely for direct shell use.
+[project.scripts]
+cants = "codeanalyzer_typescript.__main__:main"
+
 # Single source of truth for the package version: __init__.py's __version__.
 # build_wheels.sh overwrites it from $PKG_VERSION (set to the git tag in CI), so a
 # tag of vX.Y.Z always produces a codeanalyzer-typescript==X.Y.Z wheel.

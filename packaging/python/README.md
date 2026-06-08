@@ -35,8 +35,9 @@ Options:
   -o, --output <dir>             output directory for analysis.json
                                  (omit ⇒ compact JSON to stdout)
   -f, --format <fmt>             output format: json | msgpack (default: "json")
-  -a, --analysis-level <n>       1 = tsc resolver call graph + RTA (default);
-                                 2 = + CodeQL enrichment (default: "1")
+  -a, --analysis-level <n>       analysis depth: 1 = symbol table + tsc resolver
+                                 call graph + RTA (default); 2 = call graph
+                                 (default: "1")
   -t, --target-files <paths...>  restrict analysis to specific files (incremental)
       --skip-tests               skip test trees (default)
       --include-tests            include test trees
@@ -74,14 +75,14 @@ Options:
    This saves the results to `analysis.msgpack`, a binary format that is more compact for
    storage and transmission.
 
-3. **Deeper analysis with CodeQL enrichment (experimental):**
+3. **Selecting an analysis level:**
    ```bash
    cants --input ./my-ts-project --analysis-level 2
    ```
 
-   Every run produces a symbol table **and** a call graph. At level 1, edges come from the
-   TypeScript compiler's resolver plus Rapid Type Analysis (RTA), with phantom nodes for
-   calls into imported libraries. Level 2 additionally merges in CodeQL-derived edges.
+   Every run produces a symbol table **and** a call graph. Edges come from the TypeScript
+   compiler's resolver plus Rapid Type Analysis (RTA), with phantom nodes for calls into
+   imported libraries.
 
 4. **Incremental analysis of specific files:**
    ```bash

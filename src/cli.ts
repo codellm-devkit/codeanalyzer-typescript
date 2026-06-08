@@ -11,7 +11,7 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     .requiredOption("-i, --input <path>", "project root to analyze")
     .option("-o, --output <dir>", "output directory for analysis.json (omit ⇒ compact JSON to stdout)")
     .option("-f, --format <fmt>", "output format: json | msgpack", "json")
-    .option("-a, --analysis-level <n>", "1 = tsc resolver call graph + RTA (default); 2 = + CodeQL enrichment", "1")
+    .option("-a, --analysis-level <n>", "analysis depth: 1 = symbol table + tsc resolver call graph + RTA (default); 2 = call graph", "1")
     .option("-t, --target-files <paths...>", "restrict analysis to specific files (incremental)")
     .option("--skip-tests", "skip test trees (default)")
     .option("--include-tests", "include test trees")
