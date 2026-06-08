@@ -6,7 +6,7 @@ import type { AnalysisOptions, OutputFormat } from "./options";
 export function parseArgs(argv: string[]): AnalysisOptions {
   const program = new Command();
   program
-    .name("codeanalyzer-typescript")
+    .name("cants")
     .description("CLDK TypeScript analyzer — emits the canonical analysis.json (symbol table + resolver call graph).")
     .requiredOption("-i, --input <path>", "project root to analyze")
     .option("-o, --output <dir>", "output directory for analysis.json (omit ⇒ compact JSON to stdout)")

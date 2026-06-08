@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build platform-tagged Python wheels for the codeanalyzer-typescript binary.
+# Build platform-tagged Python wheels for the cants (codeanalyzer-typescript) binary.
 #
 # For each target: cross-compile the binary with Bun, build a (pure) wheel with
 # hatchling, then retag it from `py3-none-any` to the matching platform tag with
@@ -74,7 +74,7 @@ for entry in "${TARGETS[@]}"; do
   clean_bin
 
   ( cd "$REPO_ROOT" && bun build ./src/index.ts --compile --target="$target" \
-      --outfile "$BIN_DIR/codeanalyzer-typescript$ext" )
+      --outfile "$BIN_DIR/cants$ext" )
 
   # Build a pure wheel (py3-none-any), then retag to the platform.
   python -m build --wheel --no-isolation -o "$HERE/dist" "$HERE"

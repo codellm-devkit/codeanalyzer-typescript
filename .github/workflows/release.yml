@@ -1,6 +1,6 @@
 name: Release (binaries + Python wheels)
 
-# Builds the self-contained codeanalyzer-typescript binary for every supported
+# Builds the self-contained cants binary for every supported
 # platform and publishes:
 #   1. the raw binaries as GitHub Release assets (for analysis_backend_path /
 #      $CODEANALYZER_TS_BIN / download-on-first-use use cases), and
@@ -100,7 +100,7 @@ jobs:
             python -m zipfile -e "$whl" "$tmp"
             bin="$(find "$tmp/codeanalyzer_typescript/_bin" -type f ! -name '.gitignore')"
             ext=""; [[ "$bin" == *.exe ]] && ext=".exe"
-            cp "$bin" "../../release-bins/codeanalyzer-typescript-${plat}${ext}"
+            cp "$bin" "../../release-bins/cants-${plat}${ext}"
           done
           ls -lh ../../release-bins
 

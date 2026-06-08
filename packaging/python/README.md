@@ -17,15 +17,15 @@ TypeScript/JavaScript projects.
 ### Basic Usage
 
 ```bash
-codeanalyzer-typescript --input /path/to/typescript/project
+cants --input /path/to/typescript/project
 ```
 
 ### Command Line Options
 
-To view the available options, run `codeanalyzer-typescript --help`:
+To view the available options, run `cants --help`:
 
 ```text
-Usage: codeanalyzer-typescript [options]
+Usage: cants [options]
 
 CLDK TypeScript analyzer — emits the canonical analysis.json
 (symbol table + resolver call graph).
@@ -55,20 +55,20 @@ Options:
 
 1. **Basic analysis (symbol table + call graph):**
    ```bash
-   codeanalyzer-typescript --input ./my-ts-project
+   cants --input ./my-ts-project
    ```
 
    This prints the analysis to stdout as compact JSON. To save it instead, use `--output`:
 
    ```bash
-   codeanalyzer-typescript --input ./my-ts-project --output /path/to/analysis-results
+   cants --input ./my-ts-project --output /path/to/analysis-results
    ```
 
    The results are written to `analysis.json` in the specified directory.
 
 2. **Change output format to msgpack:**
    ```bash
-   codeanalyzer-typescript --input ./my-ts-project --output /path/to/analysis-results --format msgpack
+   cants --input ./my-ts-project --output /path/to/analysis-results --format msgpack
    ```
 
    This saves the results to `analysis.msgpack`, a binary format that is more compact for
@@ -76,7 +76,7 @@ Options:
 
 3. **Deeper analysis with CodeQL enrichment (experimental):**
    ```bash
-   codeanalyzer-typescript --input ./my-ts-project --analysis-level 2
+   cants --input ./my-ts-project --analysis-level 2
    ```
 
    Every run produces a symbol table **and** a call graph. At level 1, edges come from the
@@ -85,7 +85,7 @@ Options:
 
 4. **Incremental analysis of specific files:**
    ```bash
-   codeanalyzer-typescript --input ./my-ts-project --target-files src/a.ts src/b.ts
+   cants --input ./my-ts-project --target-files src/a.ts src/b.ts
    ```
 
    Restricts the analysis to the named files, reusing the cached analysis for the rest of
@@ -93,7 +93,7 @@ Options:
 
 5. **Force a clean rebuild with a custom cache directory:**
    ```bash
-   codeanalyzer-typescript --input ./my-ts-project --eager --cache-dir /path/to/custom-cache
+   cants --input ./my-ts-project --eager --cache-dir /path/to/custom-cache
    ```
 
    `--eager` rebuilds the analysis cache from scratch. If `--cache-dir` is omitted, the cache
@@ -134,7 +134,7 @@ Apache 2.0 — see [LICENSE](./LICENSE).
 
 ## About this package
 
-This distributes the compiled `codeanalyzer-typescript` binary as a set of
+This distributes the compiled `cants` binary as a set of
 platform-specific Python wheels, published to PyPI as **`codeanalyzer-typescript`**.
 The CLDK Python SDK depends on this package and calls
 `codeanalyzer_typescript.bin_path()` to locate the analyzer binary. The binary is
