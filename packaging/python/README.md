@@ -154,11 +154,13 @@ self-contained (no Node/Bun needed at runtime).
 
 ### Why platform wheels?
 
-A `bun --compile` binary is platform-specific and large (~70 MB) — there is no single
-cross-platform artifact (the way a JVM backend could ship one `.jar`). So we ship **one
-wheel per OS/arch**, tagged `py3-none-<platform>` (the binary is Python-agnostic — no
-per-Python-version matrix), and let pip resolve the correct one at install time. There
-is intentionally no usable sdist: the binary cannot be built without Bun.
+A `bun --compile` binary is platform-specific and large (~85–120 MB, since it embeds the
+Bun runtime, the bundled TypeScript compiler, and the Jelly call-graph engine) — there is
+no single cross-platform artifact (the way a JVM backend could ship one `.jar`). So we ship
+**one wheel per OS/arch**, tagged `py3-none-<platform>` (the binary is Python-agnostic — no
+per-Python-version matrix), and let pip resolve the correct one at install time. The wheel
+is a zip, so the upload itself compresses to ~30–40 MB (well under PyPI's 100 MB limit).
+There is intentionally no usable sdist: the binary cannot be built without Bun.
 
 ### Building & publishing
 

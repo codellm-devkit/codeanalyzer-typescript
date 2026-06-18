@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import { Command } from "commander";
-import type { AnalysisOptions, OutputFormat } from "./options";
+import type { AnalysisOptions, CallGraphProviderName, OutputFormat } from "./options";
 
 /** Parse argv (without node/script prefix) into normalized AnalysisOptions. See cli-contract.md. */
 export function parseArgs(argv: string[]): AnalysisOptions {
@@ -19,6 +19,7 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     .option("--lazy", "reuse the cache (default)")
     .option("--no-build", "skip dependency materialization (use a prepared node_modules)")
     .option("--no-phantoms", "disable phantom (external) nodes for imported/required library calls")
+    .option("--call-graph-provider <name>", "call-graph backend: tsc (default) | jelly | both", "tsc")
     .option("-c, --cache-dir <dir>", "cache/intermediate directory")
     .option("-v, --verbose", "increase verbosity (repeatable)", (_v: string, prev: number) => prev + 1, 0)
     .allowExcessArguments(true);
@@ -30,6 +31,8 @@ export function parseArgs(argv: string[]): AnalysisOptions {
   const format: OutputFormat = o.format === "msgpack" ? "msgpack" : "json";
   const targets: string[] | null =
     Array.isArray(o.targetFiles) && o.targetFiles.length ? o.targetFiles.map(String) : null;
+  const cgProvider: CallGraphProviderName =
+    o.callGraphProvider === "jelly" ? "jelly" : o.callGraphProvider === "both" ? "both" : "tsc";
 
   return {
     input: path.resolve(String(o.input)),
@@ -42,6 +45,7 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     // commander maps --no-build / --no-phantoms to opts.build/phantoms === false
     noBuild: o.build === false,
     phantoms: o.phantoms !== false,
+    callGraphProvider: cgProvider,
     cacheDir: o.cacheDir ? path.resolve(String(o.cacheDir)) : null,
     verbosity: typeof o.verbose === "number" ? o.verbose : 0,
   };

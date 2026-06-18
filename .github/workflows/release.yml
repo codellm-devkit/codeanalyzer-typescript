@@ -59,7 +59,16 @@ jobs:
         continue-on-error: true
         run: |
           bun run typecheck
-          bun test
+          # Tolerate a repo with no test files (bun test exits 1 when it finds none),
+          # but still fail the gate on real test failures when tests DO exist.
+          if find . -path ./node_modules -prune -o \
+               \( -name '*.test.ts' -o -name '*.test.tsx' -o -name '*.test.js' -o -name '*.test.jsx' \
+                  -o -name '*.spec.ts' -o -name '*.spec.tsx' -o -name '*.spec.js' -o -name '*.spec.jsx' \) \
+               -print | grep -q .; then
+            bun test
+          else
+            echo "No test files found — skipping bun test."
+          fi
 
       - name: Delete tag on failure
         if: steps.test.conclusion == 'failure' && startsWith(github.ref, 'refs/tags/')

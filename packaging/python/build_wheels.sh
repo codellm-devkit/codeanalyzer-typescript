@@ -73,8 +73,12 @@ for entry in "${TARGETS[@]}"; do
 
   clean_bin
 
-  ( cd "$REPO_ROOT" && bun build ./src/index.ts --compile --target="$target" \
-      --outfile "$BIN_DIR/cants$ext" )
+  # Entry is src/main.ts (the multi-call dispatcher that also embeds the Jelly CLI), NOT src/index.ts.
+  # --external @babel/preset-typescript: Jelly's Babel core dynamically require()s that preset; it is
+  # never loaded at runtime (Jelly sets babelrc/configFile false), so excluding it is safe and avoids
+  # a bundle-time resolution error.
+  ( cd "$REPO_ROOT" && bun build ./src/main.ts --compile --target="$target" \
+      --external @babel/preset-typescript --outfile "$BIN_DIR/cants$ext" )
 
   # Build a pure wheel (py3-none-any), then retag to the platform.
   python -m build --wheel --no-isolation -o "$HERE/dist" "$HERE"

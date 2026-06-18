@@ -1,0 +1,18 @@
+diff --git a/lib/parsing/parser.js b/lib/parsing/parser.js
+index de36b2fcf1d06cfa8703b0d2a3f0f2cd11c43557..eed24065f2a859b539bc974d6607bf9196d30e4d 100644
+--- a/lib/parsing/parser.js
++++ b/lib/parsing/parser.js
+@@ -12,11 +12,11 @@ const transformOptions = [false, true].map((fragmentStateDefined) => (0, core_1.
+     cloneInputAst: false,
+     plugins: [
+         extras_1.replaceTypeScriptImportExportAssignmentsAndAddConstructors,
+-        ['@babel/plugin-transform-typescript', {
++        [require('@babel/plugin-transform-typescript').default, {
+                 onlyRemoveTypeImports: fragmentStateDefined,
+                 allowDeclareFields: fragmentStateDefined,
+             }],
+-        ['@babel/plugin-transform-template-literals', { loose: true }]
++        [require('@babel/plugin-transform-template-literals').default, { loose: true }]
+     ],
+     cwd: __dirname,
+     babelrc: false,

@@ -164,8 +164,7 @@ export interface TSCallable {
   inner_classes: Record<string, TSClass>;
   local_variables: TSVariableDeclaration[];
   cyclomatic_complexity: number;
-  is_entrypoint: boolean;
-  entrypoint_framework: string | null;
+  entrypoints: TSEntrypoint[]; // non-empty ⇒ this callable is an entrypoint (level-2 finders populate)
   // --- TypeScript-native typed fields ---
   kind: TSCallableKind;
   accessibility: string | null; // public | private | protected | null
@@ -217,6 +216,7 @@ export interface TSClass {
   methods: Record<string, TSCallable>;
   attributes: Record<string, TSClassAttribute>;
   inner_classes: Record<string, TSClass>;
+  entrypoints: TSEntrypoint[]; // class-level entrypoint (e.g. a framework @Controller); empty otherwise
   is_abstract: boolean;
   is_exported: boolean;
   is_ambient: boolean;
@@ -349,16 +349,15 @@ export interface TSCallEdge {
 }
 
 // ----------------------------------------------------------------------------------------------
-// Entrypoint (optional; level-2 / framework finders populate it — empty for level 1)
+// Entrypoint (optional; level-2 / framework finders populate it — empty for level 1).
+// Embedded on the owning TSCallable/TSClass, so it carries no signature/source_file of its own.
 // ----------------------------------------------------------------------------------------------
 
 export interface TSEntrypoint {
-  signature: string; // references a TSCallable.signature
   framework: string;
   detection_source: string; // decorator | base_class | convention | extension | ...
   route_path: string | null;
   http_methods: string[];
-  source_file: string | null;
   tags: Record<string, string>;
 }
 
@@ -373,19 +372,17 @@ export interface TSEntrypoint {
 // `Callable.signature` or a `TSExternalSymbol.signature`.
 // ----------------------------------------------------------------------------------------------
 
+// Slim: the map key IS the signature (e.g. "commander.parse"), and membership in
+// `external_symbols` already means external — so neither is repeated in the value.
 export interface TSExternalSymbol {
-  signature: string; // e.g. "node:fs.readFileSync", "express.Router.get"
   name: string; // the called member, e.g. "readFileSync"
   module: string; // the import/require specifier, e.g. "node:fs", "express", "@scope/pkg"
-  kind: string; // "function" | "constructor" | "unknown"
-  is_external: true;
 }
 
 export interface TSApplication {
   symbol_table: Record<string, TSModule>;
   call_graph: TSCallEdge[];
   external_symbols: Record<string, TSExternalSymbol>;
-  entrypoints: Record<string, TSEntrypoint[]>;
 }
 
 // ==============================================================================================

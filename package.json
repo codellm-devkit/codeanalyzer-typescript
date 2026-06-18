@@ -1,6 +1,6 @@
 {
   "name": "codeanalyzer-typescript",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "CLDK TypeScript analyzer — emits the canonical CLDK analysis.json (symbol table + resolver-based call graph) via ts-morph.",
   "type": "module",
   "module": "src/index.ts",
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "bun run src/index.ts",
-    "build": "bun build ./src/index.ts --compile --outfile dist/cants",
+    "build": "bun build ./src/main.ts --compile --external @babel/preset-typescript --outfile dist/cants",
     "typecheck": "tsc --noEmit"
   },
   "license": "Apache-2.0",
@@ -19,8 +19,12 @@
     "ts-morph": "^28.0.0"
   },
   "devDependencies": {
+    "@cs-au-dk/jelly": "0.13.0",
     "@types/bun": "^1.3.14",
     "@types/node": "^25.9.1",
     "typescript": "^6.0.3"
+  },
+  "patchedDependencies": {
+    "@cs-au-dk/jelly@0.13.0": "patches/@cs-au-dk%2Fjelly@0.13.0.patch"
   }
 }

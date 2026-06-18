@@ -1,0 +1,192 @@
+<mxfile host="Electron">
+  <diagram id="cP3nQLXQUzaVoHXPkzMq" name="Page-1">
+    <mxGraphModel dx="2435" dy="1912" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0" adaptiveColors="auto">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=20;fontFamily=IBM Plex Sans;fontColor=light-dark(#161616,#f4f4f4);" value="&lt;b&gt;CLDK TypeScript — analysis.json schema (primary containment tree)&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#6f6f6f&quot;&gt;source: src/schema/schema.ts · root = TSApplication · ◆──▷ owns / contains · ↺ recursive&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="1400" x="337" y="-120" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);fillColor=light-dark(#ffffff,#1a1a1a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;Legend&lt;/b&gt;&lt;hr&gt;◆──▷  composition (owns / contains)&lt;br&gt;↺  self-loop = recursive nesting&lt;br&gt;&lt;br&gt;This is the PRIMARY containment tree (one parent&lt;br&gt;per type → no crossing edges). Cross-links such as&lt;br&gt;Class.methods → TSCallable and&lt;br&gt;Interface.properties → TSClassAttribute are listed&lt;br&gt;as fields, not drawn, to keep the tree readable.&lt;br&gt;&lt;br&gt;&lt;b&gt;Notation&lt;/b&gt;&lt;br&gt;X[] = array · {str → X} = Record · X? = nullable&lt;br&gt;flags: = grouped booleans · span: = source position&lt;br&gt;&lt;br&gt;&lt;b&gt;Tiers&lt;/b&gt;&lt;br&gt;red = root · blue = file / namespace&lt;br&gt;teal = declarations · green = enum / type-alias&lt;br&gt;gray = leaf records · purple = call graph" vertex="1">
+          <mxGeometry height="420" width="380" x="337" as="geometry" />
+        </mxCell>
+        <mxCell id="app" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#fff1f1,#4b1a1f);strokeColor=light-dark(#da1e28,#fa4d56);" value="&lt;b&gt;TSApplication&lt;/b&gt;  «root»&lt;hr&gt;symbol_table: {str → TSModule}&lt;br&gt;call_graph: TSCallEdge[]&lt;br&gt;external_symbols: {str → TSExternalSymbol}" vertex="1">
+          <mxGeometry height="100" width="300" y="1465" as="geometry" />
+        </mxCell>
+        <mxCell id="mod" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#edf5ff,#1c2a3f);strokeColor=light-dark(#0f62fe,#4589ff);" value="&lt;b&gt;TSModule&lt;/b&gt;  «file»&lt;hr&gt;file_path: str&lt;br&gt;module_name: str&lt;br&gt;imports: TSImport[]&lt;br&gt;exports: TSExport[]&lt;br&gt;comments: TSComment[]&lt;br&gt;classes: {str → TSClass}&lt;br&gt;interfaces: {str → TSInterface}&lt;br&gt;enums: {str → TSEnum}&lt;br&gt;type_aliases: {str → TSTypeAlias}&lt;br&gt;functions: {str → TSCallable}&lt;br&gt;namespaces: {str → TSNamespace}&lt;br&gt;variables: TSVariableDeclaration[]&lt;br&gt;flags: is_tsx, is_declaration_file&lt;br&gt;cache: content_hash?, last_modified?, file_size?" vertex="1">
+          <mxGeometry height="300" width="320" x="420" y="1217" as="geometry" />
+        </mxCell>
+        <mxCell id="edge" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f6f2ff,#2a1a3a);strokeColor=light-dark(#8a3ffc,#be95ff);" value="&lt;b&gt;TSCallEdge&lt;/b&gt;  «call graph»&lt;hr&gt;source: str (signature)&lt;br&gt;target: str (signature)&lt;br&gt;type: &quot;CALL_DEP&quot;&lt;br&gt;weight: num&lt;br&gt;provenance: str[]&lt;br&gt;tags: {str → str}" vertex="1">
+          <mxGeometry height="155" width="320" x="420" y="1625" as="geometry" />
+        </mxCell>
+        <mxCell id="ext" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f6f2ff,#2a1a3a);strokeColor=light-dark(#8a3ffc,#be95ff);" value="&lt;b&gt;TSExternalSymbol&lt;/b&gt;  «phantom»&lt;hr&gt;name: str&lt;br&gt;module: str" vertex="1">
+          <mxGeometry height="80" width="320" x="420" y="1860" as="geometry" />
+        </mxCell>
+        <mxCell id="imp" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSImport&lt;/b&gt;&lt;hr&gt;module: str&lt;br&gt;name: str&lt;br&gt;alias: str?&lt;br&gt;import_kind: named | default | namespace | side_effect&lt;br&gt;is_type_only: bool&lt;br&gt;span: line/col" vertex="1">
+          <mxGeometry height="155" width="350" x="900" as="geometry" />
+        </mxCell>
+        <mxCell id="exp" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSExport&lt;/b&gt;&lt;hr&gt;module: str?&lt;br&gt;name: str&lt;br&gt;alias: str?&lt;br&gt;export_kind: named | default | namespace | re_export&lt;br&gt;is_type_only: bool&lt;br&gt;span: line/col" vertex="1">
+          <mxGeometry height="155" width="350" x="900" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="cls" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#d9fbfb,#0c2b2b);strokeColor=light-dark(#007d79,#08bdba);" value="&lt;b&gt;TSClass&lt;/b&gt;  «recursive»&lt;hr&gt;name: str&lt;br&gt;signature: str&lt;br&gt;comments: TSComment[]&lt;br&gt;code: str?&lt;br&gt;decorators: TSDecorator[]&lt;br&gt;base_classes: str[]&lt;br&gt;implements_types: str[]&lt;br&gt;type_parameters: TSTypeParameter[]&lt;br&gt;methods: {str → TSCallable}&lt;br&gt;attributes: {str → TSClassAttribute}&lt;br&gt;inner_classes: {str → TSClass}&lt;br&gt;entrypoints: TSEntrypoint[]&lt;br&gt;flags: is_abstract, is_exported, is_ambient&lt;br&gt;span: start/end line" vertex="1">
+          <mxGeometry height="300" width="350" x="900" y="397" as="geometry" />
+        </mxCell>
+        <mxCell id="iface" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#d9fbfb,#0c2b2b);strokeColor=light-dark(#007d79,#08bdba);" value="&lt;b&gt;TSInterface&lt;/b&gt;&lt;hr&gt;name: str&lt;br&gt;signature: str&lt;br&gt;comments: TSComment[]&lt;br&gt;code: str?&lt;br&gt;base_classes: str[]&lt;br&gt;type_parameters: TSTypeParameter[]&lt;br&gt;methods: {str → TSCallable}&lt;br&gt;properties: {str → TSClassAttribute}&lt;br&gt;call_signatures: str[]&lt;br&gt;index_signatures: str[]&lt;br&gt;flags: is_exported, is_ambient&lt;br&gt;span: start/end line" vertex="1">
+          <mxGeometry height="260" width="350" x="900" y="755" as="geometry" />
+        </mxCell>
+        <mxCell id="enum" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#defbe6,#10261a);strokeColor=light-dark(#198038,#42be65);" value="&lt;b&gt;TSEnum&lt;/b&gt;&lt;hr&gt;name: str&lt;br&gt;signature: str&lt;br&gt;comments: TSComment[]&lt;br&gt;code: str?&lt;br&gt;members: TSEnumMember[]&lt;br&gt;flags: is_const, is_exported, is_ambient&lt;br&gt;span: start/end line" vertex="1">
+          <mxGeometry height="170" width="350" x="900" y="1045" as="geometry" />
+        </mxCell>
+        <mxCell id="alias" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#defbe6,#10261a);strokeColor=light-dark(#198038,#42be65);" value="&lt;b&gt;TSTypeAlias&lt;/b&gt;&lt;hr&gt;name: str&lt;br&gt;signature: str&lt;br&gt;comments: TSComment[]&lt;br&gt;code: str?&lt;br&gt;aliased_type: str&lt;br&gt;type_parameters: TSTypeParameter[]&lt;br&gt;flags: is_exported, is_ambient&lt;br&gt;span: start/end line" vertex="1">
+          <mxGeometry height="190" width="350" x="900" y="1245" as="geometry" />
+        </mxCell>
+        <mxCell id="call" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#d9fbfb,#0c2b2b);strokeColor=light-dark(#007d79,#08bdba);" value="&lt;b&gt;TSCallable&lt;/b&gt;  «recursive»&lt;hr&gt;name: str&lt;br&gt;path: str&lt;br&gt;signature: str (edge id)&lt;br&gt;comments: TSComment[]&lt;br&gt;decorators: TSDecorator[]&lt;br&gt;parameters: TSCallableParameter[]&lt;br&gt;type_parameters: TSTypeParameter[]&lt;br&gt;return_type: str?&lt;br&gt;code: str?&lt;br&gt;code_start_line: num&lt;br&gt;accessed_symbols: TSSymbol[]&lt;br&gt;call_sites: TSCallsite[]&lt;br&gt;inner_callables: {str → TSCallable}&lt;br&gt;inner_classes: {str → TSClass}&lt;br&gt;local_variables: TSVariableDeclaration[]&lt;br&gt;cyclomatic_complexity: num&lt;br&gt;entrypoints: TSEntrypoint[]&lt;br&gt;kind: TSCallableKind&lt;br&gt;accessibility: str?&lt;br&gt;accessor_kind: str?&lt;br&gt;overload_signatures: TSOverloadSignature[]&lt;br&gt;flags: is_static, is_abstract, is_async, is_generator, is_optional, is_readonly, is_exported, is_ambient, is_implicit&lt;br&gt;span: start/end line" vertex="1">
+          <mxGeometry height="500" width="350" x="900" y="1595" as="geometry" />
+        </mxCell>
+        <mxCell id="ns" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#edf5ff,#1c2a3f);strokeColor=light-dark(#0f62fe,#4589ff);" value="&lt;b&gt;TSNamespace&lt;/b&gt;  «recursive»&lt;hr&gt;name: str&lt;br&gt;signature: str&lt;br&gt;comments: TSComment[]&lt;br&gt;classes: {str → TSClass}&lt;br&gt;interfaces: {str → TSInterface}&lt;br&gt;enums: {str → TSEnum}&lt;br&gt;type_aliases: {str → TSTypeAlias}&lt;br&gt;functions: {str → TSCallable}&lt;br&gt;variables: TSVariableDeclaration[]&lt;br&gt;namespaces: {str → TSNamespace}&lt;br&gt;flags: is_exported, is_ambient&lt;br&gt;span: start/end line" vertex="1">
+          <mxGeometry height="260" width="320" x="900" y="2255" as="geometry" />
+        </mxCell>
+        <mxCell id="vard" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSVariableDeclaration&lt;/b&gt;&lt;hr&gt;name: str&lt;br&gt;type: str?&lt;br&gt;initializer: str?&lt;br&gt;value: unknown?&lt;br&gt;scope: module | namespace | class | function | block&lt;br&gt;declaration_kind: const | let | var | using | unknown&lt;br&gt;flags: is_readonly, is_exported&lt;br&gt;span: line/col" vertex="1">
+          <mxGeometry height="190" width="350" x="900" y="2545" as="geometry" />
+        </mxCell>
+        <mxCell id="attr" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSClassAttribute&lt;/b&gt;&lt;hr&gt;name: str&lt;br&gt;type: str?&lt;br&gt;comments: TSComment[]&lt;br&gt;decorators: TSDecorator[]&lt;br&gt;initializer: str?&lt;br&gt;accessibility: str?&lt;br&gt;flags: is_static, is_readonly, is_optional, is_abstract&lt;br&gt;span: start/end line" vertex="1">
+          <mxGeometry height="190" width="330" x="1450" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="entry" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSEntrypoint&lt;/b&gt;&lt;hr&gt;framework: str&lt;br&gt;detection_source: str&lt;br&gt;route_path: str?&lt;br&gt;http_methods: str[]&lt;br&gt;tags: {str → str}" vertex="1">
+          <mxGeometry height="135" width="330" x="1450" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="emem" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSEnumMember&lt;/b&gt;&lt;hr&gt;name: str&lt;br&gt;value: str?&lt;br&gt;span: start/end line" vertex="1">
+          <mxGeometry height="100" width="330" x="1450" y="1077" as="geometry" />
+        </mxCell>
+        <mxCell id="param" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSCallableParameter&lt;/b&gt;&lt;hr&gt;name: str&lt;br&gt;type: str?&lt;br&gt;default_value: str?&lt;br&gt;accessibility: str?&lt;br&gt;decorators: TSDecorator[]&lt;br&gt;flags: is_optional, is_rest, is_readonly&lt;br&gt;span: line/col" vertex="1">
+          <mxGeometry height="170" width="330" x="1450" y="1465" as="geometry" />
+        </mxCell>
+        <mxCell id="sym" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSSymbol&lt;/b&gt;&lt;hr&gt;name: str&lt;br&gt;scope: str&lt;br&gt;kind: str&lt;br&gt;type: str?&lt;br&gt;qualified_name: str?&lt;br&gt;is_builtin: bool&lt;br&gt;pos: lineno / col_offset" vertex="1">
+          <mxGeometry height="170" width="330" x="1450" y="1665" as="geometry" />
+        </mxCell>
+        <mxCell id="csite" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSCallsite&lt;/b&gt;&lt;hr&gt;method_name: str&lt;br&gt;receiver_expr: str?&lt;br&gt;receiver_type: str?&lt;br&gt;argument_types: str[]&lt;br&gt;type_arguments: str[]&lt;br&gt;return_type: str?&lt;br&gt;callee_signature: str?&lt;br&gt;flags: is_constructor_call, is_optional_chain&lt;br&gt;span: line/col" vertex="1">
+          <mxGeometry height="210" width="330" x="1450" y="1865" as="geometry" />
+        </mxCell>
+        <mxCell id="ovl" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSOverloadSignature&lt;/b&gt;&lt;hr&gt;parameters: TSCallableParameter[]&lt;br&gt;return_type: str?&lt;br&gt;type_parameters: TSTypeParameter[]&lt;br&gt;span: start/end line" vertex="1">
+          <mxGeometry height="120" width="330" x="1450" y="2105" as="geometry" />
+        </mxCell>
+        <mxCell id="meta_region" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=center;verticalAlign=top;dashed=1;spacingTop=6;spacingLeft=8;spacingRight=8;fontStyle=2;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);fillColor=light-dark(#f7f7f7,#161616);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;Ubiquitous metadata&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#6f6f6f&quot;&gt;embedded in comments / decorators / type_parameters fields of most declarations — edges omitted for clarity&lt;/font&gt;" vertex="1">
+          <mxGeometry height="532" width="360" x="1880" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="cmt" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSComment&lt;/b&gt;&lt;hr&gt;content: str&lt;br&gt;is_docstring: bool&lt;br&gt;span: line/col" vertex="1">
+          <mxGeometry height="100" width="300" x="1910" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="dec" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSDecorator&lt;/b&gt;&lt;hr&gt;name: str&lt;br&gt;qualified_name: str?&lt;br&gt;positional_arguments: str[]&lt;br&gt;keyword_arguments: {str → str}&lt;br&gt;span: line/col" vertex="1">
+          <mxGeometry height="135" width="300" x="1910" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="tparam" parent="1" style="rounded=8;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingRight=10;spacingTop=8;spacingBottom=8;fontFamily=IBM Plex Sans;fontSize=12;fontColor=light-dark(#161616,#f4f4f4);shadow=0;fillColor=light-dark(#f2f4f8,#2a2a2a);strokeColor=light-dark(#8d8d8d,#6f6f6f);" value="&lt;b&gt;TSTypeParameter&lt;/b&gt;&lt;hr&gt;name: str&lt;br&gt;constraint: str?&lt;br&gt;default: str?" vertex="1">
+          <mxGeometry height="100" width="300" x="1910" y="775" as="geometry" />
+        </mxCell>
+        <mxCell id="t1" edge="1" parent="1" source="app" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="mod" value="symbol_table">
+          <mxGeometry relative="1" x="0.5522" y="12" as="geometry">
+            <mxPoint x="-5" y="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t2" edge="1" parent="1" source="app" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="edge" value="call_graph">
+          <mxGeometry relative="1" x="0.9585" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t3" edge="1" parent="1" source="app" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ext" value="external_symbols">
+          <mxGeometry relative="1" x="0.7624" y="-27" as="geometry">
+            <mxPoint x="-20" y="-9" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t4" edge="1" parent="1" source="mod" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="imp" value="imports">
+          <mxGeometry relative="1" x="0.9448" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t5" edge="1" parent="1" source="mod" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="exp" value="exports">
+          <mxGeometry relative="1" x="0.9367" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t6" edge="1" parent="1" source="mod" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="cls" value="classes">
+          <mxGeometry relative="1" x="0.9143" as="geometry">
+            <mxPoint x="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t7" edge="1" parent="1" source="mod" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="iface" value="interfaces">
+          <mxGeometry relative="1" x="0.8754" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t8" edge="1" parent="1" source="mod" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="enum" value="enums">
+          <mxGeometry relative="1" x="0.7985" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t9" edge="1" parent="1" source="mod" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="alias" value="type_aliases">
+          <mxGeometry relative="1" x="0.5401" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t10" edge="1" parent="1" source="mod" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="call" value="functions">
+          <mxGeometry relative="1" x="0.8746" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t11" edge="1" parent="1" source="mod" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ns" value="namespaces">
+          <mxGeometry relative="1" x="0.9321" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t12" edge="1" parent="1" source="mod" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="vard" value="variables">
+          <mxGeometry relative="1" x="0.9414" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t13" edge="1" parent="1" source="cls" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="attr" value="attributes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t14" edge="1" parent="1" source="cls" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="entry" value="entrypoints">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t15" edge="1" parent="1" source="enum" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="emem" value="members">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t16" edge="1" parent="1" source="call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="param" value="parameters">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t17" edge="1" parent="1" source="call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="sym" value="accessed_symbols">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t18" edge="1" parent="1" source="call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="csite" value="call_sites">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t19" edge="1" parent="1" source="call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="ovl" value="overload_signatures">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" edge="1" parent="1" source="ns" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.25;entryDx=0;entryDy=0;curved=1;" target="ns" value="namespaces ↺">
+          <mxGeometry relative="1" x="0.3988" y="28" as="geometry">
+            <mxPoint x="-1" as="offset" />
+            <Array as="points">
+              <mxPoint x="1382" y="2385" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s2" edge="1" parent="1" source="cls" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;curved=1;" target="cls" value="inner_classes ↺">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1072" y="362" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3" edge="1" parent="1" source="call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;startSize=12;endArrow=open;endFill=0;endSize=8;strokeColor=light-dark(#525252,#a8a8a8);fontFamily=IBM Plex Sans;fontSize=11;fontColor=light-dark(#393939,#c6c6c6);labelBackgroundColor=light-dark(#f2f4f8,#262626);labelBorderColor=none;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;curved=1;" target="call" value="inner_callables ↺">
+          <mxGeometry relative="1" x="-0.3444" y="33" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1074" y="1455" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

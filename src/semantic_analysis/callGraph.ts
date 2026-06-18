@@ -130,13 +130,7 @@ export function buildCallGraph(
           const ph = resolvePhantom(node, extIndexFor(node));
           if (ph) {
             if (!external_symbols[ph.signature]) {
-              external_symbols[ph.signature] = {
-                signature: ph.signature,
-                name: ph.member,
-                module: ph.module,
-                kind: Node.isNewExpression(node) ? "constructor" : "unknown",
-                is_external: true,
-              };
+              external_symbols[ph.signature] = { name: ph.member, module: ph.module };
             }
             site.callee_signature = ph.signature;
             addPhantomEdge(caller.signature, ph.signature, ph.module);
