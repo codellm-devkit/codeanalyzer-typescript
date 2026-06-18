@@ -9,6 +9,12 @@ It is the TypeScript backend behind [CLDK](https://github.com/codellm-devkit/pyt
 mirroring its [Python](https://github.com/codellm-devkit/codeanalyzer-python) and
 [Java](https://github.com/codellm-devkit/codeanalyzer-java) siblings.
 
+The call graph defaults to the TypeScript compiler's resolver, but the `cants` binary also
+embeds [Jelly](https://github.com/cs-au-dk/jelly) — a flow-based analyzer that resolves
+higher-order and callback edges the resolver misses — as an experimental backend. Select it
+with `--call-graph-provider jelly` (or `both` to run each and log how their edge sets differ);
+no extra install is needed, since Jelly ships inside the binary.
+
 The analyzer resolves types and call targets with the TypeScript compiler, so the project
 being analyzed should be a normal Node/TypeScript project. By default, the analyzer
 materializes the project's dependencies (`node_modules`) so that imported library calls can
@@ -101,6 +107,8 @@ Options:
                                  (use a prepared node_modules)
       --no-phantoms              disable phantom (external) nodes for imported/
                                  required library calls
+      --call-graph-provider <name>
+                                 call-graph backend: tsc (default) | jelly | both
   -c, --cache-dir <dir>          cache/intermediate directory
   -v, --verbose                  increase verbosity (repeatable)
   -h, --help                     display help for command
@@ -166,13 +174,15 @@ The output document is a `TSApplication` with the following top-level shape:
 {
   "symbol_table":     { /* file path → module (classes, interfaces, enums,
                            type aliases, functions, namespaces, variables, …) */ },
-  "call_graph":       [ /* CALL_DEP edges: { source, target, weight,
+  "call_graph":       [ /* CALL_DEP edges: { source, target, type, weight,
                            provenance, tags } keyed by callable signature */ ],
   "external_symbols": { /* phantom stubs for call targets outside the project
-                           (imported libraries / Node builtins) */ },
-  "entrypoints":      { /* framework-detected entrypoints (empty at level 1) */ }
+                           (imported libraries / Node builtins) */ }
 }
 ```
+
+Framework-detected entrypoints are embedded on the owning callables and classes
+(an `entrypoints` array on each), not collected in a top-level map.
 
 Caller- and callee-side identifiers are produced by a single signature canonicalizer, so call
 graph `source`/`target` values byte-match the corresponding `symbol_table` (or
