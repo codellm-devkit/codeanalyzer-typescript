@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://github.com/codellm-devkit/codeanalyzer-python/blob/main/docs/assets/logo.png?raw=true" alt="CodeLLM-DevKit" width="120" />
+<img src="https://github.com/codellm-devkit/codeanalyzer-python/blob/main/docs/assets/logo.png?raw=true" alt="CodeLLM-DevKit" />
 
 # codeanalyzer-typescript (`cants`)
 
