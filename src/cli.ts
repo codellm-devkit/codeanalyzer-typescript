@@ -2,8 +2,12 @@ import * as path from "node:path";
 import { Command } from "commander";
 import type { AnalysisOptions, CallGraphProviderName, EmitTarget } from "./options";
 
-/** Parse argv (without node/script prefix) into normalized AnalysisOptions. See cli-contract.md. */
-export function parseArgs(argv: string[]): AnalysisOptions {
+/**
+ * Build the commander program. Shared by parseArgs and by the README generator
+ * (scripts/update-readme.ts), which reads `program.helpInformation()` so the documented
+ * `cants --help` block can never drift from the actual CLI.
+ */
+export function buildProgram(): Command {
   const program = new Command();
   program
     .name("cants")
@@ -28,7 +32,12 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     .option("-c, --cache-dir <dir>", "cache/intermediate directory")
     .option("-v, --verbose", "increase verbosity (repeatable)", (_v: string, prev: number) => prev + 1, 0)
     .allowExcessArguments(true);
+  return program;
+}
 
+/** Parse argv (without node/script prefix) into normalized AnalysisOptions. See cli-contract.md. */
+export function parseArgs(argv: string[]): AnalysisOptions {
+  const program = buildProgram();
   program.parse(argv, { from: "user" });
   const o = program.opts();
 

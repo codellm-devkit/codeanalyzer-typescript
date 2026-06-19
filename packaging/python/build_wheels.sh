@@ -63,6 +63,10 @@ TARGETS=(
 rm -rf "$HERE/dist"
 mkdir -p "$HERE/dist"
 
+# The wheel's long description (the PyPI page) is the repo root README — copy it in so there is a
+# single source of truth. It is gitignored and removed on exit (see cleanup) to keep the tree pristine.
+cp "$REPO_ROOT/README.md" "$HERE/README.md"
+
 for entry in "${TARGETS[@]}"; do
   target="${entry%%:*}"
   plat="${entry##*:}"
@@ -89,8 +93,9 @@ for entry in "${TARGETS[@]}"; do
   python -m wheel tags --remove --platform-tag "$plat" "$HERE/dist/$WHEEL_STEM"
 done
 
-# Clean the working binary so the tree stays pristine.
+# Clean the working binary + copied README so the tree stays pristine.
 clean_bin
+rm -f "$HERE/README.md"
 
 echo
 echo ">>> Built wheels:"

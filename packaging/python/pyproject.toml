@@ -6,6 +6,8 @@ build-backend = "hatchling.build"
 name = "codeanalyzer-typescript"
 dynamic = ["version"]
 description = "Prebuilt codeanalyzer-typescript backend binary for CLDK (codellm-devkit)."
+# The PyPI long description is the repo root README, copied in by build_wheels.sh at build time
+# (single source of truth; the copy is gitignored). See that script for the cp + cleanup.
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "Apache-2.0" }

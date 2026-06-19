@@ -11,6 +11,7 @@
     "start": "bun run src/index.ts",
     "build": "bun build ./src/main.ts --compile --external @babel/preset-typescript --outfile dist/cants",
     "gen:schema": "bun run src/index.ts --emit schema > schema.neo4j.json",
+    "gen:readme": "bun run scripts/update-readme.ts",
     "typecheck": "tsc --noEmit"
   },
   "license": "Apache-2.0",
