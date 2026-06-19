@@ -19,3 +19,8 @@ pnpm-debug.log*
 
 # cache
 .cache/
+
+# stray files that can leak in from the `main` branch (shared working tree)
+bun.lock
+.codeanalyzer/
+/test/
