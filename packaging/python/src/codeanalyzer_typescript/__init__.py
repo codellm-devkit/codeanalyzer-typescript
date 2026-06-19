@@ -20,9 +20,10 @@ from pathlib import Path
 
 __version__ = "0.1.0"
 
-__all__ = ["bin_path", "__version__"]
+__all__ = ["bin_path", "schema_path", "__version__"]
 
 _BINARY_NAME = "cants" + (".exe" if sys.platform == "win32" else "")
+_SCHEMA_NAME = "schema.json"
 
 
 def bin_path() -> Path:
@@ -48,5 +49,28 @@ def bin_path() -> Path:
     if os.name == "posix":
         mode = path.stat().st_mode
         path.chmod(mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
+    return path
+
+
+def schema_path() -> Path:
+    """Return the absolute path to the bundled Neo4j ``schema.json`` contract.
+
+    The schema is version-locked to this binary's build (its ``schema_version`` is stamped onto the
+    ``:Application`` node of every emitted graph), so a consumer can read it to validate
+    producer/consumer compatibility without invoking the binary.
+
+    Raises:
+        FileNotFoundError: if the wheel for this platform did not include the schema.
+    """
+    resource = resources.files("codeanalyzer_typescript") / "_bin" / _SCHEMA_NAME
+    with resources.as_file(resource) as extracted:
+        path = Path(extracted)
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Bundled schema.json not found at {path}. Regenerate it with `cants --emit schema` "
+            "or `bun gen:schema`."
+        )
 
     return path

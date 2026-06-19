@@ -1,4 +1,4 @@
-export type EmitTarget = "json" | "neo4j";
+export type EmitTarget = "json" | "neo4j" | "schema";
 export type CallGraphProviderName = "tsc" | "jelly" | "both";
 
 /** Normalized analysis options (produced by the CLI layer, consumed by core). */

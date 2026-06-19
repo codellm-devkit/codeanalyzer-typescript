@@ -8,9 +8,9 @@ export function parseArgs(argv: string[]): AnalysisOptions {
   program
     .name("cants")
     .description("CLDK TypeScript analyzer — emits the canonical analysis.json (symbol table + resolver call graph), or a Neo4j graph.")
-    .requiredOption("-i, --input <path>", "project root to analyze")
-    .option("-o, --output <dir>", "output directory (omit ⇒ compact JSON to stdout for json emit)")
-    .option("--emit <target>", "output target: json (analysis.json, default) | neo4j (graph.cypher or live push)", "json")
+    .option("-i, --input <path>", "project root to analyze (not required for --emit schema)")
+    .option("-o, --output <dir>", "output directory (omit ⇒ compact output to stdout)")
+    .option("--emit <target>", "output target: json (analysis.json, default) | neo4j (graph.cypher or live push) | schema (the Neo4j schema.json contract)", "json")
     .option("--app-name <name>", "logical application name for the graph :Application anchor (default: input dir name)")
     .option("--neo4j-uri <uri>", "push the graph to a live Neo4j over Bolt (incremental); omit to write graph.cypher")
     .option("--neo4j-user <user>", "Neo4j username", "neo4j")
@@ -33,14 +33,16 @@ export function parseArgs(argv: string[]): AnalysisOptions {
   const o = program.opts();
 
   const level = String(o.analysisLevel) === "2" ? 2 : 1;
-  const emit: EmitTarget = o.emit === "neo4j" ? "neo4j" : "json";
+  const emit: EmitTarget = o.emit === "neo4j" ? "neo4j" : o.emit === "schema" ? "schema" : "json";
+  // --emit schema is a static artifact and needs no project; every other target requires -i.
+  if (emit !== "schema" && !o.input) program.error("required option '-i, --input <path>' not specified");
   const targets: string[] | null =
     Array.isArray(o.targetFiles) && o.targetFiles.length ? o.targetFiles.map(String) : null;
   const cgProvider: CallGraphProviderName =
     o.callGraphProvider === "jelly" ? "jelly" : o.callGraphProvider === "both" ? "both" : "tsc";
 
   return {
-    input: path.resolve(String(o.input)),
+    input: o.input ? path.resolve(String(o.input)) : "",
     output: o.output ? path.resolve(String(o.output)) : null,
     emit,
     appName: o.appName ? String(o.appName) : null,

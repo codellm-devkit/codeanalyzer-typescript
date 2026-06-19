@@ -113,6 +113,12 @@ jobs:
           done
           ls -lh ../../release-bins
 
+      # The Neo4j schema contract is platform-independent and version-locked to this build.
+      # Publish it as a Release asset alongside the raw binaries (it also ships inside each wheel).
+      # generate_formula.sh reads only the named cants-<platform> assets, so this is harmless to it.
+      - name: Generate Neo4j schema contract (release asset)
+        run: bun run src/index.ts --emit schema > release-bins/schema.json
+
       - name: Build changelog (auto-generated from commits/PRs)
         id: changelog
         if: startsWith(github.ref, 'refs/tags/')

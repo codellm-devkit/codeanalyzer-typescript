@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { boltWriter, project, renderCypher } from "../build/neo4j";
+import { boltWriter, buildSchemaDocument, project, renderCypher } from "../build/neo4j";
 import type { AnalysisOptions } from "../options";
 import type { TSApplication } from "../schema";
 import { Logger } from "./logging";
@@ -23,6 +23,20 @@ export async function emit(app: TSApplication, opts: AnalysisOptions): Promise<v
   }
   fs.mkdirSync(opts.output, { recursive: true });
   fs.writeFileSync(path.join(opts.output, "analysis.json"), JSON.stringify(app));
+}
+
+/**
+ * Emit the Neo4j schema contract (schema.json) — a static artifact derived from the in-repo
+ * catalog, independent of any analyzed project. With no -o it prints to stdout.
+ */
+export function emitSchema(opts: AnalysisOptions): void {
+  const doc = `${JSON.stringify(buildSchemaDocument(), null, 2)}\n`;
+  if (opts.output === null) {
+    process.stdout.write(doc);
+    return;
+  }
+  fs.mkdirSync(opts.output, { recursive: true });
+  fs.writeFileSync(path.join(opts.output, "schema.json"), doc);
 }
 
 async function emitNeo4j(app: TSApplication, opts: AnalysisOptions): Promise<void> {

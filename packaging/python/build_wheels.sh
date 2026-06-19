@@ -80,6 +80,10 @@ for entry in "${TARGETS[@]}"; do
   ( cd "$REPO_ROOT" && bun build ./src/main.ts --compile --target="$target" \
       --external @babel/preset-typescript --outfile "$BIN_DIR/cants$ext" )
 
+  # Ship the Neo4j schema contract (platform-independent) next to the binary, so consumers can
+  # read the version-locked schema.json without invoking the binary. See codeanalyzer_typescript.schema_path().
+  ( cd "$REPO_ROOT" && bun run src/index.ts --emit schema ) > "$BIN_DIR/schema.json"
+
   # Build a pure wheel (py3-none-any), then retag to the platform.
   python -m build --wheel --no-isolation -o "$HERE/dist" "$HERE"
   python -m wheel tags --remove --platform-tag "$plat" "$HERE/dist/$WHEEL_STEM"
