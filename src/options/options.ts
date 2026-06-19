@@ -1,13 +1,21 @@
-export type OutputFormat = "json" | "msgpack";
+export type EmitTarget = "json" | "neo4j" | "schema";
 export type CallGraphProviderName = "tsc" | "jelly" | "both";
 
 /** Normalized analysis options (produced by the CLI layer, consumed by core). */
 export interface AnalysisOptions {
   /** Project root to analyze (absolute). */
   input: string;
-  /** Output directory for analysis.json; null ⇒ print compact JSON to stdout. */
+  /** Output directory; null ⇒ print compact JSON to stdout (json emit only). */
   output: string | null;
-  format: OutputFormat;
+  /** Output target: json (analysis.json, default) or neo4j (graph.cypher / live Bolt push). */
+  emit: EmitTarget;
+  /** Logical application name for the graph's :Application anchor; null ⇒ derived from input. */
+  appName: string | null;
+  /** Bolt URI for a live Neo4j push (incremental). null ⇒ write a graph.cypher snapshot to -o. */
+  neo4jUri: string | null;
+  neo4jUser: string;
+  neo4jPassword: string;
+  neo4jDatabase: string | null;
   /** Analysis depth requested by the caller (1 = symbol table + call graph [default]; 2 = call graph). */
   analysisLevel: 1 | 2;
   /** Restrict analysis to these files (project-relative or absolute). null ⇒ whole project. */

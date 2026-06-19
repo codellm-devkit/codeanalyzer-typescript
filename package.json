@@ -10,18 +10,23 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "build": "bun build ./src/main.ts --compile --external @babel/preset-typescript --outfile dist/cants",
+    "gen:schema": "bun run src/index.ts --emit schema > schema.neo4j.json",
+    "gen:readme": "bun run scripts/update-readme.ts",
+    "test:container": "RUN_CONTAINER_TESTS=1 bun test test/neo4j-bolt.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "license": "Apache-2.0",
   "dependencies": {
-    "@msgpack/msgpack": "^3.1.3",
     "commander": "^15.0.0",
+    "neo4j-driver": "^5.28.0",
     "ts-morph": "^28.0.0"
   },
   "devDependencies": {
     "@cs-au-dk/jelly": "0.13.0",
+    "@testcontainers/neo4j": "^12.0.3",
     "@types/bun": "^1.3.14",
     "@types/node": "^25.9.1",
+    "testcontainers": "^12.0.3",
     "typescript": "^6.0.3"
   },
   "patchedDependencies": {

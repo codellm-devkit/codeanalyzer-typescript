@@ -53,6 +53,24 @@ jobs:
       - name: Install analyzer dependencies
         run: bun install
 
+      # Keep the generated docs in lockstep with the binary being released: regenerate the
+      # README `cants --help` block and the Neo4j schema.json from source, and commit them back to
+      # main. Releases are cut from main HEAD, so this fast-forwards; it's best-effort if main moved.
+      - name: Sync generated docs before release (README --help + Neo4j schema)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          bun run gen:readme
+          bun run gen:schema
+          if git diff --quiet README.md schema.neo4j.json; then
+            echo "Generated docs already current."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add README.md schema.neo4j.json
+            git commit -m "docs: sync README --help and Neo4j schema for v${{ steps.ver.outputs.version }}"
+            git push origin HEAD:main || echo "::warning::could not push doc sync to main (diverged?)"
+          fi
+
       # ----- test gate: a broken build must not produce a release -----
       - name: Typecheck and test
         id: test
@@ -112,6 +130,17 @@ jobs:
             cp "$bin" "../../release-bins/cants-${plat}${ext}"
           done
           ls -lh ../../release-bins
+
+      # The Neo4j schema contract is platform-independent and version-locked to this build.
+      # Publish it as a Release asset alongside the raw binaries (it also ships inside each wheel).
+      # generate_formula.sh reads only the named cants-<platform> assets, so this is harmless to it.
+      - name: Generate Neo4j schema contract (release asset)
+        run: bun run src/index.ts --emit schema > release-bins/schema.json
+
+      # Publish the cargo-dist-style install script so users can:
+      #   curl --proto '=https' --tlsv1.2 -LsSf .../releases/latest/download/cants-installer.sh | sh
+      - name: Stage the install script (release asset)
+        run: cp packaging/install/cants-installer.sh release-bins/cants-installer.sh
 
       - name: Build changelog (auto-generated from commits/PRs)
         id: changelog
