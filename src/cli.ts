@@ -1,16 +1,21 @@
 import * as path from "node:path";
 import { Command } from "commander";
-import type { AnalysisOptions, CallGraphProviderName, OutputFormat } from "./options";
+import type { AnalysisOptions, CallGraphProviderName, EmitTarget } from "./options";
 
 /** Parse argv (without node/script prefix) into normalized AnalysisOptions. See cli-contract.md. */
 export function parseArgs(argv: string[]): AnalysisOptions {
   const program = new Command();
   program
     .name("cants")
-    .description("CLDK TypeScript analyzer — emits the canonical analysis.json (symbol table + resolver call graph).")
+    .description("CLDK TypeScript analyzer — emits the canonical analysis.json (symbol table + resolver call graph), or a Neo4j graph.")
     .requiredOption("-i, --input <path>", "project root to analyze")
-    .option("-o, --output <dir>", "output directory for analysis.json (omit ⇒ compact JSON to stdout)")
-    .option("-f, --format <fmt>", "output format: json | msgpack", "json")
+    .option("-o, --output <dir>", "output directory (omit ⇒ compact JSON to stdout for json emit)")
+    .option("--emit <target>", "output target: json (analysis.json, default) | neo4j (graph.cypher or live push)", "json")
+    .option("--app-name <name>", "logical application name for the graph :Application anchor (default: input dir name)")
+    .option("--neo4j-uri <uri>", "push the graph to a live Neo4j over Bolt (incremental); omit to write graph.cypher")
+    .option("--neo4j-user <user>", "Neo4j username", "neo4j")
+    .option("--neo4j-password <password>", "Neo4j password", "neo4j")
+    .option("--neo4j-database <db>", "Neo4j database name (default: server default)")
     .option("-a, --analysis-level <n>", "analysis depth: 1 = symbol table + tsc resolver call graph + RTA (default); 2 = call graph", "1")
     .option("-t, --target-files <paths...>", "restrict analysis to specific files (incremental)")
     .option("--skip-tests", "skip test trees (default)")
@@ -28,7 +33,7 @@ export function parseArgs(argv: string[]): AnalysisOptions {
   const o = program.opts();
 
   const level = String(o.analysisLevel) === "2" ? 2 : 1;
-  const format: OutputFormat = o.format === "msgpack" ? "msgpack" : "json";
+  const emit: EmitTarget = o.emit === "neo4j" ? "neo4j" : "json";
   const targets: string[] | null =
     Array.isArray(o.targetFiles) && o.targetFiles.length ? o.targetFiles.map(String) : null;
   const cgProvider: CallGraphProviderName =
@@ -37,7 +42,12 @@ export function parseArgs(argv: string[]): AnalysisOptions {
   return {
     input: path.resolve(String(o.input)),
     output: o.output ? path.resolve(String(o.output)) : null,
-    format,
+    emit,
+    appName: o.appName ? String(o.appName) : null,
+    neo4jUri: o.neo4jUri ? String(o.neo4jUri) : null,
+    neo4jUser: String(o.neo4jUser),
+    neo4jPassword: String(o.neo4jPassword),
+    neo4jDatabase: o.neo4jDatabase ? String(o.neo4jDatabase) : null,
     analysisLevel: level,
     targetFiles: targets,
     skipTests: o.includeTests ? false : true,
