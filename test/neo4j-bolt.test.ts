@@ -21,6 +21,11 @@ const FIXTURE = path.resolve(import.meta.dir, "fixtures/sample-app");
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "cants-neo4j-test-"));
 const log = new Logger(0);
 
+// This suite needs a container runtime (Docker / Podman), so it is OPT-IN: it is skipped by default
+// (CI release gate, and contributors without a runtime) and runs only with RUN_CONTAINER_TESTS=1
+// — e.g. `bun run test:container`. The no-container schema conformance test always runs.
+const containerSuite = process.env.RUN_CONTAINER_TESTS ? describe : describe.skip;
+
 function optsFor(overrides: Partial<AnalysisOptions> = {}): AnalysisOptions {
   return {
     input: FIXTURE,
@@ -44,7 +49,7 @@ function optsFor(overrides: Partial<AnalysisOptions> = {}): AnalysisOptions {
   };
 }
 
-describe("neo4j bolt writer", () => {
+containerSuite("neo4j bolt writer", () => {
   let container: StartedNeo4jContainer;
   let driver: Driver;
   let cfg: BoltConfig;

@@ -257,7 +257,8 @@ This project uses [Bun](https://bun.sh/) as its toolchain.
 bun install
 bun run start -- --input /path/to/project   # run from source
 bun run typecheck                            # type-check
-bun test                                     # tests (the Neo4j test needs a container runtime)
+bun test                                     # tests (the Neo4j bolt test is opt-in; see below)
+bun run test:container                       # Neo4j bolt tests — needs Docker/Podman (opt-in)
 bun run gen:schema                           # regenerate schema.neo4j.json
 bun run gen:readme                           # regenerate the cants --help block above
 ```
