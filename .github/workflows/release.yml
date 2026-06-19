@@ -125,7 +125,8 @@ jobs:
             plat="$(basename "$whl" .whl | sed 's/.*-py3-none-//')"
             tmp="$(mktemp -d)"
             python -m zipfile -e "$whl" "$tmp"
-            bin="$(find "$tmp/codeanalyzer_typescript/_bin" -type f ! -name '.gitignore')"
+            # _bin/ now also holds schema.json, so select the binary by name (cants / cants.exe).
+            bin="$(find "$tmp/codeanalyzer_typescript/_bin" -type f -name 'cants*')"
             ext=""; [[ "$bin" == *.exe ]] && ext=".exe"
             cp "$bin" "../../release-bins/cants-${plat}${ext}"
           done
