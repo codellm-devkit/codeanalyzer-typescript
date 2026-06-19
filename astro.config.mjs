@@ -7,7 +7,7 @@ import { pluginLineNumbers } from "@expressive-code/plugin-line-numbers";
 // https://astro.build/config
 export default defineConfig({
   site: "https://codellm-devkit.github.io",
-  base: "/codeanalyzer-ts",
+  base: "/codeanalyzer-typescript",
   integrations: [
     // Mermaid must run BEFORE Starlight so it can preprocess ```mermaid blocks.
     mermaid({
@@ -65,12 +65,12 @@ export default defineConfig({
         {
           icon: "github",
           label: "codeanalyzer-typescript on GitHub",
-          href: "https://github.com/codellm-devkit/codeanalyzer-ts",
+          href: "https://github.com/codellm-devkit/codeanalyzer-typescript",
         },
         {
           icon: "seti:typescript",
           label: "codeanalyzer-typescript releases",
-          href: "https://github.com/codellm-devkit/codeanalyzer-ts/releases",
+          href: "https://github.com/codellm-devkit/codeanalyzer-typescript/releases",
         },
         {
           icon: "discord",
@@ -79,7 +79,7 @@ export default defineConfig({
         },
       ],
       editLink: {
-        baseUrl: "https://github.com/codellm-devkit/codeanalyzer-ts/edit/docs/",
+        baseUrl: "https://github.com/codellm-devkit/codeanalyzer-typescript/edit/docs/",
       },
       sidebar: [
         {

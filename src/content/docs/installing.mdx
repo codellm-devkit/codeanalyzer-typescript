@@ -5,7 +5,7 @@ description: Build codeanalyzer-typescript from source with Bun, and set up what
 
 import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
 
-`codeanalyzer-typescript` is distributed as source on the [GitHub repository](https://github.com/codellm-devkit/codeanalyzer-ts). You build it once with [Bun](https://bun.sh/) into a standalone native binary, then run that binary anywhere.
+`codeanalyzer-typescript` is distributed as source on the [GitHub repository](https://github.com/codellm-devkit/codeanalyzer-typescript). You build it once with [Bun](https://bun.sh/) into a standalone native binary, then run that binary anywhere.
 
 ## Prerequisites
 
@@ -36,8 +36,8 @@ import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
 Clone the repository, install dependencies, and compile the binary:
 
 ```shell
-git clone https://github.com/codellm-devkit/codeanalyzer-ts
-cd codeanalyzer-ts
+git clone https://github.com/codellm-devkit/codeanalyzer-typescript
+cd codeanalyzer-typescript
 bun install
 bun run build      # -> dist/codeanalyzer-typescript
 ```
@@ -75,15 +75,15 @@ If the project has no `tsconfig.json` or `jsconfig.json`, the analyzer falls bac
 
 ## Optional: CodeQL (level 2)
 
-Level-2 analysis (`--analysis-level 2`) is designed to enrich the call graph with CodeQL. You do **not** need to install anything for it today — it is an [experimental, not-yet-implemented stub](/codeanalyzer-ts/guides/level-2/) that currently falls back to the level-1 graph.
+Level-2 analysis (`--analysis-level 2`) is designed to enrich the call graph with CodeQL. You do **not** need to install anything for it today — it is an [experimental, not-yet-implemented stub](/codeanalyzer-typescript/guides/level-2/) that currently falls back to the level-1 graph.
 
 ## Development
 
 The project uses Bun as its toolchain.
 
 ```shell
-git clone https://github.com/codellm-devkit/codeanalyzer-ts
-cd codeanalyzer-ts
+git clone https://github.com/codellm-devkit/codeanalyzer-typescript
+cd codeanalyzer-typescript
 bun install
 bun run start -- --input /path/to/typescript/project   # run from source
 bun run typecheck                                       # tsc --noEmit

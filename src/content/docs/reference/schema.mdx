@@ -181,7 +181,7 @@ An identity-only call-graph edge.
 | `tags` | `Record<string, string>` | Free-form metadata. RTA-expanded edges carry `ts.dispatch=rta`. |
 
 <Aside type="note">
-Edge endpoints not present in the symbol table (imported-library / Node builtin targets) are kept as phantom [external symbols](#tsexternalsymbol) rather than dropped. See [Call graph & dispatch](/codeanalyzer-ts/guides/call-graph/#phantom-nodes).
+Edge endpoints not present in the symbol table (imported-library / Node builtin targets) are kept as phantom [external symbols](#tsexternalsymbol) rather than dropped. See [Call graph & dispatch](/codeanalyzer-typescript/guides/call-graph/#phantom-nodes).
 </Aside>
 
 ## TSExternalSymbol
@@ -235,7 +235,7 @@ Three pure functions in `schema.ts` produce every signature, so caller- and call
 ## Where to go next
 
 <CardGrid>
-  <LinkCard title="Core concepts" description="How these models relate at runtime." href="/codeanalyzer-ts/guides/concepts/" />
-  <LinkCard title="Call graph & dispatch" description="How TSCallEdge and TSExternalSymbol are produced." href="/codeanalyzer-ts/guides/call-graph/" />
-  <LinkCard title="CLI options" description="The flags that control what ends up in the artifact." href="/codeanalyzer-ts/reference/cli/" />
+  <LinkCard title="Core concepts" description="How these models relate at runtime." href="/codeanalyzer-typescript/guides/concepts/" />
+  <LinkCard title="Call graph & dispatch" description="How TSCallEdge and TSExternalSymbol are produced." href="/codeanalyzer-typescript/guides/call-graph/" />
+  <LinkCard title="CLI options" description="The flags that control what ends up in the artifact." href="/codeanalyzer-typescript/reference/cli/" />
 </CardGrid>

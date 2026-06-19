@@ -5,7 +5,7 @@ description: How codeanalyzer-typescript builds the level-1 call graph — the T
 
 import { Aside, LinkCard, CardGrid } from "@astrojs/starlight/components";
 
-The call graph is the answer to *"who calls whom?"* — a flat list of identity-only `TSCallEdge` objects whose `source` and `target` are signature strings. This page is the deep dive on how the **level-1** graph is built: the TypeScript checker resolves each recorded call site, Rapid Type Analysis expands virtual dispatch, and phantom nodes capture the calls that leave the project. It's the always-on base graph; [level 2](/codeanalyzer-ts/guides/level-2/) enriches it.
+The call graph is the answer to *"who calls whom?"* — a flat list of identity-only `TSCallEdge` objects whose `source` and `target` are signature strings. This page is the deep dive on how the **level-1** graph is built: the TypeScript checker resolves each recorded call site, Rapid Type Analysis expands virtual dispatch, and phantom nodes capture the calls that leave the project. It's the always-on base graph; [level 2](/codeanalyzer-typescript/guides/level-2/) enriches it.
 
 ```mermaid
 flowchart TB
@@ -88,7 +88,7 @@ The edge into it carries `provenance: ["import"]`, and the phantom is recorded i
 A specifier is external only if it isn't a relative or absolute path. Packages (`express`), scoped packages (`@scope/pkg`), and `node:` URLs become phantoms; relative imports (`./x`, `../lib/y`) are internal and left to the checker, never faked. Phantom resolution reads only imports — no type checker, no `node_modules` — so it works identically for TypeScript `import` and JavaScript `require`.
 </Aside>
 
-Disable phantom resolution entirely with [`--no-phantoms`](/codeanalyzer-ts/guides/cli-usage/#phantom-nodes) if you want a graph restricted to in-project targets.
+Disable phantom resolution entirely with [`--no-phantoms`](/codeanalyzer-typescript/guides/cli-usage/#phantom-nodes) if you want a graph restricted to in-project targets.
 
 ## Why identity-only edges
 
@@ -109,8 +109,8 @@ exact = [(u, v) for u, v, d in g.edges(data=True) if not d["rta"]]
 ## Where to go next
 
 <CardGrid>
-  <LinkCard title="Core concepts" description="How the call graph sits alongside the symbol table and external symbols." href="/codeanalyzer-ts/guides/concepts/" />
-  <LinkCard title="Output schema" description="The TSCallEdge and TSExternalSymbol models in full." href="/codeanalyzer-ts/reference/schema/#tscalledge" />
-  <LinkCard title="Level 2: CodeQL & entrypoints" description="What enrichment will add on top of this graph." href="/codeanalyzer-ts/guides/level-2/" />
-  <LinkCard title="CLI usage" description="Flags that change the graph: analysis level, phantoms." href="/codeanalyzer-ts/guides/cli-usage/" />
+  <LinkCard title="Core concepts" description="How the call graph sits alongside the symbol table and external symbols." href="/codeanalyzer-typescript/guides/concepts/" />
+  <LinkCard title="Output schema" description="The TSCallEdge and TSExternalSymbol models in full." href="/codeanalyzer-typescript/reference/schema/#tscalledge" />
+  <LinkCard title="Level 2: CodeQL & entrypoints" description="What enrichment will add on top of this graph." href="/codeanalyzer-typescript/guides/level-2/" />
+  <LinkCard title="CLI usage" description="Flags that change the graph: analysis level, phantoms." href="/codeanalyzer-typescript/guides/cli-usage/" />
 </CardGrid>

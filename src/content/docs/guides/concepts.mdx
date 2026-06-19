@@ -40,7 +40,7 @@ flowchart LR
 
 A `TSCallable` (function, method, constructor, accessor, or arrow) carries its `signature`, source `code`, `parameters`, `type_parameters`, `decorators`, `call_sites`, accessed symbols, cyclomatic complexity, and TypeScript-native flags (`is_async`, `is_static`, `is_abstract`, `accessibility`, …). A `TSClass` carries its `base_classes`, `implements_types`, `methods`, `attributes`, and decorators. The TypeScript node kinds Python and Java don't have — interfaces, enums, type aliases, namespaces — are first-class. Each node records line/column spans so you can map any element back to source.
 
-Construction is done by the **TypeScript compiler** through [ts-morph](https://ts-morph.com/): the same checker that types the project resolves references, so the analyzer materializes the project's `node_modules` first (see [Installation](/codeanalyzer-ts/installing/)).
+Construction is done by the **TypeScript compiler** through [ts-morph](https://ts-morph.com/): the same checker that types the project resolves references, so the analyzer materializes the project's `node_modules` first (see [Installation](/codeanalyzer-typescript/installing/)).
 
 <Aside type="note" title="Signatures are the identity">
 A callable's `signature` (e.g. `src/user.UserService.getUser`) is its identity across the whole artifact. Call-graph edges and entrypoints both reference callables by signature, not by a separate node object — see [below](#signatures-are-the-identity).
@@ -58,7 +58,7 @@ flowchart LR
     B -->|import| E["node:fs.readFileSync"]
 ```
 
-The TypeScript checker resolves each recorded call site to a callee declaration and backfills `callee_signature` in place; the resulting edges are guaranteed to point at real signatures (no dangling edges). Virtual dispatch is expanded with **Rapid Type Analysis**, and calls leaving the project become phantom **external symbols**. The full mechanism is its own page — [Call graph & dispatch](/codeanalyzer-ts/guides/call-graph/).
+The TypeScript checker resolves each recorded call site to a callee declaration and backfills `callee_signature` in place; the resulting edges are guaranteed to point at real signatures (no dangling edges). Virtual dispatch is expanded with **Rapid Type Analysis**, and calls leaving the project become phantom **external symbols**. The full mechanism is its own page — [Call graph & dispatch](/codeanalyzer-typescript/guides/call-graph/).
 
 Because it's a plain edge list keyed by signature, loading it into a graph is direct:
 
@@ -92,7 +92,7 @@ Only **bare** specifiers become phantoms — packages like `express`, scoped pac
 **Entrypoints** are the framework-dispatched roots of an application — the functions a framework calls that your own code never calls directly: an HTTP route handler, a message consumer, a CLI command. They're collected into `entrypoints`, keyed by framework name, with each `TSEntrypoint` referencing a callable by signature and carrying framework metadata (route path, HTTP methods, …).
 
 <Aside type="caution" title="Empty at level 1">
-At level 1, `entrypoints` is always `{}`. Framework entrypoint detection is part of the **level-2** roadmap — see [Level 2: CodeQL & entrypoints](/codeanalyzer-ts/guides/level-2/).
+At level 1, `entrypoints` is always `{}`. Framework entrypoint detection is part of the **level-2** roadmap — see [Level 2: CodeQL & entrypoints](/codeanalyzer-typescript/guides/level-2/).
 </Aside>
 
 ## Signatures are the identity
@@ -126,8 +126,8 @@ flowchart LR
 ## Where to go next
 
 <CardGrid>
-  <LinkCard title="Call graph & dispatch" description="The tsc resolver, RTA expansion, and phantom nodes in depth." href="/codeanalyzer-ts/guides/call-graph/" />
-  <LinkCard title="Output schema" description="Every field of every model in the artifact." href="/codeanalyzer-ts/reference/schema/" />
-  <LinkCard title="CLI usage" description="The flags that control what ends up in the artifact." href="/codeanalyzer-ts/guides/cli-usage/" />
-  <LinkCard title="Level 2: CodeQL & entrypoints" description="What the experimental second layer will add." href="/codeanalyzer-ts/guides/level-2/" />
+  <LinkCard title="Call graph & dispatch" description="The tsc resolver, RTA expansion, and phantom nodes in depth." href="/codeanalyzer-typescript/guides/call-graph/" />
+  <LinkCard title="Output schema" description="Every field of every model in the artifact." href="/codeanalyzer-typescript/reference/schema/" />
+  <LinkCard title="CLI usage" description="The flags that control what ends up in the artifact." href="/codeanalyzer-typescript/guides/cli-usage/" />
+  <LinkCard title="Level 2: CodeQL & entrypoints" description="What the experimental second layer will add." href="/codeanalyzer-typescript/guides/level-2/" />
 </CardGrid>

@@ -5,7 +5,7 @@ description: Worked examples for the codeanalyzer-typescript command — output 
 
 import { Aside, LinkCard, CardGrid, Tabs, TabItem } from "@astrojs/starlight/components";
 
-The `codeanalyzer-typescript` command runs static analysis on a TypeScript/JavaScript project and emits a `TSApplication` artifact. This guide walks through the common invocations; for the full flag table see the [CLI reference](/codeanalyzer-ts/reference/cli/).
+The `codeanalyzer-typescript` command runs static analysis on a TypeScript/JavaScript project and emits a `TSApplication` artifact. This guide walks through the common invocations; for the full flag table see the [CLI reference](/codeanalyzer-typescript/reference/cli/).
 
 <Aside type="note" title="Invoking the analyzer">
 The examples below call the compiled binary `codeanalyzer-typescript`. If you haven't built it, run from source instead — `bun run start -- --input …` — everything after `--` is identical.
@@ -56,7 +56,7 @@ codeanalyzer-typescript --input ./my-ts-project --analysis-level 2
 Every run produces a symbol table **and** a call graph. At level 1, edges come from the TypeScript checker plus Rapid Type Analysis, with phantom nodes for calls into imported libraries. Level 2 is intended to merge in CodeQL-derived edges.
 
 <Aside type="caution">
-Level-2 CodeQL enrichment is **experimental** and currently a stub: it logs a warning and emits no extra edges, falling back to the level-1 graph. See [Level 2: CodeQL & entrypoints](/codeanalyzer-ts/guides/level-2/).
+Level-2 CodeQL enrichment is **experimental** and currently a stub: it logs a warning and emits no extra edges, falling back to the level-1 graph. See [Level 2: CodeQL & entrypoints](/codeanalyzer-typescript/guides/level-2/).
 </Aside>
 
 ## Build control: materializing dependencies
@@ -71,7 +71,7 @@ codeanalyzer-typescript --input ./my-ts-project --no-build
 codeanalyzer-typescript --input ./my-ts-project --eager
 ```
 
-Materialization runs the project's package manager with `--ignore-scripts` and **degrades gracefully**: if the install fails, the run still completes with partial type information. See [Installation](/codeanalyzer-ts/installing/#why-your-project-needs-its-dependencies).
+Materialization runs the project's package manager with `--ignore-scripts` and **degrades gracefully**: if the install fails, the run still completes with partial type information. See [Installation](/codeanalyzer-typescript/installing/#why-your-project-needs-its-dependencies).
 
 ## Caching: eager vs lazy
 
@@ -117,7 +117,7 @@ By default, calls into imported libraries become phantom `external_symbols` so t
 codeanalyzer-typescript --input ./my-ts-project --no-phantoms
 ```
 
-See [Call graph & dispatch](/codeanalyzer-ts/guides/call-graph/#phantom-nodes) for what phantom nodes capture.
+See [Call graph & dispatch](/codeanalyzer-typescript/guides/call-graph/#phantom-nodes) for what phantom nodes capture.
 
 ## Verbosity
 
@@ -144,8 +144,8 @@ codeanalyzer-typescript \
 ## Where to go next
 
 <CardGrid>
-  <LinkCard title="CLI reference" description="The complete flag table with defaults." href="/codeanalyzer-ts/reference/cli/" />
-  <LinkCard title="Core concepts" description="What the artifact actually contains." href="/codeanalyzer-ts/guides/concepts/" />
-  <LinkCard title="Call graph & dispatch" description="How --analysis-level and --no-phantoms change the graph." href="/codeanalyzer-ts/guides/call-graph/" />
-  <LinkCard title="Output schema" description="The TSApplication data model." href="/codeanalyzer-ts/reference/schema/" />
+  <LinkCard title="CLI reference" description="The complete flag table with defaults." href="/codeanalyzer-typescript/reference/cli/" />
+  <LinkCard title="Core concepts" description="What the artifact actually contains." href="/codeanalyzer-typescript/guides/concepts/" />
+  <LinkCard title="Call graph & dispatch" description="How --analysis-level and --no-phantoms change the graph." href="/codeanalyzer-typescript/guides/call-graph/" />
+  <LinkCard title="Output schema" description="The TSApplication data model." href="/codeanalyzer-typescript/reference/schema/" />
 </CardGrid>

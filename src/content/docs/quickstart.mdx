@@ -8,7 +8,7 @@ import { Steps, Aside, LinkCard, CardGrid, Tabs, TabItem } from "@astrojs/starli
 codeanalyzer-typescript points at a TypeScript or JavaScript project and produces one typed artifact — its symbol table, call graph, and external symbols. Three steps below: build it, run it against a project, and read the result.
 
 <Aside type="note" title="Prerequisite">
-You need **[Bun](https://bun.sh/) 1.0 or higher** to build and run the analyzer. The project you analyze should be a normal Node/TypeScript project — the analyzer resolves types and call targets with the TypeScript compiler. See [Installation](/codeanalyzer-ts/installing/).
+You need **[Bun](https://bun.sh/) 1.0 or higher** to build and run the analyzer. The project you analyze should be a normal Node/TypeScript project — the analyzer resolves types and call targets with the TypeScript compiler. See [Installation](/codeanalyzer-typescript/installing/).
 </Aside>
 
 <Steps>
@@ -16,8 +16,8 @@ You need **[Bun](https://bun.sh/) 1.0 or higher** to build and run the analyzer.
 1. **Build the CLI.**
 
    ```shell
-   git clone https://github.com/codellm-devkit/codeanalyzer-ts
-   cd codeanalyzer-ts
+   git clone https://github.com/codellm-devkit/codeanalyzer-typescript
+   cd codeanalyzer-typescript
    bun install
    bun run build      # -> dist/codeanalyzer-typescript (standalone native binary)
    ```
@@ -89,14 +89,14 @@ The default run is **level 1**: the TypeScript checker resolves the call graph, 
 ```
 
 <Aside type="caution">
-Level-2 CodeQL enrichment is **experimental** and currently a no-op stub — it emits a warning and falls back to the level-1 graph. See [Level 2: CodeQL & entrypoints](/codeanalyzer-ts/guides/level-2/) for what it will add and where it stands.
+Level-2 CodeQL enrichment is **experimental** and currently a no-op stub — it emits a warning and falls back to the level-1 graph. See [Level 2: CodeQL & entrypoints](/codeanalyzer-typescript/guides/level-2/) for what it will add and where it stands.
 </Aside>
 
 ## Where this goes next
 
 <CardGrid>
-  <LinkCard title="CLI usage" description="Output formats, caching, incremental mode, build control — every flag with examples." href="/codeanalyzer-ts/guides/cli-usage/" />
-  <LinkCard title="Core concepts" description="What the symbol table, call graph, and external symbols actually contain." href="/codeanalyzer-ts/guides/concepts/" />
-  <LinkCard title="Call graph & dispatch" description="How the checker resolves edges and what RTA expands." href="/codeanalyzer-ts/guides/call-graph/" />
-  <LinkCard title="Output schema" description="The TSApplication data model, field by field." href="/codeanalyzer-ts/reference/schema/" />
+  <LinkCard title="CLI usage" description="Output formats, caching, incremental mode, build control — every flag with examples." href="/codeanalyzer-typescript/guides/cli-usage/" />
+  <LinkCard title="Core concepts" description="What the symbol table, call graph, and external symbols actually contain." href="/codeanalyzer-typescript/guides/concepts/" />
+  <LinkCard title="Call graph & dispatch" description="How the checker resolves edges and what RTA expands." href="/codeanalyzer-typescript/guides/call-graph/" />
+  <LinkCard title="Output schema" description="The TSApplication data model, field by field." href="/codeanalyzer-typescript/reference/schema/" />
 </CardGrid>

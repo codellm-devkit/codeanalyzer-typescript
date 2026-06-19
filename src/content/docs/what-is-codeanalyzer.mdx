@@ -49,12 +49,12 @@ The artifact is a single `TSApplication` with four top-level pieces:
 | `entrypoints` | `Record<string, TSEntrypoint[]>` | Framework-dispatched roots, keyed by framework name. Empty at level 1. |
 
 <Aside type="note" title="Identity-keyed graph">
-Call-graph nodes aren't a separate vertex type — they're the `TSCallable.signature` strings already in the symbol table (or an `external_symbols` key). Rich per-call metadata (receiver, arguments, location) lives on the `TSCallsite` entries inside each callable. See the [output schema](/codeanalyzer-ts/reference/schema/).
+Call-graph nodes aren't a separate vertex type — they're the `TSCallable.signature` strings already in the symbol table (or an `external_symbols` key). Rich per-call metadata (receiver, arguments, location) lives on the `TSCallsite` entries inside each callable. See the [output schema](/codeanalyzer-typescript/reference/schema/).
 </Aside>
 
 ## How identity works
 
-A single canonicalizer, `signatureOf`, computes both caller- and callee-side identifiers, so a call graph `source`/`target` value **byte-matches** the corresponding `symbol_table` (or `external_symbols`) key. A signature is the project-relative file path (without extension) dot-joined with the member path — e.g. `src/user.UserService.getUser`. Constructors normalize to `<ClassSignature>.constructor`. See [Core concepts](/codeanalyzer-ts/guides/concepts/#signatures-are-the-identity).
+A single canonicalizer, `signatureOf`, computes both caller- and callee-side identifiers, so a call graph `source`/`target` value **byte-matches** the corresponding `symbol_table` (or `external_symbols`) key. A signature is the project-relative file path (without extension) dot-joined with the member path — e.g. `src/user.UserService.getUser`. Constructors normalize to `<ClassSignature>.constructor`. See [Core concepts](/codeanalyzer-typescript/guides/concepts/#signatures-are-the-identity).
 
 ## Two ways to use it
 
@@ -95,8 +95,8 @@ A code LLM asked *"what calls this function?"* without analysis crawls: file rea
 ## Where to go next
 
 <CardGrid>
-  <LinkCard title="Quickstart" description="Build the CLI and produce your first analysis.json." href="/codeanalyzer-ts/quickstart/" />
-  <LinkCard title="Core concepts" description="Symbol table, call graph, external symbols, signatures, provenance, caching." href="/codeanalyzer-ts/guides/concepts/" />
-  <LinkCard title="CLI usage" description="Every flag with worked examples." href="/codeanalyzer-ts/guides/cli-usage/" />
-  <LinkCard title="Output schema" description="The TSApplication data model in full." href="/codeanalyzer-ts/reference/schema/" />
+  <LinkCard title="Quickstart" description="Build the CLI and produce your first analysis.json." href="/codeanalyzer-typescript/quickstart/" />
+  <LinkCard title="Core concepts" description="Symbol table, call graph, external symbols, signatures, provenance, caching." href="/codeanalyzer-typescript/guides/concepts/" />
+  <LinkCard title="CLI usage" description="Every flag with worked examples." href="/codeanalyzer-typescript/guides/cli-usage/" />
+  <LinkCard title="Output schema" description="The TSApplication data model in full." href="/codeanalyzer-typescript/reference/schema/" />
 </CardGrid>
