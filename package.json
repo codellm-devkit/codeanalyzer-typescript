@@ -1,6 +1,6 @@
 {
   "name": "codeanalyzer-typescript",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "CLDK TypeScript analyzer — emits the canonical CLDK analysis.json (symbol table + resolver-based call graph) via ts-morph.",
   "type": "module",
   "module": "src/index.ts",
