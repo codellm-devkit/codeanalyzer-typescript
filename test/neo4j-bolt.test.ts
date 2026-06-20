@@ -93,10 +93,10 @@ containerSuite("neo4j bolt writer", () => {
       expect(await num("MATCH (n) RETURN count(n)")).toBe(rows.nodes.length);
       expect(await num("MATCH ()-[r]->() RETURN count(r)")).toBe(rows.edges.length);
 
-      // Shared :Symbol label spans the signature-keyed declaration kinds.
-      const symbol = await num("MATCH (s:Symbol) RETURN count(s)");
+      // Shared :TSSymbol label spans the signature-keyed declaration kinds.
+      const symbol = await num("MATCH (s:TSSymbol) RETURN count(s)");
       const kinds = await num(
-        "MATCH (s:Symbol) WHERE s:Callable OR s:Class OR s:Interface OR s:Enum OR s:TypeAlias OR s:Namespace OR s:External RETURN count(s)",
+        "MATCH (s:TSSymbol) WHERE s:TSCallable OR s:TSClass OR s:TSInterface OR s:TSEnum OR s:TSTypeAlias OR s:TSNamespace OR s:TSExternal RETURN count(s)",
       );
       expect(symbol).toBeGreaterThan(0);
       expect(kinds).toBe(symbol);
@@ -108,7 +108,7 @@ containerSuite("neo4j bolt writer", () => {
       // A known resolved call edge from the fixture (index.ts calls services.announce).
       expect(
         await num(
-          "MATCH (:Callable)-[:CALLS]->(t:Callable {name:$n}) RETURN count(*)",
+          "MATCH (:TSCallable)-[:TS_CALLS]->(t:TSCallable {name:$n}) RETURN count(*)",
           { n: "announce" },
         ),
       ).toBeGreaterThan(0);
@@ -140,7 +140,7 @@ containerSuite("neo4j bolt writer", () => {
       // The victim's nodes are gone.
       expect(await num("MATCH (n {_module:$m}) RETURN count(n)", { m: victim })).toBe(0);
 
-      // The surviving module-scoped graph matches the reduced projection. (Shared :External/:Package
+      // The surviving module-scoped graph matches the reduced projection. (Shared :TSExternal/:TSPackage
       // nodes are MERGE-only and intentionally never pruned, so we compare only _module-tagged nodes.)
       const moduleScoped = rows.nodes.filter((n) => "_module" in n.props).length;
       expect(await num("MATCH (n) WHERE n._module IS NOT NULL RETURN count(n)")).toBe(moduleScoped);

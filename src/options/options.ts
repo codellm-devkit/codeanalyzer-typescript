@@ -9,7 +9,7 @@ export interface AnalysisOptions {
   output: string | null;
   /** Output target: json (analysis.json, default) or neo4j (graph.cypher / live Bolt push). */
   emit: EmitTarget;
-  /** Logical application name for the graph's :Application anchor; null ⇒ derived from input. */
+  /** Logical application name for the graph's :TSApplication anchor; null ⇒ derived from input. */
   appName: string | null;
   /** Bolt URI for a live Neo4j push (incremental). null ⇒ write a graph.cypher snapshot to -o. */
   neo4jUri: string | null;

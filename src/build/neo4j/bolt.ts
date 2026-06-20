@@ -11,7 +11,7 @@
  *  5. on a FULL run only, prune modules whose source file vanished.
  *
  * Nodes are MERGE-upserted, never blindly deleted, so a declaration another (unchanged) module
- * still references survives and its incoming edges stay valid. `:External`/`:Package`/`:Decorator`
+ * still references survives and its incoming edges stay valid. `:TSExternal`/`:TSPackage`/`:TSDecorator`
  * are shared (no `_module`) and are MERGE-only.
  *
  * `neo4j-driver` is imported dynamically so it stays off the hot path and out of the default
@@ -30,7 +30,7 @@ export interface BoltConfig {
   database: string | null;
 }
 
-const DESCENDANTS = "[:DECLARES|HAS_METHOD|HAS_ATTRIBUTE|DECLARES_VAR|HAS_CALLSITE*1..]";
+const DESCENDANTS = "[:TS_DECLARES|TS_HAS_METHOD|TS_HAS_ATTRIBUTE|TS_DECLARES_VAR|TS_HAS_CALLSITE*1..]";
 const BATCH = 1000;
 
 export async function boltWriter(
@@ -68,7 +68,7 @@ export async function boltWriter(
     // 2. diff content_hash.
     const dbHash = new Map<string, string | null>();
     await withSession(session, async (s) => {
-      const res = await s.run("MATCH (m:Module) RETURN m.file_key AS k, m.content_hash AS h");
+      const res = await s.run("MATCH (m:TSModule) RETURN m.file_key AS k, m.content_hash AS h");
       for (const rec of res.records) dbHash.set(rec.get("k"), rec.get("h"));
     });
     const changed = new Set<string>();
@@ -112,7 +112,7 @@ export async function boltWriter(
       const present = [...byModule.keys()];
       await withSession(session, async (s) => {
         const res = await s.run(
-          `MATCH (m:Module) WHERE NOT m.file_key IN $present ` +
+          `MATCH (m:TSModule) WHERE NOT m.file_key IN $present ` +
             `OPTIONAL MATCH (m)-${DESCENDANTS}->(x) DETACH DELETE x, m RETURN count(m) AS pruned`,
           { present },
         );
@@ -190,7 +190,7 @@ function bucket<K, V>(map: Map<K, V[]>, key: K): V[] {
 }
 
 function hashOf(nodes: NodeRow[], fileKey: string): string | undefined {
-  const mod = nodes.find((n) => n.labels[0] === "Module" && n.value === fileKey);
+  const mod = nodes.find((n) => n.labels[0] === "TSModule" && n.value === fileKey);
   const h = mod?.props.content_hash;
   return typeof h === "string" ? h : undefined;
 }

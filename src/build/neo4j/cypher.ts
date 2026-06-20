@@ -36,9 +36,9 @@ export function renderCypher(rows: GraphRows, appName: string): string {
 function wipe(appName: string): string {
   const name = cypherValue(appName);
   return [
-    `MATCH (a:Application {name: ${name}})`,
-    "OPTIONAL MATCH (a)-[:HAS_MODULE]->(m:Module)",
-    "OPTIONAL MATCH (m)-[:DECLARES|HAS_METHOD|HAS_ATTRIBUTE|DECLARES_VAR|HAS_CALLSITE*1..]->(x)",
+    `MATCH (a:TSApplication {name: ${name}})`,
+    "OPTIONAL MATCH (a)-[:TS_HAS_MODULE]->(m:TSModule)",
+    "OPTIONAL MATCH (m)-[:TS_DECLARES|TS_HAS_METHOD|TS_HAS_ATTRIBUTE|TS_DECLARES_VAR|TS_HAS_CALLSITE*1..]->(x)",
     "DETACH DELETE x, m, a;",
   ].join("\n");
 }
