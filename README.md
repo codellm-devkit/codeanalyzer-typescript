@@ -154,8 +154,7 @@ Options:
   --neo4j-password <password>    Neo4j password (prefer the env var; a flag is
                                  visible in shell history / process list)
                                  (default: "neo4j", env: NEO4J_PASSWORD)
-  --neo4j-database <db>          Neo4j database name (default: server default)
-                                 (env: NEO4J_DATABASE)
+  --neo4j-database <db>          Neo4j database name (env: NEO4J_DATABASE)
   -a, --analysis-level <n>       analysis depth: 1 = symbol table + tsc resolver
                                  call graph + RTA (default); 2 = call graph
                                  (default: "1")

@@ -34,9 +34,7 @@ export function buildProgram(): Command {
         .env("NEO4J_PASSWORD")
         .default("neo4j"),
     )
-    .addOption(
-      new Option("--neo4j-database <db>", "Neo4j database name (default: server default)").env("NEO4J_DATABASE"),
-    )
+    .addOption(new Option("--neo4j-database <db>", "Neo4j database name").env("NEO4J_DATABASE"))
     .option("-a, --analysis-level <n>", "analysis depth: 1 = symbol table + tsc resolver call graph + RTA (default); 2 = call graph", "1")
     .option("-t, --target-files <paths...>", "restrict analysis to specific files (incremental)")
     .option("--skip-tests", "skip test trees (default)")
