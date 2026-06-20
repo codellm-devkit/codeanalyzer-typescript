@@ -15,7 +15,7 @@ export function buildProgram(): Command {
     .option("-i, --input <path>", "project root to analyze (not required for --emit schema)")
     .option("-o, --output <dir>", "output directory (omit ⇒ compact output to stdout)")
     .option("--emit <target>", "output target: json (analysis.json, default) | neo4j (graph.cypher or live push) | schema (the Neo4j schema.json contract)", "json")
-    .option("--app-name <name>", "logical application name for the graph :Application anchor (default: input dir name)")
+    .option("--app-name <name>", "logical application name for the graph :TSApplication anchor (default: input dir name)")
     // The four Neo4j connection options also read the standard NEO4J_* environment variables when
     // the flag is omitted (an explicit flag wins). Prefer NEO4J_PASSWORD over the flag — a flag
     // value is visible in shell history / the process list. Commander renders the `(env: …)` hint.

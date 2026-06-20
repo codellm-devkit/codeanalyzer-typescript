@@ -145,7 +145,7 @@ Options:
                                  neo4j (graph.cypher or live push) | schema (the
                                  Neo4j schema.json contract) (default: "json")
   --app-name <name>              logical application name for the graph
-                                 :Application anchor (default: input dir name)
+                                 :TSApplication anchor (default: input dir name)
   --neo4j-uri <uri>              push the graph to a live Neo4j over Bolt
                                  (incremental); omit to write graph.cypher (env:
                                  NEO4J_URI)
@@ -232,14 +232,14 @@ Caller- and callee-side identifiers come from a single signature canonicalizer, 
 ### Neo4j graph
 
 `--emit neo4j` projects the same analysis into a labeled property graph (declarations keyed by
-their signature under a shared `:Symbol` label; calls, imports, inheritance, decorators, and call
+their signature under a shared `:TSSymbol` label; calls, imports, inheritance, decorators, and call
 sites as relationships):
 
 - **Without `--neo4j-uri`** — writes a self-contained `graph.cypher` (constraints + indexes, a
   scoped wipe, then batched `MERGE`s). Load it with `cypher-shell < graph.cypher`.
 - **With `--neo4j-uri`** — pushes to a live Neo4j over Bolt **incrementally**: only modules whose
   content hash changed are rewritten, and on a full run modules whose source file vanished are
-  pruned. Every graph carries a `schema_version` on its `:Application` node.
+  pruned. Every graph carries a `schema_version` on its `:TSApplication` node.
 
 The connection options also read the standard Neo4j environment variables — `NEO4J_URI`,
 `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE` — when the corresponding flag is omitted (an

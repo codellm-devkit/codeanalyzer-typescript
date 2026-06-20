@@ -45,8 +45,8 @@ const mergeLabelsFor = (specifics: string[]) => new Set(specifics.map((s) => mer
 /** The specific (catalog) label for a node row: the non-merge, non-marker label. */
 function specificLabel(labels: string[]): string {
   const merge = labels[0];
-  if (merge !== "Symbol") return merge;
-  return labels.find((l) => l !== "Symbol" && !markers.has(l)) ?? "Symbol";
+  if (merge !== "TSSymbol") return merge;
+  return labels.find((l) => l !== "TSSymbol" && !markers.has(l)) ?? "TSSymbol";
 }
 
 describe("neo4j schema conformance", () => {

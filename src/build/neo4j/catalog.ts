@@ -8,12 +8,12 @@
  *
  * SCHEMA_VERSION is the contract version: bump MAJOR on a breaking change (renamed/removed label,
  * relationship or key), MINOR on an additive change (new label/rel/property). It is stamped onto
- * the :Application node of every emitted graph so any consumer can detect a producer/consumer
+ * the :TSApplication node of every emitted graph so any consumer can detect a producer/consumer
  * mismatch at runtime.
  */
 import { CONSTRAINTS, INDEXES } from "./schema";
 
-export const SCHEMA_VERSION = "1.0.0";
+export const SCHEMA_VERSION = "2.0.0";
 
 export type PropType = "string" | "integer" | "float" | "boolean" | "string[]" | "integer[]";
 
@@ -34,7 +34,7 @@ export interface RelType {
 }
 
 /** Labels layered onto a node in addition to its primary/specific label. */
-export const MARKER_LABELS = ["Entrypoint"] as const;
+export const MARKER_LABELS = ["TSEntrypoint"] as const;
 
 const SPAN = { start_line: "integer", end_line: "integer" } as const;
 const ENTRYPOINT = {
@@ -47,14 +47,14 @@ const ENTRYPOINT = {
 
 export const NODE_LABELS: NodeLabel[] = [
   {
-    label: "Application",
-    mergeLabel: "Application",
+    label: "TSApplication",
+    mergeLabel: "TSApplication",
     key: "name",
     properties: { name: "string", schema_version: "string" },
   },
   {
-    label: "Module",
-    mergeLabel: "Module",
+    label: "TSModule",
+    mergeLabel: "TSModule",
     key: "file_key",
     properties: {
       file_key: "string",
@@ -68,8 +68,8 @@ export const NODE_LABELS: NodeLabel[] = [
     },
   },
   {
-    label: "Class",
-    mergeLabel: "Symbol",
+    label: "TSClass",
+    mergeLabel: "TSSymbol",
     key: "signature",
     properties: {
       signature: "string",
@@ -88,8 +88,8 @@ export const NODE_LABELS: NodeLabel[] = [
     },
   },
   {
-    label: "Interface",
-    mergeLabel: "Symbol",
+    label: "TSInterface",
+    mergeLabel: "TSSymbol",
     key: "signature",
     properties: {
       signature: "string",
@@ -107,8 +107,8 @@ export const NODE_LABELS: NodeLabel[] = [
     },
   },
   {
-    label: "Enum",
-    mergeLabel: "Symbol",
+    label: "TSEnum",
+    mergeLabel: "TSSymbol",
     key: "signature",
     properties: {
       signature: "string",
@@ -125,8 +125,8 @@ export const NODE_LABELS: NodeLabel[] = [
     },
   },
   {
-    label: "TypeAlias",
-    mergeLabel: "Symbol",
+    label: "TSTypeAlias",
+    mergeLabel: "TSSymbol",
     key: "signature",
     properties: {
       signature: "string",
@@ -142,8 +142,8 @@ export const NODE_LABELS: NodeLabel[] = [
     },
   },
   {
-    label: "Namespace",
-    mergeLabel: "Symbol",
+    label: "TSNamespace",
+    mergeLabel: "TSSymbol",
     key: "signature",
     properties: {
       signature: "string",
@@ -156,8 +156,8 @@ export const NODE_LABELS: NodeLabel[] = [
     },
   },
   {
-    label: "Callable",
-    mergeLabel: "Symbol",
+    label: "TSCallable",
+    mergeLabel: "TSSymbol",
     key: "signature",
     properties: {
       signature: "string",
@@ -189,21 +189,21 @@ export const NODE_LABELS: NodeLabel[] = [
     },
   },
   {
-    label: "External",
-    mergeLabel: "Symbol",
+    label: "TSExternal",
+    mergeLabel: "TSSymbol",
     key: "signature",
     properties: { signature: "string", name: "string", module: "string" },
   },
-  { label: "Package", mergeLabel: "Package", key: "name", properties: { name: "string" } },
+  { label: "TSPackage", mergeLabel: "TSPackage", key: "name", properties: { name: "string" } },
   {
-    label: "Decorator",
-    mergeLabel: "Decorator",
+    label: "TSDecorator",
+    mergeLabel: "TSDecorator",
     key: "qualified_name",
     properties: { qualified_name: "string", name: "string" },
   },
   {
-    label: "CallSite",
-    mergeLabel: "CallSite",
+    label: "TSCallSite",
+    mergeLabel: "TSCallSite",
     key: "id",
     properties: {
       id: "string",
@@ -224,8 +224,8 @@ export const NODE_LABELS: NodeLabel[] = [
     },
   },
   {
-    label: "Attribute",
-    mergeLabel: "Attribute",
+    label: "TSAttribute",
+    mergeLabel: "TSAttribute",
     key: "id",
     properties: {
       id: "string",
@@ -243,8 +243,8 @@ export const NODE_LABELS: NodeLabel[] = [
     },
   },
   {
-    label: "Variable",
-    mergeLabel: "Variable",
+    label: "TSVariable",
+    mergeLabel: "TSVariable",
     key: "id",
     properties: {
       id: "string",
@@ -261,36 +261,36 @@ export const NODE_LABELS: NodeLabel[] = [
   },
 ];
 
-const DECL_TARGETS = ["Class", "Interface", "Enum", "TypeAlias", "Namespace", "Callable"];
+const DECL_TARGETS = ["TSClass", "TSInterface", "TSEnum", "TSTypeAlias", "TSNamespace", "TSCallable"];
 
 export const REL_TYPES: RelType[] = [
-  { type: "HAS_MODULE", from: ["Application"], to: ["Module"], properties: {} },
-  { type: "DECLARES", from: ["Module", "Namespace", "Class", "Callable"], to: DECL_TARGETS, properties: {} },
-  { type: "HAS_METHOD", from: ["Class", "Interface"], to: ["Callable"], properties: {} },
-  { type: "HAS_ATTRIBUTE", from: ["Class", "Interface"], to: ["Attribute"], properties: {} },
-  { type: "DECLARES_VAR", from: ["Module", "Namespace", "Callable"], to: ["Variable"], properties: {} },
-  { type: "HAS_CALLSITE", from: ["Callable"], to: ["CallSite"], properties: {} },
-  { type: "RESOLVES_TO", from: ["CallSite"], to: ["Callable", "External"], properties: {} },
+  { type: "TS_HAS_MODULE", from: ["TSApplication"], to: ["TSModule"], properties: {} },
+  { type: "TS_DECLARES", from: ["TSModule", "TSNamespace", "TSClass", "TSCallable"], to: DECL_TARGETS, properties: {} },
+  { type: "TS_HAS_METHOD", from: ["TSClass", "TSInterface"], to: ["TSCallable"], properties: {} },
+  { type: "TS_HAS_ATTRIBUTE", from: ["TSClass", "TSInterface"], to: ["TSAttribute"], properties: {} },
+  { type: "TS_DECLARES_VAR", from: ["TSModule", "TSNamespace", "TSCallable"], to: ["TSVariable"], properties: {} },
+  { type: "TS_HAS_CALLSITE", from: ["TSCallable"], to: ["TSCallSite"], properties: {} },
+  { type: "TS_RESOLVES_TO", from: ["TSCallSite"], to: ["TSCallable", "TSExternal"], properties: {} },
   {
-    type: "CALLS",
-    from: ["Callable"],
-    to: ["Callable", "External"],
+    type: "TS_CALLS",
+    from: ["TSCallable"],
+    to: ["TSCallable", "TSExternal"],
     properties: { weight: "integer", provenance: "string[]", dispatch: "string", external: "boolean", module: "string" },
   },
-  { type: "EXTENDS", from: ["Class", "Interface"], to: ["Class", "Interface"], properties: {} },
-  { type: "IMPLEMENTS", from: ["Class"], to: ["Interface"], properties: {} },
+  { type: "TS_EXTENDS", from: ["TSClass", "TSInterface"], to: ["TSClass", "TSInterface"], properties: {} },
+  { type: "TS_IMPLEMENTS", from: ["TSClass"], to: ["TSInterface"], properties: {} },
   {
-    type: "IMPORTS",
-    from: ["Module"],
-    to: ["Module", "Package"],
+    type: "TS_IMPORTS",
+    from: ["TSModule"],
+    to: ["TSModule", "TSPackage"],
     properties: { imported_names: "string[]", import_kinds: "string[]", is_type_only: "boolean" },
   },
-  { type: "RE_EXPORTS", from: ["Module"], to: ["Module", "Package"], properties: {} },
-  { type: "MEMBER_OF", from: ["External"], to: ["Package"], properties: {} },
+  { type: "TS_RE_EXPORTS", from: ["TSModule"], to: ["TSModule", "TSPackage"], properties: {} },
+  { type: "TS_MEMBER_OF", from: ["TSExternal"], to: ["TSPackage"], properties: {} },
   {
-    type: "DECORATED_BY",
-    from: ["Class", "Callable", "Attribute"],
-    to: ["Decorator"],
+    type: "TS_DECORATED_BY",
+    from: ["TSClass", "TSCallable", "TSAttribute"],
+    to: ["TSDecorator"],
     properties: { positional_arguments: "string[]", keyword_arguments_json: "string", start_line: "integer", end_line: "integer" },
   },
 ];
