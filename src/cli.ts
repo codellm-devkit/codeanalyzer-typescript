@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import type { AnalysisOptions, CallGraphProviderName, EmitTarget } from "./options";
 
 /**
@@ -16,10 +16,25 @@ export function buildProgram(): Command {
     .option("-o, --output <dir>", "output directory (omit ⇒ compact output to stdout)")
     .option("--emit <target>", "output target: json (analysis.json, default) | neo4j (graph.cypher or live push) | schema (the Neo4j schema.json contract)", "json")
     .option("--app-name <name>", "logical application name for the graph :Application anchor (default: input dir name)")
-    .option("--neo4j-uri <uri>", "push the graph to a live Neo4j over Bolt (incremental); omit to write graph.cypher")
-    .option("--neo4j-user <user>", "Neo4j username", "neo4j")
-    .option("--neo4j-password <password>", "Neo4j password", "neo4j")
-    .option("--neo4j-database <db>", "Neo4j database name (default: server default)")
+    // The four Neo4j connection options also read the standard NEO4J_* environment variables when
+    // the flag is omitted (an explicit flag wins). Prefer NEO4J_PASSWORD over the flag — a flag
+    // value is visible in shell history / the process list. Commander renders the `(env: …)` hint.
+    .addOption(
+      new Option(
+        "--neo4j-uri <uri>",
+        "push the graph to a live Neo4j over Bolt (incremental); omit to write graph.cypher",
+      ).env("NEO4J_URI"),
+    )
+    .addOption(new Option("--neo4j-user <user>", "Neo4j username").env("NEO4J_USERNAME").default("neo4j"))
+    .addOption(
+      new Option(
+        "--neo4j-password <password>",
+        "Neo4j password (prefer the env var; a flag is visible in shell history / process list)",
+      )
+        .env("NEO4J_PASSWORD")
+        .default("neo4j"),
+    )
+    .addOption(new Option("--neo4j-database <db>", "Neo4j database name").env("NEO4J_DATABASE"))
     .option("-a, --analysis-level <n>", "analysis depth: 1 = symbol table + tsc resolver call graph + RTA (default); 2 = call graph", "1")
     .option("-t, --target-files <paths...>", "restrict analysis to specific files (incremental)")
     .option("--skip-tests", "skip test trees (default)")

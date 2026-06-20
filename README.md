@@ -147,10 +147,14 @@ Options:
   --app-name <name>              logical application name for the graph
                                  :Application anchor (default: input dir name)
   --neo4j-uri <uri>              push the graph to a live Neo4j over Bolt
-                                 (incremental); omit to write graph.cypher
-  --neo4j-user <user>            Neo4j username (default: "neo4j")
-  --neo4j-password <password>    Neo4j password (default: "neo4j")
-  --neo4j-database <db>          Neo4j database name (default: server default)
+                                 (incremental); omit to write graph.cypher (env:
+                                 NEO4J_URI)
+  --neo4j-user <user>            Neo4j username (default: "neo4j", env:
+                                 NEO4J_USERNAME)
+  --neo4j-password <password>    Neo4j password (prefer the env var; a flag is
+                                 visible in shell history / process list)
+                                 (default: "neo4j", env: NEO4J_PASSWORD)
+  --neo4j-database <db>          Neo4j database name (env: NEO4J_DATABASE)
   -a, --analysis-level <n>       analysis depth: 1 = symbol table + tsc resolver
                                  call graph + RTA (default); 2 = call graph
                                  (default: "1")
@@ -236,6 +240,17 @@ sites as relationships):
 - **With `--neo4j-uri`** — pushes to a live Neo4j over Bolt **incrementally**: only modules whose
   content hash changed are rewritten, and on a full run modules whose source file vanished are
   pruned. Every graph carries a `schema_version` on its `:Application` node.
+
+The connection options also read the standard Neo4j environment variables — `NEO4J_URI`,
+`NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE` — when the corresponding flag is omitted (an
+explicit flag wins). Prefer the env var for the password so it doesn't land in shell history or the
+process list:
+
+```sh
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_PASSWORD=secret
+cants --input ./my-ts-project --emit neo4j     # credentials picked up from the environment
+```
 
 ### Schema contract
 
