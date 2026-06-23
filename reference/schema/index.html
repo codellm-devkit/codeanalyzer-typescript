@@ -1,0 +1,798 @@
+<!DOCTYPE html><html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-bguv2lll"> <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Output schema | codeanalyzer-typescript</title><link rel="canonical" href="https://codellm-devkit.github.io/codeanalyzer-typescript/reference/schema/"/><link rel="sitemap" href="/codeanalyzer-typescript/sitemap-index.xml"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap"/><link rel="shortcut icon" href="/codeanalyzer-typescript/favicon.png" type="image/png"/><meta name="generator" content="Astro v5.18.2"/><meta name="generator" content="Starlight v0.37.7"/><meta property="og:title" content="Output schema"/><meta property="og:type" content="article"/><meta property="og:url" content="https://codellm-devkit.github.io/codeanalyzer-typescript/reference/schema/"/><meta property="og:locale" content="en"/><meta property="og:description" content="The TSApplication data model — every model in the analysis.json artifact, with its fields and types."/><meta property="og:site_name" content="codeanalyzer-typescript"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="The TSApplication data model — every model in the analysis.json artifact, with its fields and types."/><script>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script><template id="theme-icons"><svg aria-hidden="true" class="light astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg aria-hidden="true" class="dark astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg aria-hidden="true" class="auto astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></template><link rel="stylesheet" href="/codeanalyzer-typescript/_astro/print.DNXP8c50.css" media="print"><link rel="stylesheet" href="/codeanalyzer-typescript/_astro/index.CGKSN4Ly.css">
+<style>@layer starlight.components{:root{--sl-badge-default-border: var(--sl-color-accent);--sl-badge-default-bg: var(--sl-color-accent-low);--sl-badge-default-text: #fff;--sl-badge-note-border: var(--sl-color-blue);--sl-badge-note-bg: var(--sl-color-blue-low);--sl-badge-note-text: #fff;--sl-badge-danger-border: var(--sl-color-red);--sl-badge-danger-bg: var(--sl-color-red-low);--sl-badge-danger-text: #fff;--sl-badge-success-border: var(--sl-color-green);--sl-badge-success-bg: var(--sl-color-green-low);--sl-badge-success-text: #fff;--sl-badge-caution-border: var(--sl-color-orange);--sl-badge-caution-bg: var(--sl-color-orange-low);--sl-badge-caution-text: #fff;--sl-badge-tip-border: var(--sl-color-purple);--sl-badge-tip-bg: var(--sl-color-purple-low);--sl-badge-tip-text: #fff}[data-theme=light]:root{--sl-badge-default-bg: var(--sl-color-accent-high);--sl-badge-note-bg: var(--sl-color-blue-high);--sl-badge-danger-bg: var(--sl-color-red-high);--sl-badge-success-bg: var(--sl-color-green-high);--sl-badge-caution-bg: var(--sl-color-orange-high);--sl-badge-tip-bg: var(--sl-color-purple-high)}.sl-badge:where(.astro-avdet4wd){display:inline-block;border:1px solid var(--sl-color-border-badge);border-radius:.25rem;font-family:var(--sl-font-system-mono);line-height:normal;color:var(--sl-color-text-badge);background-color:var(--sl-color-bg-badge);overflow-wrap:anywhere}.sidebar-content .sl-badge:where(.astro-avdet4wd){line-height:1;font-size:var(--sl-text-xs);padding:.125rem .375rem}.sidebar-content a[aria-current=page]>.sl-badge:where(.astro-avdet4wd){--sl-color-bg-badge: transparent;--sl-color-border-badge: currentColor;color:inherit}.default:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-default-bg);--sl-color-border-badge: var(--sl-badge-default-border);--sl-color-text-badge: var(--sl-badge-default-text)}.note:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-note-bg);--sl-color-border-badge: var(--sl-badge-note-border);--sl-color-text-badge: var(--sl-badge-note-text)}.danger:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-danger-bg);--sl-color-border-badge: var(--sl-badge-danger-border);--sl-color-text-badge: var(--sl-badge-danger-text)}.success:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-success-bg);--sl-color-border-badge: var(--sl-badge-success-border);--sl-color-text-badge: var(--sl-badge-success-text)}.tip:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-tip-bg);--sl-color-border-badge: var(--sl-badge-tip-border);--sl-color-text-badge: var(--sl-badge-tip-text)}.caution:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-caution-bg);--sl-color-border-badge: var(--sl-badge-caution-border);--sl-color-text-badge: var(--sl-badge-caution-text)}.small:where(.astro-avdet4wd){font-size:var(--sl-text-xs);padding:.125rem .25rem}.medium:where(.astro-avdet4wd){font-size:var(--sl-text-sm);padding:.175rem .35rem}.large:where(.astro-avdet4wd){font-size:var(--sl-text-base);padding:.225rem .45rem}.sl-markdown-content :is(h1,h2,h3,h4,h5,h6) .sl-badge:where(.astro-avdet4wd){vertical-align:middle}}
+@layer starlight.components{.card-grid:where(.astro-zntqmydn){display:grid;grid-template-columns:100%;gap:1rem}.card-grid:where(.astro-zntqmydn)>*{margin-top:0!important}@media(min-width:50rem){.card-grid:where(.astro-zntqmydn){grid-template-columns:1fr 1fr;gap:1.5rem}.stagger:where(.astro-zntqmydn){--stagger-height: 5rem;padding-bottom:var(--stagger-height)}.stagger:where(.astro-zntqmydn)>*:nth-child(2n){transform:translateY(var(--stagger-height))}}}
+@layer starlight.components{svg:where(.astro-c6vsoqas){color:var(--sl-icon-color);font-size:var(--sl-icon-size, 1em);width:1em;height:1em}}
+@layer starlight.components{starlight-tabs:where(.astro-esqgolmp){display:block}.tablist-wrapper:where(.astro-esqgolmp){overflow-x:auto}:where(.astro-esqgolmp)[role=tablist]{display:flex;list-style:none;border-bottom:2px solid var(--sl-color-gray-5);padding:0}.tab:where(.astro-esqgolmp){display:flex}.tab:where(.astro-esqgolmp)>:where(.astro-esqgolmp)[role=tab]{--sl-tab-color-border: var(--sl-color-gray-5);display:flex;align-items:center;gap:.5rem;line-height:var(--sl-line-height-headings);padding:.275rem 1.25rem;text-decoration:none;box-shadow:0 2px 0 var(--sl-tab-color-border);color:var(--sl-color-gray-3);outline-offset:var(--sl-outline-offset-inside);overflow-wrap:initial}.tab:where(.astro-esqgolmp) :where(.astro-esqgolmp)[role=tab][aria-selected=true]{--sl-tab-color-border: var(--sl-color-text-accent);color:var(--sl-color-white);font-weight:600}.tablist-wrapper:where(.astro-esqgolmp)~[role=tabpanel]{margin-top:1rem}}
+@layer starlight.components{.sl-link-card:where(.astro-mf7fz2mj){display:grid;grid-template-columns:1fr auto;gap:.5rem;border:1px solid var(--sl-color-gray-5);border-radius:.5rem;padding:1rem;box-shadow:var(--sl-shadow-sm);position:relative}a:where(.astro-mf7fz2mj){text-decoration:none;line-height:var(--sl-line-height-headings)}a:where(.astro-mf7fz2mj):before{content:"";position:absolute;inset:0}.stack:where(.astro-mf7fz2mj){flex-direction:column;gap:.5rem}.title:where(.astro-mf7fz2mj){color:var(--sl-color-white);font-weight:600;font-size:var(--sl-text-lg)}.description:where(.astro-mf7fz2mj){color:var(--sl-color-gray-3);line-height:1.5}.icon:where(.astro-mf7fz2mj){color:var(--sl-color-gray-3)}.sl-link-card:where(.astro-mf7fz2mj):hover{background:var(--sl-color-gray-7, var(--sl-color-gray-6));border-color:var(--sl-color-gray-2)}.sl-link-card:where(.astro-mf7fz2mj):hover .icon:where(.astro-mf7fz2mj){color:var(--sl-color-white)}}
+@layer starlight.components{.sl-steps{--bullet-size: calc(var(--sl-line-height) * 1rem);--bullet-margin: .375rem;list-style:none;counter-reset:steps-counter var(--sl-steps-start, 0);padding-inline-start:0}.sl-steps>li{counter-increment:steps-counter;position:relative;padding-inline-start:calc(var(--bullet-size) + 1rem);padding-bottom:1px;min-height:calc(var(--bullet-size) + var(--bullet-margin))}.sl-steps>li+li{margin-top:0}.sl-steps>li:before{content:counter(steps-counter);position:absolute;top:0;inset-inline-start:0;width:var(--bullet-size);height:var(--bullet-size);line-height:var(--bullet-size);font-size:var(--sl-text-xs);font-weight:600;text-align:center;color:var(--sl-color-white);background-color:var(--sl-color-gray-6);border-radius:99rem;box-shadow:inset 0 0 0 1px var(--sl-color-gray-5)}.sl-steps>li:after{--guide-width: 1px;content:"";position:absolute;top:calc(var(--bullet-size) + var(--bullet-margin));bottom:var(--bullet-margin);inset-inline-start:calc((var(--bullet-size) - var(--guide-width)) / 2);width:var(--guide-width);background-color:var(--sl-color-hairline-light)}}@layer starlight.content{.sl-steps>li>:first-child{--lh: calc(1em * var(--sl-line-height));--shift-y: calc(.5 * (var(--bullet-size) - var(--lh)));transform:translateY(var(--shift-y));margin-bottom:var(--shift-y)}.sl-steps>li>:first-child:where(h1,h2,h3,h4,h5,h6){--lh: calc(1em * var(--sl-line-height-headings))}@supports (--prop: 1lh){.sl-steps>li>:first-child{--lh: 1lh}}}
+@layer starlight.components{.sl-link-button:where(.astro-xwgiixxa){align-items:center;border:1px solid transparent;border-radius:999rem;display:inline-flex;font-size:var(--sl-text-sm);gap:.5em;line-height:1.1875;outline-offset:.25rem;padding:.4375rem 1.125rem;text-decoration:none}.sl-link-button:where(.astro-xwgiixxa).primary{background:var(--sl-color-text-accent);border-color:var(--sl-color-text-accent);color:var(--sl-color-black)}.sl-link-button:where(.astro-xwgiixxa).primary:hover{color:var(--sl-color-black)}.sl-link-button:where(.astro-xwgiixxa).secondary{border-color:inherit;color:var(--sl-color-white)}.sl-link-button:where(.astro-xwgiixxa).minimal{color:var(--sl-color-white);padding-inline:0}.sl-link-button:where(.astro-xwgiixxa) svg{flex-shrink:0}@media(min-width:50rem){.sl-link-button:where(.astro-xwgiixxa){font-size:var(--sl-text-base);padding:.9375rem 1.25rem}}.sl-markdown-content .sl-link-button:where(.astro-xwgiixxa){margin-inline-end:1rem}.sl-markdown-content .sl-link-button:where(.astro-xwgiixxa):not(:where(p *)){margin-block:1rem}}
+</style><script type="module" src="/codeanalyzer-typescript/_astro/page.CtTLA21y.js"></script></head> <body class="astro-bguv2lll"> <a href="#_top" class="astro-7q3lir66">Skip to content</a>  <div class="page sl-flex astro-vrdttmbt"> <header class="header astro-vrdttmbt"><div class="header astro-kmkmnagf"> <div class="title-wrapper sl-flex astro-kmkmnagf"> <a href="/codeanalyzer-typescript/" class="site-title sl-flex astro-m46x6ez3">  <img class="astro-m46x6ez3" alt src="/codeanalyzer-typescript/_astro/logo.DT6dGy45.png" width="2217" height="306">  <span class="sr-only astro-m46x6ez3" translate="no"> codeanalyzer-typescript </span> </a>  </div> <div class="sl-flex print:hidden astro-kmkmnagf"> <site-search class="astro-kmkmnagf astro-v37mnknz" data-translations="{&#34;placeholder&#34;:&#34;Search&#34;}"> <button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" class="astro-v37mnknz"> <svg aria-hidden="true" class="astro-v37mnknz astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg> <span class="sl-hidden md:sl-block astro-v37mnknz" aria-hidden="true">Search</span> <kbd class="sl-hidden md:sl-flex astro-v37mnknz" style="display: none;"> <kbd class="astro-v37mnknz">Ctrl</kbd><kbd class="astro-v37mnknz">K</kbd> </kbd> </button> <dialog style="padding:0" aria-label="Search" class="astro-v37mnknz"> <div class="dialog-frame sl-flex astro-v37mnknz">  <button data-close-modal class="sl-flex md:sl-hidden astro-v37mnknz"> Cancel </button> <div class="search-container astro-v37mnknz"> <div id="starlight__search" class="astro-v37mnknz"></div> </div> </div> </dialog> </site-search>  <script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script> <script type="module" src="/codeanalyzer-typescript/_astro/Search.astro_astro_type_script_index_0_lang.BOXmnYMs.js"></script>   </div> <div class="sl-hidden md:sl-flex print:hidden right-group astro-kmkmnagf"> <div class="sl-flex social-icons astro-kmkmnagf"> <a href="https://github.com/codellm-devkit/codeanalyzer-typescript" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">codeanalyzer-typescript on GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a><a href="https://github.com/codellm-devkit/codeanalyzer-typescript/releases" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">codeanalyzer-typescript releases</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M11.376 6.833L11.532 6.833L7.359 6.833L7.359 19.235L4.317 19.235L4.317 6.833L0.183 6.833L0.183 4.610L11.376 4.610L11.376 6.833ZM20.892 15.491L20.892 15.491Q20.892 15.062 20.736 14.750Q20.580 14.438 20.307 14.126L20.307 14.126Q20.073 13.931 19.605 13.697L19.605 13.697Q19.293 13.580 18.513 13.268L18.513 13.268L18.201 13.151Q15.666 12.410 14.184 11.318L14.184 11.318Q12.858 10.187 12.858 8.510L12.858 8.510Q12.858 6.677 14.457 5.585L14.457 5.585Q15.900 4.492 18.299 4.492Q20.697 4.492 22.257 5.858L22.257 5.858Q23.700 7.145 23.700 9.017L23.700 9.017L20.892 9.017Q20.892 8.471 20.716 8.081Q20.541 7.691 20.151 7.301L20.151 7.301Q19.371 6.716 18.201 6.716Q17.031 6.716 16.407 7.184Q15.783 7.652 15.783 8.510L15.783 8.510Q15.783 9.212 16.524 9.758L16.524 9.758Q16.836 9.992 17.460 10.226L17.460 10.226Q17.928 10.421 18.942 10.733L18.942 10.733Q21.321 11.434 22.569 12.507Q23.817 13.580 23.817 15.491L23.817 15.491Q23.817 16.427 23.447 17.187Q23.076 17.948 22.374 18.416L22.374 18.416Q20.892 19.508 18.474 19.508L18.474 19.508Q15.900 19.508 14.301 18.260L14.301 18.260Q12.468 16.817 12.624 14.750L12.624 14.750L15.549 14.750Q15.549 15.998 16.407 16.700L16.407 16.700Q16.758 16.973 17.343 17.129Q17.928 17.285 18.591 17.285L18.591 17.285Q19.917 17.285 20.424 16.817L20.424 16.817Q20.892 16.076 20.892 15.491Z"/></svg></a><a href="https://discord.gg/zEjz9YrmqN" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">CLDK on Discord</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M20.32 4.37a19.8 19.8 0 0 0-4.93-1.51 13.78 13.78 0 0 0-.64 1.28 18.27 18.27 0 0 0-5.5 0 12.64 12.64 0 0 0-.64-1.28h-.05A19.74 19.74 0 0 0 3.64 4.4 20.26 20.26 0 0 0 .11 18.09l.02.02a19.9 19.9 0 0 0 6.04 3.03l.04-.02a14.24 14.24 0 0 0 1.23-2.03.08.08 0 0 0-.05-.07 13.1 13.1 0 0 1-1.9-.92.08.08 0 0 1 .02-.1 10.2 10.2 0 0 0 .41-.31h.04a14.2 14.2 0 0 0 12.1 0l.04.01a9.63 9.63 0 0 0 .4.32.08.08 0 0 1-.03.1 12.29 12.29 0 0 1-1.9.91.08.08 0 0 0-.02.1 15.97 15.97 0 0 0 1.27 2.01h.04a19.84 19.84 0 0 0 6.03-3.05v-.03a20.12 20.12 0 0 0-3.57-13.69ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.15-1.08-2.15-2.42 0-1.33.95-2.42 2.15-2.42 1.22 0 2.18 1.1 2.16 2.42 0 1.34-.94 2.42-2.16 2.42Z"/></svg></a> </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-4yphtoen"> <span class="sr-only astro-4yphtoen">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg> <select autocomplete="off" class="astro-4yphtoen"> <option value="dark" class="astro-4yphtoen">Dark</option><option value="light" class="astro-4yphtoen">Light</option><option value="auto" selected class="astro-4yphtoen">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg> </label>  </starlight-theme-select>  <script>
+	StarlightThemeProvider.updatePickers();
+</script> <script type="module">const r="starlight-theme",o=e=>e==="auto"||e==="dark"||e==="light"?e:"auto",c=()=>o(typeof localStorage<"u"&&localStorage.getItem(r));function n(e){typeof localStorage<"u"&&localStorage.setItem(r,e==="light"||e==="dark"?e:"")}const l=()=>matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";function t(e){StarlightThemeProvider.updatePickers(e),document.documentElement.dataset.theme=e==="auto"?l():e,n(e)}matchMedia("(prefers-color-scheme: light)").addEventListener("change",()=>{c()==="auto"&&t("auto")});class s extends HTMLElement{constructor(){super(),t(c()),this.querySelector("select")?.addEventListener("change",a=>{a.currentTarget instanceof HTMLSelectElement&&t(o(a.currentTarget.value))})}}customElements.define("starlight-theme-select",s);</script> <script type="module">class s extends HTMLElement{constructor(){super();const e=this.querySelector("select");e&&(e.addEventListener("change",t=>{t.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=t.currentTarget.value)}),window.addEventListener("pageshow",t=>{if(!t.persisted)return;const n=e.querySelector("option[selected]")?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}}customElements.define("starlight-lang-select",s);</script> </div> </div> </header> <nav class="sidebar print:hidden astro-vrdttmbt" aria-label="Main"> <starlight-menu-button class="print:hidden astro-jif73yzw"> <button aria-expanded="false" aria-label="Menu" aria-controls="starlight__sidebar" class="sl-flex md:sl-hidden astro-jif73yzw"> <svg aria-hidden="true" class="open-menu astro-jif73yzw astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg> <svg aria-hidden="true" class="close-menu astro-jif73yzw astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg> </button> </starlight-menu-button> <script type="module">class s extends HTMLElement{constructor(){super(),this.btn=this.querySelector("button"),this.btn.addEventListener("click",()=>this.toggleExpanded());const t=this.closest("nav");t&&t.addEventListener("keyup",e=>this.closeOnEscape(e))}setExpanded(t){this.setAttribute("aria-expanded",String(t)),document.body.toggleAttribute("data-mobile-menu-expanded",t)}toggleExpanded(){this.setExpanded(this.getAttribute("aria-expanded")!=="true")}closeOnEscape(t){t.code==="Escape"&&(this.setExpanded(!1),this.btn.focus())}}customElements.define("starlight-menu-button",s);</script>   <div id="starlight__sidebar" class="sidebar-pane astro-vrdttmbt"> <div class="sidebar-content sl-flex astro-vrdttmbt"> <sl-sidebar-state-persist data-hash="15q6iqd" class="astro-kku4brbg"> <script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script>  <ul class="top-level astro-3ii7xxms"> <li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Start here</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="0"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/what-is-codeanalyzer/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">What is codeanalyzer-typescript?</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/quickstart/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Quickstart</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/installing/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Installation</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Guides</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="1"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/guides/cli-usage/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">CLI usage</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/guides/concepts/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Core concepts</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/guides/call-graph/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Call graph &amp; dispatch</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/guides/level-2/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Level 2: CodeQL &amp; entrypoints</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/guides/neo4j/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Neo4j</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Reference</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="2"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/reference/cli/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">CLI options</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/reference/schema/" aria-current="page" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Output schema</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/codeanalyzer-typescript/reference/neo4j-schema/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Neo4j graph schema</span>  </a> </li> </ul>  </details> </li> </ul>   <script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script> </sl-sidebar-state-persist>  <div class="md:sl-hidden"> <div class="mobile-preferences sl-flex astro-wu23bvmt"> <div class="social-icons astro-wu23bvmt"> <a href="https://github.com/codellm-devkit/codeanalyzer-typescript" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">codeanalyzer-typescript on GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a><a href="https://github.com/codellm-devkit/codeanalyzer-typescript/releases" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">codeanalyzer-typescript releases</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M11.376 6.833L11.532 6.833L7.359 6.833L7.359 19.235L4.317 19.235L4.317 6.833L0.183 6.833L0.183 4.610L11.376 4.610L11.376 6.833ZM20.892 15.491L20.892 15.491Q20.892 15.062 20.736 14.750Q20.580 14.438 20.307 14.126L20.307 14.126Q20.073 13.931 19.605 13.697L19.605 13.697Q19.293 13.580 18.513 13.268L18.513 13.268L18.201 13.151Q15.666 12.410 14.184 11.318L14.184 11.318Q12.858 10.187 12.858 8.510L12.858 8.510Q12.858 6.677 14.457 5.585L14.457 5.585Q15.900 4.492 18.299 4.492Q20.697 4.492 22.257 5.858L22.257 5.858Q23.700 7.145 23.700 9.017L23.700 9.017L20.892 9.017Q20.892 8.471 20.716 8.081Q20.541 7.691 20.151 7.301L20.151 7.301Q19.371 6.716 18.201 6.716Q17.031 6.716 16.407 7.184Q15.783 7.652 15.783 8.510L15.783 8.510Q15.783 9.212 16.524 9.758L16.524 9.758Q16.836 9.992 17.460 10.226L17.460 10.226Q17.928 10.421 18.942 10.733L18.942 10.733Q21.321 11.434 22.569 12.507Q23.817 13.580 23.817 15.491L23.817 15.491Q23.817 16.427 23.447 17.187Q23.076 17.948 22.374 18.416L22.374 18.416Q20.892 19.508 18.474 19.508L18.474 19.508Q15.900 19.508 14.301 18.260L14.301 18.260Q12.468 16.817 12.624 14.750L12.624 14.750L15.549 14.750Q15.549 15.998 16.407 16.700L16.407 16.700Q16.758 16.973 17.343 17.129Q17.928 17.285 18.591 17.285L18.591 17.285Q19.917 17.285 20.424 16.817L20.424 16.817Q20.892 16.076 20.892 15.491Z"/></svg></a><a href="https://discord.gg/zEjz9YrmqN" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">CLDK on Discord</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M20.32 4.37a19.8 19.8 0 0 0-4.93-1.51 13.78 13.78 0 0 0-.64 1.28 18.27 18.27 0 0 0-5.5 0 12.64 12.64 0 0 0-.64-1.28h-.05A19.74 19.74 0 0 0 3.64 4.4 20.26 20.26 0 0 0 .11 18.09l.02.02a19.9 19.9 0 0 0 6.04 3.03l.04-.02a14.24 14.24 0 0 0 1.23-2.03.08.08 0 0 0-.05-.07 13.1 13.1 0 0 1-1.9-.92.08.08 0 0 1 .02-.1 10.2 10.2 0 0 0 .41-.31h.04a14.2 14.2 0 0 0 12.1 0l.04.01a9.63 9.63 0 0 0 .4.32.08.08 0 0 1-.03.1 12.29 12.29 0 0 1-1.9.91.08.08 0 0 0-.02.1 15.97 15.97 0 0 0 1.27 2.01h.04a19.84 19.84 0 0 0 6.03-3.05v-.03a20.12 20.12 0 0 0-3.57-13.69ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.15-1.08-2.15-2.42 0-1.33.95-2.42 2.15-2.42 1.22 0 2.18 1.1 2.16 2.42 0 1.34-.94 2.42-2.16 2.42Z"/></svg></a> </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-4yphtoen"> <span class="sr-only astro-4yphtoen">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg> <select autocomplete="off" class="astro-4yphtoen"> <option value="dark" class="astro-4yphtoen">Dark</option><option value="light" class="astro-4yphtoen">Light</option><option value="auto" selected class="astro-4yphtoen">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg> </label>  </starlight-theme-select>  <script>
+	StarlightThemeProvider.updatePickers();
+</script>   </div>  </div> </div> </div> </nav> <div class="main-frame astro-vrdttmbt">  <script type="module">const a=document.getElementById("starlight__sidebar"),n=a?.querySelector("sl-sidebar-state-persist"),o="sl-sidebar-state",i=()=>{let t=[];const e=n?.dataset.hash||"";try{const s=sessionStorage.getItem(o),r=JSON.parse(s||"{}");Array.isArray(r.open)&&r.hash===e&&(t=r.open)}catch{}return{hash:e,open:t,scroll:a?.scrollTop||0}},c=t=>{try{sessionStorage.setItem(o,JSON.stringify(t))}catch{}},d=()=>c(i()),l=(t,e)=>{const s=i();s.open[e]=t,c(s)};n?.addEventListener("click",t=>{if(!(t.target instanceof Element))return;const e=t.target.closest("summary")?.closest("details");if(!e)return;const s=e.querySelector("sl-sidebar-restore"),r=parseInt(s?.dataset.index||"");isNaN(r)||l(!e.open,r)});addEventListener("visibilitychange",()=>{document.visibilityState==="hidden"&&d()});addEventListener("pageHide",d);</script> <div class="lg:sl-flex astro-67yu43on"> <aside class="right-sidebar-container print:hidden astro-67yu43on"> <div class="right-sidebar astro-67yu43on"> <script type="module" src="/codeanalyzer-typescript/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.hwBsy0Mo.js"></script><script type="module" src="/codeanalyzer-typescript/_astro/TableOfContents.astro_astro_type_script_index_0_lang.FuRcXuRY.js"></script><div class="lg:sl-hidden astro-pb3aqygn"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-doynk5tl"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-doynk5tl"><details id="starlight__mobile-toc" class="astro-doynk5tl"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-doynk5tl"><span class="toggle sl-flex astro-doynk5tl">On this page<svg aria-hidden="true" class="caret astro-doynk5tl astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></span><span class="display-current astro-doynk5tl"></span></summary><div class="dropdown astro-doynk5tl"><ul class="isMobile astro-g2bywc46" style="--depth: 0;"> <li class="astro-g2bywc46" style="--depth: 0;"> <a href="#_top" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsapplication" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSApplication</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsmodule" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSModule</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsclass" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSClass</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsinterface" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSInterface</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsenum" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSEnum</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tstypealias" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSTypeAlias</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsnamespace" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSNamespace</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tscallable" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSCallable</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tscallsite" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSCallsite</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tscalledge" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSCallEdge</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsexternalsymbol" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSExternalSymbol</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsentrypoint" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSEntrypoint</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#supporting-models" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Supporting models</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#identity-helpers" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Identity helpers</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#same-model-two-serializations" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Same model, two serializations</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#where-to-go-next" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Where to go next</span> </a>  </li> </ul> </div></details></nav></mobile-starlight-toc></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-pb3aqygn"><div class="sl-container astro-pb3aqygn"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">On this page</h2><ul class="astro-g2bywc46" style="--depth: 0;"> <li class="astro-g2bywc46" style="--depth: 0;"> <a href="#_top" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsapplication" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSApplication</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsmodule" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSModule</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsclass" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSClass</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsinterface" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSInterface</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsenum" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSEnum</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tstypealias" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSTypeAlias</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsnamespace" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSNamespace</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tscallable" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSCallable</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tscallsite" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSCallsite</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tscalledge" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSCallEdge</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsexternalsymbol" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSExternalSymbol</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#tsentrypoint" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">TSEntrypoint</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#supporting-models" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Supporting models</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#identity-helpers" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Identity helpers</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#same-model-two-serializations" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Same model, two serializations</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#where-to-go-next" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Where to go next</span> </a>  </li> </ul> </nav></starlight-toc></div></div> </div> </aside> <div class="main-pane astro-67yu43on">  <main data-pagefind-body class="astro-bguv2lll" lang="en" dir="ltr">    <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <h1 id="_top" class="astro-j6tvhyss">Output schema</h1>  </div> </div>  <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <div class="sl-markdown-content"> <p>The artifact <code dir="auto">cants</code> emits is a single <code dir="auto">TSApplication</code>. Every model below is a TypeScript interface defined in <code dir="auto">src/schema/schema.ts</code>; the <code dir="auto">analysis.json</code> output is a serialization of that schema. All field names are <code dir="auto">snake_case</code> so the keys match the CLDK SDK’s models. Line/column fields default to <code dir="auto">-1</code> when unknown.</p>
+<p>This page documents the <strong>IR</strong> — the in-memory model and its <code dir="auto">analysis.json</code> serialization (<code dir="auto">--emit json</code>, the default). The same analysis can instead be projected into a <strong>Neo4j property graph</strong> (<code dir="auto">--emit neo4j</code>). That projection is a <em>different</em> namespace: a graph of labeled nodes and typed relationships, not nested records. The IR’s <code dir="auto">TSCallEdge</code>/<code dir="auto">TSExternalSymbol</code>/<code dir="auto">TSImport</code> become <code dir="auto">:TS_CALLS</code>/<code dir="auto">:TSExternal</code>/<code dir="auto">:TS_IMPORTS</code> in the graph, and the analyzer renames on projection — see the <a href="/codeanalyzer-typescript/reference/neo4j-schema/">Neo4j graph schema</a> for the label-and-relationship contract. The IR is fully reconstructable from the graph: the CLDK Python SDK reads the graph back into the very same model objects below.</p>
+<pre class="mermaid" dir="ltr">flowchart TB
+    IR["analysis (in memory) → core.ts analyze()"]
+    IR --> JSON["--emit json (default)"]
+    IR --> GRAPH["--emit neo4j"]
+
+    JSON --> APP[TSApplication]
+    APP --> ST["symbol_table: {path: TSModule}"]
+    APP --> CG["call_graph: [TSCallEdge]"]
+    APP --> EX["external_symbols: {sig: TSExternalSymbol}"]
+    ST --> MOD[TSModule]
+    MOD --> CLS[TSClass]
+    MOD --> IF[TSInterface]
+    MOD --> EN[TSEnum]
+    MOD --> TA[TSTypeAlias]
+    MOD --> FN[TSCallable]
+    MOD --> NS[TSNamespace]
+    CLS --> M[TSCallable]
+    CLS --> ATTR[TSClassAttribute]
+    FN --> CALL[TSCallsite]
+    FN --> PARAM[TSCallableParameter]
+
+    GRAPH --> PG["labeled property graph&#x3C;br/>(:TSApplication)-[:TS_HAS_MODULE]->(:TSModule)..."]
+    PG --> SNAP["snapshot: graph.cypher&#x3C;br/>(no --neo4j-uri)"]
+    PG --> BOLT["live: incremental Bolt push&#x3C;br/>(--neo4j-uri)"]</pre>
+<p>The right branch is documented on its own page; everything below is the <code dir="auto">analysis.json</code> IR.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="tsapplication">TSApplication</h2><a class="sl-anchor-link" href="#tsapplication"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSApplication”</span></a></div>
+<p>The root object. The emitted artifact has <strong>three</strong> top-level keys; <code dir="auto">entrypoints</code> is reserved by the schema but not emitted at level 1.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">symbol_table</code></td><td><code dir="auto">Record&#x3C;string, TSModule></code></td><td>File path → module model. The whole-project inventory.</td></tr><tr><td><code dir="auto">call_graph</code></td><td><code dir="auto">TSCallEdge[]</code></td><td>Identity-keyed call edges.</td></tr><tr><td><code dir="auto">external_symbols</code></td><td><code dir="auto">Record&#x3C;string, TSExternalSymbol></code></td><td>Phantom stubs for call targets outside the project.</td></tr></tbody></table>
+<aside aria-label="Note" class="starlight-aside starlight-aside--note"> <p class="starlight-aside__title" aria-hidden="true"> <svg aria-hidden="true" class="starlight-aside__icon astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 11a1 1 0 0 0-1 1v4a1 1 0 0 0 2 0v-4a1 1 0 0 0-1-1Zm.38-3.92a1 1 0 0 0-.76 0 1 1 0 0 0-.33.21 1.15 1.15 0 0 0-.21.33 1 1 0 0 0 .21 1.09c.097.088.209.16.33.21A1 1 0 0 0 13 8a1.05 1.05 0 0 0-.29-.71 1 1 0 0 0-.33-.21ZM12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16.001A8 8 0 0 1 12 20Z"/></svg>Note </p> <div class="starlight-aside__content"> <p><code dir="auto">entrypoints</code> (framework name → detected roots) is part of the schema and the graph’s <code dir="auto">:TSEntrypoint</code> marker label, but <code dir="auto">core.ts</code> does not emit it yet — entrypoint detection is level-2 roadmap. Don’t depend on a fourth top-level key in <code dir="auto">analysis.json</code>.</p> </div> </aside>
+<div class="sl-heading-wrapper level-h2"><h2 id="tsmodule">TSModule</h2><a class="sl-anchor-link" href="#tsmodule"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSModule”</span></a></div>
+<p>One per source file.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">file_path</code></td><td><code dir="auto">string</code></td><td>Path to the file.</td></tr><tr><td><code dir="auto">module_name</code></td><td><code dir="auto">string</code></td><td>The file key minus extension (== signature prefix).</td></tr><tr><td><code dir="auto">imports</code></td><td><code dir="auto">TSImport[]</code></td><td>Import statements.</td></tr><tr><td><code dir="auto">exports</code></td><td><code dir="auto">TSExport[]</code></td><td>Export statements and re-exports.</td></tr><tr><td><code dir="auto">comments</code></td><td><code dir="auto">TSComment[]</code></td><td>Comments and JSDoc.</td></tr><tr><td><code dir="auto">classes</code></td><td><code dir="auto">Record&#x3C;string, TSClass></code></td><td>Top-level classes by name.</td></tr><tr><td><code dir="auto">interfaces</code></td><td><code dir="auto">Record&#x3C;string, TSInterface></code></td><td>Top-level interfaces by name.</td></tr><tr><td><code dir="auto">enums</code></td><td><code dir="auto">Record&#x3C;string, TSEnum></code></td><td>Top-level enums by name.</td></tr><tr><td><code dir="auto">type_aliases</code></td><td><code dir="auto">Record&#x3C;string, TSTypeAlias></code></td><td>Top-level type aliases by name.</td></tr><tr><td><code dir="auto">functions</code></td><td><code dir="auto">Record&#x3C;string, TSCallable></code></td><td>Top-level functions by name.</td></tr><tr><td><code dir="auto">namespaces</code></td><td><code dir="auto">Record&#x3C;string, TSNamespace></code></td><td>Top-level namespaces by name.</td></tr><tr><td><code dir="auto">variables</code></td><td><code dir="auto">TSVariableDeclaration[]</code></td><td>Module-level variables.</td></tr><tr><td><code dir="auto">is_tsx</code></td><td><code dir="auto">boolean</code></td><td>Whether the file is <code dir="auto">.tsx</code>/<code dir="auto">.jsx</code>.</td></tr><tr><td><code dir="auto">is_declaration_file</code></td><td><code dir="auto">boolean</code></td><td>Whether it’s a <code dir="auto">.d.ts</code> file.</td></tr><tr><td><code dir="auto">content_hash</code>, <code dir="auto">last_modified</code>, <code dir="auto">file_size</code></td><td><code dir="auto">string</code> / <code dir="auto">number</code> / <code dir="auto">number</code></td><td>Cache-invalidation metadata (nullable). The graph diffs <code dir="auto">content_hash</code> per module to push only what changed on an incremental Bolt load.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="tsclass">TSClass</h2><a class="sl-anchor-link" href="#tsclass"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSClass”</span></a></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">name</code></td><td><code dir="auto">string</code></td><td>Class short name.</td></tr><tr><td><code dir="auto">signature</code></td><td><code dir="auto">string</code></td><td>Fully-qualified identity (e.g. <code dir="auto">src/user.UserService</code>).</td></tr><tr><td><code dir="auto">base_classes</code></td><td><code dir="auto">string[]</code></td><td>Spine: union of <code dir="auto">extends</code> + <code dir="auto">implements</code> as signature strings.</td></tr><tr><td><code dir="auto">implements_types</code></td><td><code dir="auto">string[]</code></td><td>Typed split: just the implemented interfaces.</td></tr><tr><td><code dir="auto">type_parameters</code></td><td><code dir="auto">TSTypeParameter[]</code></td><td>Generic parameters.</td></tr><tr><td><code dir="auto">decorators</code></td><td><code dir="auto">TSDecorator[]</code></td><td>Class decorators.</td></tr><tr><td><code dir="auto">methods</code></td><td><code dir="auto">Record&#x3C;string, TSCallable></code></td><td>Methods by name.</td></tr><tr><td><code dir="auto">attributes</code></td><td><code dir="auto">Record&#x3C;string, TSClassAttribute></code></td><td>Class attributes by name.</td></tr><tr><td><code dir="auto">inner_classes</code></td><td><code dir="auto">Record&#x3C;string, TSClass></code></td><td>Nested classes.</td></tr><tr><td><code dir="auto">is_abstract</code>, <code dir="auto">is_exported</code>, <code dir="auto">is_ambient</code></td><td><code dir="auto">boolean</code></td><td>Class modifiers (<code dir="auto">abstract</code>, <code dir="auto">export</code>, <code dir="auto">declare</code>).</td></tr><tr><td><code dir="auto">comments</code>, <code dir="auto">code</code></td><td><code dir="auto">TSComment[]</code> / <code dir="auto">string</code></td><td>JSDoc/comments and source.</td></tr><tr><td><code dir="auto">start_line</code>, <code dir="auto">end_line</code></td><td><code dir="auto">number</code></td><td>Source span.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="tsinterface">TSInterface</h2><a class="sl-anchor-link" href="#tsinterface"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSInterface”</span></a></div>
+<p>A TypeScript node kind with no analog in the Python/Java schema.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">name</code>, <code dir="auto">signature</code></td><td><code dir="auto">string</code></td><td>Short name and fully-qualified identity.</td></tr><tr><td><code dir="auto">base_classes</code></td><td><code dir="auto">string[]</code></td><td>Extended interfaces (signature strings).</td></tr><tr><td><code dir="auto">type_parameters</code></td><td><code dir="auto">TSTypeParameter[]</code></td><td>Generic parameters.</td></tr><tr><td><code dir="auto">methods</code></td><td><code dir="auto">Record&#x3C;string, TSCallable></code></td><td>Method members (bodiless).</td></tr><tr><td><code dir="auto">properties</code></td><td><code dir="auto">Record&#x3C;string, TSClassAttribute></code></td><td>Property members.</td></tr><tr><td><code dir="auto">call_signatures</code></td><td><code dir="auto">string[]</code></td><td>Raw text of call/construct signatures.</td></tr><tr><td><code dir="auto">index_signatures</code></td><td><code dir="auto">string[]</code></td><td>Raw text of <code dir="auto">[key: string]: T</code>.</td></tr><tr><td><code dir="auto">is_exported</code>, <code dir="auto">is_ambient</code></td><td><code dir="auto">boolean</code></td><td>Modifiers.</td></tr><tr><td><code dir="auto">comments</code>, <code dir="auto">code</code>, <code dir="auto">start_line</code>, <code dir="auto">end_line</code></td><td></td><td>JSDoc, source, span.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="tsenum">TSEnum</h2><a class="sl-anchor-link" href="#tsenum"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSEnum”</span></a></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">name</code>, <code dir="auto">signature</code></td><td><code dir="auto">string</code></td><td>Short name and identity.</td></tr><tr><td><code dir="auto">members</code></td><td><code dir="auto">TSEnumMember[]</code></td><td>Each member’s <code dir="auto">name</code> and <code dir="auto">value</code> (initializer text or computed const value).</td></tr><tr><td><code dir="auto">is_const</code></td><td><code dir="auto">boolean</code></td><td><code dir="auto">const enum</code>.</td></tr><tr><td><code dir="auto">is_exported</code>, <code dir="auto">is_ambient</code></td><td><code dir="auto">boolean</code></td><td>Modifiers.</td></tr><tr><td><code dir="auto">comments</code>, <code dir="auto">code</code>, <code dir="auto">start_line</code>, <code dir="auto">end_line</code></td><td></td><td>JSDoc, source, span.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="tstypealias">TSTypeAlias</h2><a class="sl-anchor-link" href="#tstypealias"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSTypeAlias”</span></a></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">name</code>, <code dir="auto">signature</code></td><td><code dir="auto">string</code></td><td>Short name and identity.</td></tr><tr><td><code dir="auto">aliased_type</code></td><td><code dir="auto">string</code></td><td>The right-hand-side type text.</td></tr><tr><td><code dir="auto">type_parameters</code></td><td><code dir="auto">TSTypeParameter[]</code></td><td>Generic parameters.</td></tr><tr><td><code dir="auto">is_exported</code>, <code dir="auto">is_ambient</code></td><td><code dir="auto">boolean</code></td><td>Modifiers.</td></tr><tr><td><code dir="auto">comments</code>, <code dir="auto">code</code>, <code dir="auto">start_line</code>, <code dir="auto">end_line</code></td><td></td><td>JSDoc, source, span.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="tsnamespace">TSNamespace</h2><a class="sl-anchor-link" href="#tsnamespace"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSNamespace”</span></a></div>
+<p>A recursive container with the same declaration buckets as a module.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">name</code>, <code dir="auto">signature</code></td><td><code dir="auto">string</code></td><td>Short name and identity.</td></tr><tr><td><code dir="auto">classes</code>, <code dir="auto">interfaces</code>, <code dir="auto">enums</code>, <code dir="auto">type_aliases</code>, <code dir="auto">functions</code>, <code dir="auto">namespaces</code></td><td><code dir="auto">Record&#x3C;string, …></code></td><td>Nested declarations by name.</td></tr><tr><td><code dir="auto">variables</code></td><td><code dir="auto">TSVariableDeclaration[]</code></td><td>Namespace-level variables.</td></tr><tr><td><code dir="auto">is_exported</code>, <code dir="auto">is_ambient</code>, <code dir="auto">comments</code>, <code dir="auto">start_line</code>, <code dir="auto">end_line</code></td><td></td><td>Modifiers, JSDoc, span.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="tscallable">TSCallable</h2><a class="sl-anchor-link" href="#tscallable"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSCallable”</span></a></div>
+<p>A function, method, constructor, accessor, or arrow. The richest model in the artifact.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">name</code></td><td><code dir="auto">string</code></td><td>Callable short name.</td></tr><tr><td><code dir="auto">path</code></td><td><code dir="auto">string</code></td><td>File the callable is defined in.</td></tr><tr><td><code dir="auto">signature</code></td><td><code dir="auto">string</code></td><td>Fully-qualified identity (e.g. <code dir="auto">src/user.UserService.getUser</code>). The call-graph node key.</td></tr><tr><td><code dir="auto">kind</code></td><td><code dir="auto">TSCallableKind</code></td><td><code dir="auto">function</code> | <code dir="auto">method</code> | <code dir="auto">constructor</code> | <code dir="auto">getter</code> | <code dir="auto">setter</code> | <code dir="auto">arrow</code> | <code dir="auto">function_expression</code>.</td></tr><tr><td><code dir="auto">parameters</code></td><td><code dir="auto">TSCallableParameter[]</code></td><td>Declared parameters.</td></tr><tr><td><code dir="auto">type_parameters</code></td><td><code dir="auto">TSTypeParameter[]</code></td><td>Generic parameters.</td></tr><tr><td><code dir="auto">return_type</code></td><td><code dir="auto">string | null</code></td><td>Resolved return type, if known.</td></tr><tr><td><code dir="auto">decorators</code></td><td><code dir="auto">TSDecorator[]</code></td><td>Applied decorators.</td></tr><tr><td><code dir="auto">code</code></td><td><code dir="auto">string | null</code></td><td>The source body. Indexed in the graph’s <code dir="auto">code_fts</code> fulltext index for code search.</td></tr><tr><td><code dir="auto">call_sites</code></td><td><code dir="auto">TSCallsite[]</code></td><td>Calls made <em>from</em> this callable.</td></tr><tr><td><code dir="auto">accessed_symbols</code></td><td><code dir="auto">TSSymbol[]</code></td><td>Symbols read/written in the body.</td></tr><tr><td><code dir="auto">local_variables</code></td><td><code dir="auto">TSVariableDeclaration[]</code></td><td>Locals.</td></tr><tr><td><code dir="auto">inner_callables</code>, <code dir="auto">inner_classes</code></td><td><code dir="auto">Record&#x3C;string, …></code></td><td>Nested definitions.</td></tr><tr><td><code dir="auto">cyclomatic_complexity</code></td><td><code dir="auto">number</code></td><td>Computed complexity.</td></tr><tr><td><code dir="auto">is_entrypoint</code></td><td><code dir="auto">boolean</code></td><td>Whether a finder marked this an entrypoint (level 2).</td></tr><tr><td><code dir="auto">entrypoint_framework</code></td><td><code dir="auto">string | null</code></td><td>The framework, if so.</td></tr><tr><td><code dir="auto">accessibility</code></td><td><code dir="auto">string | null</code></td><td><code dir="auto">public</code> | <code dir="auto">private</code> | <code dir="auto">protected</code> | <code dir="auto">null</code>.</td></tr><tr><td><code dir="auto">is_static</code>, <code dir="auto">is_abstract</code>, <code dir="auto">is_async</code>, <code dir="auto">is_generator</code>, <code dir="auto">is_optional</code>, <code dir="auto">is_readonly</code>, <code dir="auto">is_exported</code>, <code dir="auto">is_ambient</code>, <code dir="auto">is_implicit</code></td><td><code dir="auto">boolean</code></td><td>TypeScript modifiers (<code dir="auto">is_implicit</code> = synthesized default constructor).</td></tr><tr><td><code dir="auto">accessor_kind</code></td><td><code dir="auto">string | null</code></td><td><code dir="auto">getter</code> | <code dir="auto">setter</code> | <code dir="auto">null</code>.</td></tr><tr><td><code dir="auto">overload_signatures</code></td><td><code dir="auto">TSOverloadSignature[]</code></td><td>Overload signatures preceding the implementation.</td></tr><tr><td><code dir="auto">start_line</code>, <code dir="auto">end_line</code>, <code dir="auto">code_start_line</code></td><td><code dir="auto">number</code></td><td>Source spans.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="tscallsite">TSCallsite</h2><a class="sl-anchor-link" href="#tscallsite"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSCallsite”</span></a></div>
+<p>A single call made from within a callable — the rich per-call metadata behind a graph edge. In the property graph this becomes a first-class <code dir="auto">:TSCallSite</code> node reached via <code dir="auto">(:TSCallable)-[:TS_HAS_CALLSITE]->(:TSCallSite)-[:TS_RESOLVES_TO]->(:TSCallable|:TSExternal)</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">method_name</code></td><td><code dir="auto">string</code></td><td>The invoked name as written.</td></tr><tr><td><code dir="auto">receiver_expr</code>, <code dir="auto">receiver_type</code></td><td><code dir="auto">string | null</code></td><td>The receiver expression and its resolved type.</td></tr><tr><td><code dir="auto">argument_types</code></td><td><code dir="auto">string[]</code></td><td>Resolved argument types.</td></tr><tr><td><code dir="auto">type_arguments</code></td><td><code dir="auto">string[]</code></td><td>Explicit call type args, <code dir="auto">foo&#x3C;T>()</code>.</td></tr><tr><td><code dir="auto">return_type</code></td><td><code dir="auto">string | null</code></td><td>Resolved return type.</td></tr><tr><td><code dir="auto">callee_signature</code></td><td><code dir="auto">string | null</code></td><td>The resolved target’s signature (backfilled by the resolver call graph).</td></tr><tr><td><code dir="auto">is_constructor_call</code></td><td><code dir="auto">boolean</code></td><td>Whether the call is <code dir="auto">new X()</code>.</td></tr><tr><td><code dir="auto">is_optional_chain</code></td><td><code dir="auto">boolean</code></td><td>Whether the call is <code dir="auto">a?.b()</code>.</td></tr><tr><td><code dir="auto">start_line</code>, <code dir="auto">start_column</code>, <code dir="auto">end_line</code>, <code dir="auto">end_column</code></td><td><code dir="auto">number</code></td><td>Source location.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="tscalledge">TSCallEdge</h2><a class="sl-anchor-link" href="#tscalledge"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSCallEdge”</span></a></div>
+<p>An identity-only call-graph edge. Projected to the graph as the aggregated <code dir="auto">(:TSCallable)-[:TS_CALLS]->(:TSCallable|:TSExternal)</code> relationship.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">source</code></td><td><code dir="auto">string</code></td><td>Caller’s <code dir="auto">TSCallable.signature</code>.</td></tr><tr><td><code dir="auto">target</code></td><td><code dir="auto">string</code></td><td>Callee’s <code dir="auto">TSCallable.signature</code> <strong>or</strong> a <code dir="auto">TSExternalSymbol.signature</code>.</td></tr><tr><td><code dir="auto">type</code></td><td><code dir="auto">"CALL_DEP"</code></td><td>Edge kind.</td></tr><tr><td><code dir="auto">weight</code></td><td><code dir="auto">number</code></td><td>Edge weight; incremented when the same call repeats.</td></tr><tr><td><code dir="auto">provenance</code></td><td><code dir="auto">string[]</code></td><td>How it was resolved: <code dir="auto">"tsc"</code>, <code dir="auto">"import"</code> (phantom), <code dir="auto">"codeql"</code> (level 2), or an extension token. Open vocabulary.</td></tr><tr><td><code dir="auto">tags</code></td><td><code dir="auto">Record&#x3C;string, string></code></td><td>Free-form metadata. RTA-expanded edges carry <code dir="auto">ts.dispatch=rta</code>.</td></tr></tbody></table>
+<aside aria-label="Note" class="starlight-aside starlight-aside--note"> <p class="starlight-aside__title" aria-hidden="true"> <svg aria-hidden="true" class="starlight-aside__icon astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 11a1 1 0 0 0-1 1v4a1 1 0 0 0 2 0v-4a1 1 0 0 0-1-1Zm.38-3.92a1 1 0 0 0-.76 0 1 1 0 0 0-.33.21 1.15 1.15 0 0 0-.21.33 1 1 0 0 0 .21 1.09c.097.088.209.16.33.21A1 1 0 0 0 13 8a1.05 1.05 0 0 0-.29-.71 1 1 0 0 0-.33-.21ZM12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16.001A8 8 0 0 1 12 20Z"/></svg>Note </p> <div class="starlight-aside__content"> <p>Edge endpoints not present in the symbol table (imported-library / Node builtin targets) are kept as phantom <a href="#tsexternalsymbol">external symbols</a> rather than dropped. See <a href="/codeanalyzer-typescript/guides/call-graph/#phantom-nodes">Call graph &#x26; dispatch</a>.</p> </div> </aside>
+<div class="sl-heading-wrapper level-h2"><h2 id="tsexternalsymbol">TSExternalSymbol</h2><a class="sl-anchor-link" href="#tsexternalsymbol"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSExternalSymbol”</span></a></div>
+<p>A synthetic stub for a call target outside the project — an imported library member or Node builtin (WALA-style phantom node). In the graph these become shared <code dir="auto">:TSExternal</code> nodes (no <code dir="auto">_module</code> property): they are scoped to no single application, so a per-app wipe never deletes them and many apps reference the same library symbol.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">signature</code></td><td><code dir="auto">string</code></td><td>Synthetic identity, e.g. <code dir="auto">node:fs.readFileSync</code>, <code dir="auto">express.Router.get</code>. A call edge <code dir="auto">target</code> may byte-match this.</td></tr><tr><td><code dir="auto">name</code></td><td><code dir="auto">string</code></td><td>The called member, e.g. <code dir="auto">readFileSync</code>.</td></tr><tr><td><code dir="auto">module</code></td><td><code dir="auto">string</code></td><td>The import/require specifier, e.g. <code dir="auto">node:fs</code>, <code dir="auto">express</code>, <code dir="auto">@scope/pkg</code>.</td></tr><tr><td><code dir="auto">kind</code></td><td><code dir="auto">string</code></td><td><code dir="auto">"function"</code> | <code dir="auto">"constructor"</code> | <code dir="auto">"unknown"</code>.</td></tr><tr><td><code dir="auto">is_external</code></td><td><code dir="auto">true</code></td><td>Always <code dir="auto">true</code>.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="tsentrypoint">TSEntrypoint</h2><a class="sl-anchor-link" href="#tsentrypoint"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “TSEntrypoint”</span></a></div>
+<p>A framework-dispatched root, referencing a callable by signature. Populated by level-2 finders; <code dir="auto">entrypoints</code> is <code dir="auto">{}</code> at level 1 and is not currently emitted as a top-level key.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td><code dir="auto">signature</code></td><td><code dir="auto">string</code></td><td>The <code dir="auto">TSCallable.signature</code> this entrypoint refers to.</td></tr><tr><td><code dir="auto">framework</code></td><td><code dir="auto">string</code></td><td>The dispatching framework.</td></tr><tr><td><code dir="auto">detection_source</code></td><td><code dir="auto">string</code></td><td>How it was detected — <code dir="auto">decorator</code>, <code dir="auto">base_class</code>, <code dir="auto">convention</code>, <code dir="auto">extension</code>, … Open vocabulary.</td></tr><tr><td><code dir="auto">route_path</code></td><td><code dir="auto">string | null</code></td><td>For HTTP routes.</td></tr><tr><td><code dir="auto">http_methods</code></td><td><code dir="auto">string[]</code></td><td>For HTTP routes.</td></tr><tr><td><code dir="auto">source_file</code></td><td><code dir="auto">string | null</code></td><td>File declaring the binding.</td></tr><tr><td><code dir="auto">tags</code></td><td><code dir="auto">Record&#x3C;string, string></code></td><td>Free-form, namespaced metadata for extensions.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="supporting-models">Supporting models</h2><a class="sl-anchor-link" href="#supporting-models"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Supporting models”</span></a></div>
+<ul>
+<li><strong><code dir="auto">TSImport</code></strong> — <code dir="auto">module</code> specifier, <code dir="auto">name</code>, <code dir="auto">alias</code>, <code dir="auto">is_type_only</code>, <code dir="auto">import_kind</code> (<code dir="auto">named</code> | <code dir="auto">default</code> | <code dir="auto">namespace</code> | <code dir="auto">side_effect</code>), and span. Aggregated per module-pair into the graph’s <code dir="auto">(:TSModule)-[:TS_IMPORTS]->(:TSModule|:TSPackage)</code> relationship.</li>
+<li><strong><code dir="auto">TSExport</code></strong> — <code dir="auto">module</code> (re-export source, nullable), <code dir="auto">name</code>, <code dir="auto">alias</code>, <code dir="auto">is_type_only</code>, <code dir="auto">export_kind</code> (<code dir="auto">named</code> | <code dir="auto">default</code> | <code dir="auto">namespace</code> | <code dir="auto">re_export</code>), and span.</li>
+<li><strong><code dir="auto">TSComment</code></strong> — <code dir="auto">content</code>, <code dir="auto">is_docstring</code> (JSDoc attached to a declaration), and span.</li>
+<li><strong><code dir="auto">TSDecorator</code></strong> — <code dir="auto">name</code>, checker-resolved <code dir="auto">qualified_name</code>, raw <code dir="auto">positional_arguments</code> and <code dir="auto">keyword_arguments</code> (source fragments for finders to parse), and span. Shared <code dir="auto">:TSDecorator</code> nodes in the graph (no <code dir="auto">_module</code> property) reached via <code dir="auto">[:TS_DECORATED_BY]</code>.</li>
+<li><strong><code dir="auto">TSTypeParameter</code></strong> — <code dir="auto">name</code>, <code dir="auto">constraint</code> (the <code dir="auto">extends …</code> clause), <code dir="auto">default</code> (the <code dir="auto">= …</code> clause).</li>
+<li><strong><code dir="auto">TSCallableParameter</code></strong> — <code dir="auto">name</code>, <code dir="auto">type</code>, <code dir="auto">default_value</code>, <code dir="auto">is_optional</code>, <code dir="auto">is_rest</code>, <code dir="auto">is_readonly</code>, <code dir="auto">accessibility</code> (parameter-property visibility for DI), parameter <code dir="auto">decorators</code>, and span.</li>
+<li><strong><code dir="auto">TSClassAttribute</code></strong> — <code dir="auto">name</code>, <code dir="auto">type</code>, <code dir="auto">initializer</code>, <code dir="auto">accessibility</code>, <code dir="auto">is_static</code>, <code dir="auto">is_readonly</code>, <code dir="auto">is_optional</code>, <code dir="auto">is_abstract</code>, decorators, comments, span.</li>
+<li><strong><code dir="auto">TSVariableDeclaration</code></strong> — <code dir="auto">name</code>, <code dir="auto">type</code>, <code dir="auto">initializer</code>, <code dir="auto">value</code>, <code dir="auto">scope</code>, <code dir="auto">declaration_kind</code> (<code dir="auto">const</code> | <code dir="auto">let</code> | <code dir="auto">var</code> | <code dir="auto">using</code> | <code dir="auto">unknown</code>), <code dir="auto">is_readonly</code>, <code dir="auto">is_exported</code>, span.</li>
+<li><strong><code dir="auto">TSSymbol</code></strong> — a referenced symbol: <code dir="auto">name</code>, <code dir="auto">scope</code>, <code dir="auto">kind</code>, resolved <code dir="auto">type</code>, <code dir="auto">qualified_name</code>, <code dir="auto">is_builtin</code>, location.</li>
+<li><strong><code dir="auto">TSEnumMember</code></strong> — <code dir="auto">name</code>, <code dir="auto">value</code>, span.</li>
+<li><strong><code dir="auto">TSOverloadSignature</code></strong> — <code dir="auto">parameters</code>, <code dir="auto">return_type</code>, <code dir="auto">type_parameters</code>, span.</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="identity-helpers">Identity helpers</h2><a class="sl-anchor-link" href="#identity-helpers"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Identity helpers”</span></a></div>
+<p>Three pure functions in <code dir="auto">schema.ts</code> produce every signature, so caller- and callee-side ids byte-match:</p>
+<ul>
+<li><strong><code dir="auto">fileKeyOf(absPath, projectRoot)</code></strong> → <code dir="auto">{ fileKey, modulePrefix }</code> — the symbol-table key (project-relative POSIX path <em>with</em> extension) and the signature prefix (<em>without</em> extension).</li>
+<li><strong><code dir="auto">signatureOf(prefix, ...members)</code></strong> — dot-joins a scope prefix with member names.</li>
+<li><strong><code dir="auto">constructorSignatureOf(classSignature)</code></strong> — normalizes a constructor to <code dir="auto">&#x3C;ClassSignature>.constructor</code>.</li>
+</ul>
+<p>These signatures are the join keys in both serializations: they are the symbol-table keys in <code dir="auto">analysis.json</code> and the <code dir="auto">signature</code>/<code dir="auto">name</code> MERGE keys on every node in the property graph, which is what lets the CLDK SDK rebuild the IR from the graph without re-parsing source.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="same-model-two-serializations">Same model, two serializations</h2><a class="sl-anchor-link" href="#same-model-two-serializations"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Same model, two serializations”</span></a></div>
+<p>The IR above is the default <code dir="auto">--emit json</code> output. The same in-memory analysis is the input to <code dir="auto">--emit neo4j</code>, which projects it into a labeled property graph instead of nested records:</p>
+<div class="expressive-code"><link rel="stylesheet" href="/codeanalyzer-typescript/_astro/ec.bdoyy.css"><script type="module" src="/codeanalyzer-typescript/_astro/ec.0vx5m.js"></script><figure class="frame is-terminal not-content"><figcaption class="header"><span class="title"></span><span class="sr-only">Terminal window</span></figcaption><pre data-language="bash"><code><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># IR — one analysis.json (default --emit json)</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">cants</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--input</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">./my-ts-project</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--app-name</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">my-ts-app</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># Same analysis, projected to a Neo4j property graph over Bolt</span></div></div><div class="ec-line"><div class="code"><span style="--0:#C5E478;--1:#3B61B0">NEO4J_PASSWORD</span><span style="--0:#C792EA;--1:#8844AE">=</span><span style="--0:#ECC48D;--1:#3B61B0">secret</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">cants</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--input</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">./my-ts-project</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--emit</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">neo4j</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#F78C6C;--1:#AA0982">\</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#82AAFF;--1:#3B61B0">--app-name</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">my-ts-app</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--neo4j-uri</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">bolt://localhost:7687</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--neo4j-user</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">neo4j</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="cants --input ./my-ts-project --app-name my-ts-appNEO4J_PASSWORD=secret cants --input ./my-ts-project --emit neo4j \  --app-name my-ts-app --neo4j-uri bolt://localhost:7687 --neo4j-user neo4j"><div></div></button></div></figure></div>
+<p>The graph carries a <strong>versioned contract</strong>: <code dir="auto">schema_version</code> (<code dir="auto">2.0.0</code>) is stamped onto the <code dir="auto">:TSApplication</code> anchor node, and <code dir="auto">--emit schema</code> writes the machine-readable <code dir="auto">schema.json</code> that declares every label, relationship, and property. Keep <code dir="auto">--app-name</code> consistent — it is the anchor that scopes the whole graph, and the CLDK SDK’s <code dir="auto">application_name</code> must match it to read the IR back.</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="python"><code><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># Read the IR back from the graph — no JDK, no cants binary, no source on this box</span></div></div><div class="ec-line"><div class="code"><span style="--0:#C792EA;--1:#8844AE">from</span><span style="--0:#D6DEEB;--1:#403F53"> cldk </span><span style="--0:#C792EA;--1:#8844AE">import</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">CLDK</span></div></div><div class="ec-line"><div class="code"><span style="--0:#C792EA;--1:#8844AE">from</span><span style="--0:#D6DEEB;--1:#403F53"> cldk.analysis.commons.backend_config </span><span style="--0:#C792EA;--1:#8844AE">import</span><span style="--0:#D6DEEB;--1:#403F53"> Neo4jConnectionConfig</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#D6DEEB;--1:#403F53">analysis </span><span style="--0:#C792EA;--1:#8844AE">=</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">CLDK</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#B2CCD6;--1:#096E72">typescript</span><span style="--0:#D6DEEB;--1:#403F53">(</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#D7DBE0;--1:#403F53">backend</span><span style="--0:#C792EA;--1:#8844AE">=</span><span style="--0:#B2CCD6;--1:#096E72">Neo4jConnectionConfig</span><span style="--0:#D6DEEB;--1:#403F53">(</span></div></div><div class="ec-line"><div class="code"><span class="indent">        </span><span style="--0:#D7DBE0;--1:#403F53">uri</span><span style="--0:#C792EA;--1:#8844AE">=</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#ECC48D;--1:#984E4D">bolt://localhost:7687</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#D9F5DD;--1:#111111">,</span></div></div><div class="ec-line"><div class="code"><span class="indent">        </span><span style="--0:#D7DBE0;--1:#403F53">username</span><span style="--0:#C792EA;--1:#8844AE">=</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#ECC48D;--1:#984E4D">neo4j</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#D9F5DD;--1:#111111">,</span></div></div><div class="ec-line"><div class="code"><span class="indent">        </span><span style="--0:#D7DBE0;--1:#403F53">password</span><span style="--0:#C792EA;--1:#8844AE">=</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#ECC48D;--1:#984E4D">neo4j</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#D9F5DD;--1:#111111">,</span></div></div><div class="ec-line"><div class="code"><span class="indent">        </span><span style="--0:#D7DBE0;--1:#403F53">application_name</span><span style="--0:#C792EA;--1:#8844AE">=</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#ECC48D;--1:#984E4D">my-ts-app</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#D9F5DD;--1:#111111">,</span><span style="--0:#82AAFF;--1:#3B61B0">   </span><span style="--0:#919F9F;--1:#5F636F"># == --app-name above</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#D6DEEB;--1:#403F53">)</span><span style="--0:#D9F5DD;--1:#111111">,</span></div></div><div class="ec-line"><div class="code"><span style="--0:#D6DEEB;--1:#403F53">)</span></div></div><div class="ec-line"><div class="code"><span style="--0:#D6DEEB;--1:#403F53">classes </span><span style="--0:#C792EA;--1:#8844AE">=</span><span style="--0:#D6DEEB;--1:#403F53"> analysis.</span><span style="--0:#B2CCD6;--1:#096E72">get_classes</span><span style="--0:#D6DEEB;--1:#403F53">()            </span><span style="--0:#919F9F;--1:#5F636F"># Dict[str, TSClass] — the same model objects</span></div></div><div class="ec-line"><div class="code"><span style="--0:#D6DEEB;--1:#403F53">cg </span><span style="--0:#C792EA;--1:#8844AE">=</span><span style="--0:#D6DEEB;--1:#403F53"> analysis.</span><span style="--0:#B2CCD6;--1:#096E72">get_call_graph</span><span style="--0:#D6DEEB;--1:#403F53">()              </span><span style="--0:#919F9F;--1:#5F636F"># networkx.DiGraph reconstructed from TS_CALLS</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="# Read the IR back from the graph — no JDK, no cants binary, no source on this boxfrom cldk import CLDKfrom cldk.analysis.commons.backend_config import Neo4jConnectionConfiganalysis = CLDK.typescript(    backend=Neo4jConnectionConfig(        uri=&#x22;bolt://localhost:7687&#x22;,        username=&#x22;neo4j&#x22;,        password=&#x22;neo4j&#x22;,        application_name=&#x22;my-ts-app&#x22;,   # == --app-name above    ),)classes = analysis.get_classes()            # Dict[str, TSClass] — the same model objectscg = analysis.get_call_graph()              # networkx.DiGraph reconstructed from TS_CALLS"><div></div></button></div></figure></div>
+<div class="sl-heading-wrapper level-h2"><h2 id="where-to-go-next">Where to go next</h2><a class="sl-anchor-link" href="#where-to-go-next"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “Where to go next”</span></a></div>
+<div class="card-grid astro-zntqmydn"><div class="sl-link-card astro-mf7fz2mj"> <span class="sl-flex stack astro-mf7fz2mj"> <a href="/codeanalyzer-typescript/reference/neo4j-schema/" class="astro-mf7fz2mj"> <span class="title astro-mf7fz2mj">Neo4j graph schema</span> </a> <span class="description astro-mf7fz2mj">The labeled-property-graph contract: node labels, relationships, and properties.</span> </span> <svg aria-hidden="true" class="icon rtl:flip astro-mf7fz2mj astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg> </div> <div class="sl-link-card astro-mf7fz2mj"> <span class="sl-flex stack astro-mf7fz2mj"> <a href="/codeanalyzer-typescript/guides/concepts/" class="astro-mf7fz2mj"> <span class="title astro-mf7fz2mj">Core concepts</span> </a> <span class="description astro-mf7fz2mj">How these models relate at runtime.</span> </span> <svg aria-hidden="true" class="icon rtl:flip astro-mf7fz2mj astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg> </div> <div class="sl-link-card astro-mf7fz2mj"> <span class="sl-flex stack astro-mf7fz2mj"> <a href="/codeanalyzer-typescript/guides/call-graph/" class="astro-mf7fz2mj"> <span class="title astro-mf7fz2mj">Call graph & dispatch</span> </a> <span class="description astro-mf7fz2mj">How TSCallEdge and TSExternalSymbol are produced.</span> </span> <svg aria-hidden="true" class="icon rtl:flip astro-mf7fz2mj astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg> </div> <div class="sl-link-card astro-mf7fz2mj"> <span class="sl-flex stack astro-mf7fz2mj"> <a href="/codeanalyzer-typescript/reference/cli/" class="astro-mf7fz2mj"> <span class="title astro-mf7fz2mj">CLI options</span> </a> <span class="description astro-mf7fz2mj">The flags that control what ends up in the artifact.</span> </span> <svg aria-hidden="true" class="icon rtl:flip astro-mf7fz2mj astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg> </div> </div>  </div> <footer class="sl-flex astro-3yyafb3n"> <div class="meta sl-flex astro-3yyafb3n"> <a href="https://github.com/codellm-devkit/codeanalyzer-typescript/edit/docs/src/content/docs/reference/schema.mdx" class="sl-flex print:hidden astro-eez2twj6"><svg aria-hidden="true" class="astro-eez2twj6 astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.2em;"><path d="M22 7.24a1 1 0 0 0-.29-.71l-4.24-4.24a1 1 0 0 0-1.1-.22 1 1 0 0 0-.32.22l-2.83 2.83L2.29 16.05a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h4.24a1 1 0 0 0 .76-.29l10.87-10.93L21.71 8c.1-.1.17-.2.22-.33a1 1 0 0 0 0-.24v-.14l.07-.05ZM6.83 20H4v-2.83l9.93-9.93 2.83 2.83L6.83 20ZM18.17 8.66l-2.83-2.83 1.42-1.41 2.82 2.82-1.41 1.42Z"/></svg>Edit page</a>  </div> <div class="pagination-links print:hidden astro-u2l5gyhi" dir="ltr"> <a href="/codeanalyzer-typescript/reference/cli/" rel="prev" class="astro-u2l5gyhi"> <svg aria-hidden="true" class="astro-u2l5gyhi astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg> <span class="astro-u2l5gyhi"> Previous <br class="astro-u2l5gyhi"> <span class="link-title astro-u2l5gyhi">CLI options</span> </span> </a> <a href="/codeanalyzer-typescript/reference/neo4j-schema/" rel="next" class="astro-u2l5gyhi"> <svg aria-hidden="true" class="astro-u2l5gyhi astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg> <span class="astro-u2l5gyhi"> Next <br class="astro-u2l5gyhi"> <span class="link-title astro-u2l5gyhi">Neo4j graph schema</span> </span> </a> </div>   </footer>  </div> </div>   </main> </div> </div>  </div> </div>  </body></html>
