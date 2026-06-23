@@ -5,14 +5,20 @@ description: The TSApplication data model — every model in the analysis.json a
 
 import { Aside, LinkCard, CardGrid } from "@astrojs/starlight/components";
 
-The artifact codeanalyzer-typescript emits is a single `TSApplication`. Every model below is a TypeScript interface defined in `src/schema/schema.ts`; the JSON and msgpack outputs are serializations of the same schema. All field names are `snake_case` so the keys match the CLDK SDK's models. Line/column fields default to `-1` when unknown.
+The artifact `cants` emits is a single `TSApplication`. Every model below is a TypeScript interface defined in `src/schema/schema.ts`; the `analysis.json` output is a serialization of that schema. All field names are `snake_case` so the keys match the CLDK SDK's models. Line/column fields default to `-1` when unknown.
+
+This page documents the **IR** — the in-memory model and its `analysis.json` serialization (`--emit json`, the default). The same analysis can instead be projected into a **Neo4j property graph** (`--emit neo4j`). That projection is a *different* namespace: a graph of labeled nodes and typed relationships, not nested records. The IR's `TSCallEdge`/`TSExternalSymbol`/`TSImport` become `:TS_CALLS`/`:TSExternal`/`:TS_IMPORTS` in the graph, and the analyzer renames on projection — see the [Neo4j graph schema](/codeanalyzer-typescript/reference/neo4j-schema/) for the label-and-relationship contract. The IR is fully reconstructable from the graph: the CLDK Python SDK reads the graph back into the very same model objects below.
 
 ```mermaid
 flowchart TB
-    APP[TSApplication] --> ST["symbol_table: {path: TSModule}"]
+    IR["analysis (in memory) → core.ts analyze()"]
+    IR --> JSON["--emit json (default)"]
+    IR --> GRAPH["--emit neo4j"]
+
+    JSON --> APP[TSApplication]
+    APP --> ST["symbol_table: {path: TSModule}"]
     APP --> CG["call_graph: [TSCallEdge]"]
     APP --> EX["external_symbols: {sig: TSExternalSymbol}"]
-    APP --> EP["entrypoints: {framework: [TSEntrypoint]}"]
     ST --> MOD[TSModule]
     MOD --> CLS[TSClass]
     MOD --> IF[TSInterface]
@@ -24,18 +30,27 @@ flowchart TB
     CLS --> ATTR[TSClassAttribute]
     FN --> CALL[TSCallsite]
     FN --> PARAM[TSCallableParameter]
+
+    GRAPH --> PG["labeled property graph<br/>(:TSApplication)-[:TS_HAS_MODULE]->(:TSModule)..."]
+    PG --> SNAP["snapshot: graph.cypher<br/>(no --neo4j-uri)"]
+    PG --> BOLT["live: incremental Bolt push<br/>(--neo4j-uri)"]
 ```
+
+The right branch is documented on its own page; everything below is the `analysis.json` IR.
 
 ## TSApplication
 
-The root object.
+The root object. The emitted artifact has **three** top-level keys; `entrypoints` is reserved by the schema but not emitted at level 1.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `symbol_table` | `Record<string, TSModule>` | File path → module model. The whole-project inventory. |
 | `call_graph` | `TSCallEdge[]` | Identity-keyed call edges. |
 | `external_symbols` | `Record<string, TSExternalSymbol>` | Phantom stubs for call targets outside the project. |
-| `entrypoints` | `Record<string, TSEntrypoint[]>` | Framework name → detected roots. Empty at level 1. |
+
+<Aside type="note">
+`entrypoints` (framework name → detected roots) is part of the schema and the graph's `:TSEntrypoint` marker label, but `core.ts` does not emit it yet — entrypoint detection is level-2 roadmap. Don't depend on a fourth top-level key in `analysis.json`.
+</Aside>
 
 ## TSModule
 
@@ -57,7 +72,7 @@ One per source file.
 | `variables` | `TSVariableDeclaration[]` | Module-level variables. |
 | `is_tsx` | `boolean` | Whether the file is `.tsx`/`.jsx`. |
 | `is_declaration_file` | `boolean` | Whether it's a `.d.ts` file. |
-| `content_hash`, `last_modified`, `file_size` | `string` / `number` / `number` | Cache-invalidation metadata (nullable). |
+| `content_hash`, `last_modified`, `file_size` | `string` / `number` / `number` | Cache-invalidation metadata (nullable). The graph diffs `content_hash` per module to push only what changed on an incremental Bolt load. |
 
 ## TSClass
 
@@ -137,7 +152,7 @@ A function, method, constructor, accessor, or arrow. The richest model in the ar
 | `type_parameters` | `TSTypeParameter[]` | Generic parameters. |
 | `return_type` | `string \| null` | Resolved return type, if known. |
 | `decorators` | `TSDecorator[]` | Applied decorators. |
-| `code` | `string \| null` | The source body. |
+| `code` | `string \| null` | The source body. Indexed in the graph's `code_fts` fulltext index for code search. |
 | `call_sites` | `TSCallsite[]` | Calls made *from* this callable. |
 | `accessed_symbols` | `TSSymbol[]` | Symbols read/written in the body. |
 | `local_variables` | `TSVariableDeclaration[]` | Locals. |
@@ -153,7 +168,7 @@ A function, method, constructor, accessor, or arrow. The richest model in the ar
 
 ## TSCallsite
 
-A single call made from within a callable — the rich per-call metadata behind a graph edge.
+A single call made from within a callable — the rich per-call metadata behind a graph edge. In the property graph this becomes a first-class `:TSCallSite` node reached via `(:TSCallable)-[:TS_HAS_CALLSITE]->(:TSCallSite)-[:TS_RESOLVES_TO]->(:TSCallable|:TSExternal)`.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -169,7 +184,7 @@ A single call made from within a callable — the rich per-call metadata behind 
 
 ## TSCallEdge
 
-An identity-only call-graph edge.
+An identity-only call-graph edge. Projected to the graph as the aggregated `(:TSCallable)-[:TS_CALLS]->(:TSCallable|:TSExternal)` relationship.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -186,7 +201,7 @@ Edge endpoints not present in the symbol table (imported-library / Node builtin 
 
 ## TSExternalSymbol
 
-A synthetic stub for a call target outside the project — an imported library member or Node builtin (WALA-style phantom node).
+A synthetic stub for a call target outside the project — an imported library member or Node builtin (WALA-style phantom node). In the graph these become shared `:TSExternal` nodes (no `_module` property): they are scoped to no single application, so a per-app wipe never deletes them and many apps reference the same library symbol.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -198,7 +213,7 @@ A synthetic stub for a call target outside the project — an imported library m
 
 ## TSEntrypoint
 
-A framework-dispatched root, referencing a callable by signature. Populated by level-2 finders; `entrypoints` is `{}` at level 1.
+A framework-dispatched root, referencing a callable by signature. Populated by level-2 finders; `entrypoints` is `{}` at level 1 and is not currently emitted as a top-level key.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -212,10 +227,10 @@ A framework-dispatched root, referencing a callable by signature. Populated by l
 
 ## Supporting models
 
-- **`TSImport`** — `module` specifier, `name`, `alias`, `is_type_only`, `import_kind` (`named` \| `default` \| `namespace` \| `side_effect`), and span.
+- **`TSImport`** — `module` specifier, `name`, `alias`, `is_type_only`, `import_kind` (`named` \| `default` \| `namespace` \| `side_effect`), and span. Aggregated per module-pair into the graph's `(:TSModule)-[:TS_IMPORTS]->(:TSModule|:TSPackage)` relationship.
 - **`TSExport`** — `module` (re-export source, nullable), `name`, `alias`, `is_type_only`, `export_kind` (`named` \| `default` \| `namespace` \| `re_export`), and span.
 - **`TSComment`** — `content`, `is_docstring` (JSDoc attached to a declaration), and span.
-- **`TSDecorator`** — `name`, checker-resolved `qualified_name`, raw `positional_arguments` and `keyword_arguments` (source fragments for finders to parse), and span.
+- **`TSDecorator`** — `name`, checker-resolved `qualified_name`, raw `positional_arguments` and `keyword_arguments` (source fragments for finders to parse), and span. Shared `:TSDecorator` nodes in the graph (no `_module` property) reached via `[:TS_DECORATED_BY]`.
 - **`TSTypeParameter`** — `name`, `constraint` (the `extends …` clause), `default` (the `= …` clause).
 - **`TSCallableParameter`** — `name`, `type`, `default_value`, `is_optional`, `is_rest`, `is_readonly`, `accessibility` (parameter-property visibility for DI), parameter `decorators`, and span.
 - **`TSClassAttribute`** — `name`, `type`, `initializer`, `accessibility`, `is_static`, `is_readonly`, `is_optional`, `is_abstract`, decorators, comments, span.
@@ -232,9 +247,44 @@ Three pure functions in `schema.ts` produce every signature, so caller- and call
 - **`signatureOf(prefix, ...members)`** — dot-joins a scope prefix with member names.
 - **`constructorSignatureOf(classSignature)`** — normalizes a constructor to `<ClassSignature>.constructor`.
 
+These signatures are the join keys in both serializations: they are the symbol-table keys in `analysis.json` and the `signature`/`name` MERGE keys on every node in the property graph, which is what lets the CLDK SDK rebuild the IR from the graph without re-parsing source.
+
+## Same model, two serializations
+
+The IR above is the default `--emit json` output. The same in-memory analysis is the input to `--emit neo4j`, which projects it into a labeled property graph instead of nested records:
+
+```bash
+# IR — one analysis.json (default --emit json)
+cants --input ./my-ts-project --app-name my-ts-app
+
+# Same analysis, projected to a Neo4j property graph over Bolt
+NEO4J_PASSWORD=secret cants --input ./my-ts-project --emit neo4j \
+  --app-name my-ts-app --neo4j-uri bolt://localhost:7687 --neo4j-user neo4j
+```
+
+The graph carries a **versioned contract**: `schema_version` (`2.0.0`) is stamped onto the `:TSApplication` anchor node, and `--emit schema` writes the machine-readable `schema.json` that declares every label, relationship, and property. Keep `--app-name` consistent — it is the anchor that scopes the whole graph, and the CLDK SDK's `application_name` must match it to read the IR back.
+
+```python
+# Read the IR back from the graph — no JDK, no cants binary, no source on this box
+from cldk import CLDK
+from cldk.analysis.commons.backend_config import Neo4jConnectionConfig
+
+analysis = CLDK.typescript(
+    backend=Neo4jConnectionConfig(
+        uri="bolt://localhost:7687",
+        username="neo4j",
+        password="neo4j",
+        application_name="my-ts-app",   # == --app-name above
+    ),
+)
+classes = analysis.get_classes()            # Dict[str, TSClass] — the same model objects
+cg = analysis.get_call_graph()              # networkx.DiGraph reconstructed from TS_CALLS
+```
+
 ## Where to go next
 
 <CardGrid>
+  <LinkCard title="Neo4j graph schema" description="The labeled-property-graph contract: node labels, relationships, and properties." href="/codeanalyzer-typescript/reference/neo4j-schema/" />
   <LinkCard title="Core concepts" description="How these models relate at runtime." href="/codeanalyzer-typescript/guides/concepts/" />
   <LinkCard title="Call graph & dispatch" description="How TSCallEdge and TSExternalSymbol are produced." href="/codeanalyzer-typescript/guides/call-graph/" />
   <LinkCard title="CLI options" description="The flags that control what ends up in the artifact." href="/codeanalyzer-typescript/reference/cli/" />

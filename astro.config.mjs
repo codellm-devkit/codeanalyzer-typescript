@@ -21,7 +21,7 @@ export default defineConfig({
       title: "codeanalyzer-typescript",
       tagline: "Static analysis for TypeScript your agents can call.",
       description:
-        "codeanalyzer-typescript turns a TypeScript/JavaScript project into one typed artifact — symbol table, call graph, and external symbols — using the TypeScript compiler via ts-morph. The TypeScript backend behind CLDK.",
+        "codeanalyzer-typescript turns a TypeScript/JavaScript project into a canonical symbol table and call graph — emitted as one typed analysis.json artifact or projected into a queryable Neo4j property graph — using the TypeScript compiler via ts-morph. The TypeScript backend behind CLDK.",
       logo: {
         src: "./src/assets/logo.png",
         replacesTitle: true,
@@ -106,6 +106,7 @@ export default defineConfig({
               label: "Level 2: CodeQL & entrypoints",
               slug: "guides/level-2",
             },
+            { label: "Neo4j", slug: "guides/neo4j" },
           ],
         },
         {
@@ -113,6 +114,7 @@ export default defineConfig({
           items: [
             { label: "CLI options", slug: "reference/cli" },
             { label: "Output schema", slug: "reference/schema" },
+            { label: "Neo4j graph schema", slug: "reference/neo4j-schema" },
           ],
         },
       ],

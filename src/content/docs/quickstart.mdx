@@ -1,35 +1,55 @@
 ---
 title: Quickstart
-description: Build codeanalyzer-typescript, run it against a TypeScript project, and read your first analysis.json — symbol table, call graph, and external symbols — in three steps.
+description: Install cants, run it against a TypeScript project, and read your first result — symbol table, call graph, and external symbols — as analysis.json or a Neo4j property graph.
 ---
 
 import { Steps, Aside, LinkCard, CardGrid, Tabs, TabItem } from "@astrojs/starlight/components";
 
-codeanalyzer-typescript points at a TypeScript or JavaScript project and produces one typed artifact — its symbol table, call graph, and external symbols. Three steps below: build it, run it against a project, and read the result.
+`cants` points at a TypeScript or JavaScript project and produces one typed artifact — its symbol table, call graph, and external symbols. You choose where that artifact lands: a single `analysis.json` file, or a **Neo4j property graph** you can query with Cypher and read back from the [CLDK](https://github.com/codellm-devkit/codellm-devkit) Python SDK. Three steps below: install it, run it against a project, and read the result.
 
 <Aside type="note" title="Prerequisite">
-You need **[Bun](https://bun.sh/) 1.0 or higher** to build and run the analyzer. The project you analyze should be a normal Node/TypeScript project — the analyzer resolves types and call targets with the TypeScript compiler. See [Installation](/codeanalyzer-typescript/installing/).
+`cants` ships as a self-contained binary — no Bun or Node at runtime. The project you analyze should be a normal Node/TypeScript project (a `package.json`, ideally a `tsconfig.json`), since the analyzer resolves types and call targets with the TypeScript compiler. See [Installation](/codeanalyzer-typescript/installing/).
 </Aside>
 
 <Steps>
 
-1. **Build the CLI.**
+1. **Install the CLI.**
 
-   ```shell
-   git clone https://github.com/codellm-devkit/codeanalyzer-typescript
-   cd codeanalyzer-typescript
-   bun install
-   bun run build      # -> dist/codeanalyzer-typescript (standalone native binary)
+   Grab the prebuilt `cants` binary the fast way — pip, Homebrew, or the shell installer. No toolchain required.
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install codeanalyzer-typescript
+       ```
+     </TabItem>
+     <TabItem label="Homebrew">
+       ```bash
+       brew install codellm-devkit/homebrew-tap/cants
+       ```
+     </TabItem>
+     <TabItem label="Shell installer">
+       ```bash
+       curl -fsSL https://raw.githubusercontent.com/codellm-devkit/codeanalyzer-typescript/main/cants-installer.sh | sh
+       # installs to ~/.local/bin/cants
+       ```
+     </TabItem>
+   </Tabs>
+
+   ```bash
+   cants --help
    ```
 
-   That compiles a standalone binary at `dist/codeanalyzer-typescript` — no Bun or Node needed to run it afterward. To skip the compile step, run from source instead with `bun run start -- …`.
+   <Aside type="tip" title="Build from source instead">
+   Prefer to build it yourself? Clone the repo and compile with Bun — `bun install && bun run build` produces the same standalone binary at `dist/cants`. See [Installation](/codeanalyzer-typescript/installing/).
+   </Aside>
 
 2. **Run it against a project.**
 
    Point `--input` at any TypeScript/JavaScript project root and `--output` at a directory for the result.
 
-   ```shell
-   ./dist/codeanalyzer-typescript --input ./my-ts-project --output ./out
+   ```bash
+   cants --input ./my-ts-project --output ./out
    ```
 
    By default the analyzer first materializes the project's `node_modules` (so imported library calls resolve), walks every source file, builds the symbol table and call graph, and writes `./out/analysis.json`. Intermediate state is cached under `.codeanalyzer/` in the project.
@@ -37,18 +57,18 @@ You need **[Bun](https://bun.sh/) 1.0 or higher** to build and run the analyzer.
    <Aside type="tip">
    Omit `--output` to stream the JSON to stdout instead — handy for piping into `jq`:
 
-   ```shell
-   ./dist/codeanalyzer-typescript --input ./my-ts-project | jq '.external_symbols | keys'
+   ```bash
+   cants --input ./my-ts-project | jq '.external_symbols | keys'
    ```
    </Aside>
 
 3. **Read the result.**
 
-   `analysis.json` is a single `TSApplication` object with four top-level keys.
+   `analysis.json` is a single `TSApplication` object with three top-level keys.
 
-   ```shell
+   ```bash
    jq 'keys' ./out/analysis.json
-   # [ "call_graph", "entrypoints", "external_symbols", "symbol_table" ]
+   # [ "call_graph", "external_symbols", "symbol_table" ]
 
    jq '.symbol_table | length' ./out/analysis.json     # modules analyzed
    jq '.call_graph | length' ./out/analysis.json        # call edges
@@ -80,12 +100,119 @@ print(g.number_of_nodes(), "nodes,", g.number_of_edges(), "edges")
 
 Edge endpoints are either a real `TSCallable.signature` from the symbol table or a `TSExternalSymbol.signature` for a call into a library — both are plain strings, so external boundaries show up as nodes in the graph rather than disappearing.
 
+## Emit a Neo4j property graph
+
+`analysis.json` is one file per project: you load it whole into memory, and it doesn't compose across a portfolio. When you want a **queryable, persistent system of record** — many applications in one database, cross-service traversals, a model your tools depend on — project the analysis into Neo4j instead. Same in-memory analysis, different output target: `--emit neo4j` replaces the JSON entirely.
+
+There are two ways to emit it, chosen by whether you point at a live database.
+
+<Tabs>
+  <TabItem label="Snapshot (graph.cypher)">
+
+   With no `--neo4j-uri`, `cants` writes a self-contained Cypher script — DDL constraints and indexes, a scoped wipe of this app's prior subgraph, then batched `MERGE` for nodes and relationships.
+
+   ```bash
+   cants --input ./my-ts-project --emit neo4j --app-name my-ts-app --output ./out
+   # -> ./out/graph.cypher
+   ```
+
+   Load it into any Neo4j with `cypher-shell`:
+
+   ```bash
+   cypher-shell -u neo4j -p "$NEO4J_PASSWORD" < ./out/graph.cypher
+   ```
+
+   A snapshot is portable and reproducible, but it's not incremental — a static script has no view of the live database, so it rewrites this application's whole subgraph each time.
+
+  </TabItem>
+  <TabItem label="Incremental (live Bolt push)">
+
+   Pass `--neo4j-uri` and `cants` pushes over Bolt **incrementally**: it diffs each module's `content_hash` against the database and only re-pushes what changed. This is the path for a CI job or a Kubernetes `Job`/`CronJob` that keeps a shared graph current.
+
+   Prefer the `NEO4J_PASSWORD` environment variable over `--neo4j-password` — a flag value is visible in your shell history and the process list.
+
+   ```bash
+   export NEO4J_PASSWORD='…'
+
+   cants \
+     --input ./my-ts-project \
+     --emit neo4j \
+     --app-name my-ts-app \
+     --neo4j-uri bolt://localhost:7687 \
+     --neo4j-user neo4j \
+     --neo4j-database neo4j
+   ```
+
+   `--neo4j-uri`, `--neo4j-user`, `--neo4j-password`, and `--neo4j-database` also read from `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, and `NEO4J_DATABASE` — a flag wins when both are set.
+
+  </TabItem>
+</Tabs>
+
+<Aside type="note" title="--app-name is the scoping key">
+`--app-name` sets the `name` of the graph's `:TSApplication` anchor node. Every module hangs off it, the snapshot's wipe and the incremental push both scope to it, and the Python SDK reads the graph back by it — so keep it stable per application. Omit it and it defaults to the input directory's basename. Shared `:TSExternal`, `:TSPackage`, and `:TSDecorator` nodes are not scoped, so many applications coexist in one database without clobbering each other.
+</Aside>
+
+### Your first Cypher query
+
+Once the graph is loaded, the model is a graph traversal instead of a parse-the-whole-file problem. How many modules did this application contribute?
+
+```cypher
+MATCH (a:TSApplication {name: $app})-[:TS_HAS_MODULE]->(m:TSModule)
+RETURN count(m) AS modules
+```
+
+Walk one hop further to list the call edges out of a callable:
+
+```cypher
+MATCH (a:TSApplication {name: $app})-[:TS_HAS_MODULE]->(:TSModule)
+      -[:TS_DECLARES]->(c:TSCallable)-[r:TS_CALLS]->(callee)
+RETURN c.signature, callee.signature, r.weight
+ORDER BY r.weight DESC
+LIMIT 10
+```
+
+See the [graph schema reference](/codeanalyzer-typescript/reference/schema/) for every node label, relationship type, and property.
+
+## Read the graph from Python — no re-analysis
+
+The big enterprise unlock: analysis is produced once, centrally, and read cheaply everywhere. CLDK has a **read-only Neo4j backend** — point it at the Bolt URI and it reconstructs the *same* typed model objects and the *same* `networkx` call graph the in-process analyzer builds, with **no toolchain, no `cants` binary, and no project source** on the consumer. It only needs the graph and read-only credentials.
+
+Install the driver extra, then select the backend by passing a `Neo4jConnectionConfig`:
+
+```bash
+pip install "cldk[neo4j]"
+```
+
+```python title="read_graph.py"
+from cldk import CLDK
+from cldk.analysis.commons.backend_config import Neo4jConnectionConfig
+
+analysis = CLDK.typescript(
+    backend=Neo4jConnectionConfig(
+        uri="bolt://localhost:7687",
+        username="neo4j",
+        password="neo4j",
+        application_name="my-ts-app",   # == the --app-name the graph was loaded with
+    ),
+)
+
+classes = analysis.get_classes()             # Dict[str, TSClass]
+externals = analysis.get_external_symbols()  # phantom library targets, for source->sink reachability
+cg = analysis.get_call_graph()               # networkx.DiGraph
+```
+
+`application_name` **must** equal the `--app-name` the graph was loaded with — it scopes every query to one application's subgraph. Read-only credentials are sufficient; the backend never writes. Other methods on the facade include `get_call_graph()`, `get_interfaces()`, `get_functions()`, `get_callers()`, `get_callees()`, `get_class_hierarchy()`, and `get_decorators()` — the same surface as the in-process backend.
+
+<Aside type="tip">
+This is the producer/consumer split: a heavier analysis job runs `cants --emit neo4j` out of band and writes the graph, while many lightweight consumers — agents, the CLDK SDK, dashboards — read from it and scale independently. See the [Neo4j guide](/codeanalyzer-typescript/guides/neo4j/) for deployment patterns.
+</Aside>
+
 ## Go deeper with level 2
 
 The default run is **level 1**: the TypeScript checker resolves the call graph, RTA expands virtual dispatch, and phantom nodes capture external calls — fast, no extra tooling. Level 2 adds CodeQL enrichment for the dynamic cases the checker can't reach.
 
-```shell
-./dist/codeanalyzer-typescript --input ./my-ts-project --output ./out --analysis-level 2
+```bash
+cants --input ./my-ts-project --output ./out --analysis-level 2
 ```
 
 <Aside type="caution">
@@ -95,8 +222,8 @@ Level-2 CodeQL enrichment is **experimental** and currently a no-op stub — it 
 ## Where this goes next
 
 <CardGrid>
-  <LinkCard title="CLI usage" description="Output formats, caching, incremental mode, build control — every flag with examples." href="/codeanalyzer-typescript/guides/cli-usage/" />
+  <LinkCard title="CLI usage" description="Every flag — emit targets, Neo4j connection, caching, incremental mode, build control — with examples." href="/codeanalyzer-typescript/guides/cli-usage/" />
+  <LinkCard title="Neo4j property graph" description="Snapshot vs. incremental push, the scoped wipe, and deploying the analyzer as a Kubernetes Job." href="/codeanalyzer-typescript/guides/neo4j/" />
   <LinkCard title="Core concepts" description="What the symbol table, call graph, and external symbols actually contain." href="/codeanalyzer-typescript/guides/concepts/" />
-  <LinkCard title="Call graph & dispatch" description="How the checker resolves edges and what RTA expands." href="/codeanalyzer-typescript/guides/call-graph/" />
-  <LinkCard title="Output schema" description="The TSApplication data model, field by field." href="/codeanalyzer-typescript/reference/schema/" />
+  <LinkCard title="Graph schema" description="The TSApplication property graph — node labels, relationships, and properties, field by field." href="/codeanalyzer-typescript/reference/schema/" />
 </CardGrid>

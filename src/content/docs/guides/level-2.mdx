@@ -32,8 +32,15 @@ via signatureOf"]
     MAP --> CE["CodeQL edges
 provenance: codeql"]
     CE --> M
-    M --> CG[enriched call_graph]
+    M --> CG["enriched call_graph
+(IR / analysis.json)"]
+    CG -->|"--emit neo4j"| PG["Neo4j property graph
+(:TS_CALLS) carries provenance"]
+    PG --> SNAP["graph.cypher snapshot"]
+    PG --> BOLT["live Bolt push (incremental)"]
 ```
+
+When you project this IR to the graph with `--emit neo4j`, the merged call edges become `:TS_CALLS` relationships and the provenance you accumulated above survives as the `provenance` property on each edge — so a CodeQL-confirmed call stays distinguishable from a checker-only call after it lands in Neo4j, whether you write a self-contained `graph.cypher` snapshot or push incrementally over Bolt. See the [Neo4j graph](/codeanalyzer-typescript/guides/neo4j/) guide for the projection itself.
 
 ### How the merge already behaves
 
@@ -60,6 +67,10 @@ The schema already carries the result type, `TSEntrypoint`:
 
 The symbol table is already shaped to make detection tractable: `TSCallable` carries `is_entrypoint` and `entrypoint_framework` flags, decorators are captured with resolved qualified names and raw argument fragments (so a `@Get('/users')` route path is recoverable), and parameter decorators (`@Param('id')`) are recorded. Detection itself — the finders that populate `entrypoints[framework]` — is the level-2 work that remains.
 
+<Aside type="note" title="The graph shape is already stable">
+The Neo4j projection is ahead of the finders here. `TSEntrypoint` is a **marker label** in the property-graph schema (`schema.neo4j.json`, schema version `2.0.0`), and the projection stamps it onto entrypoint callables/classes with `framework`, `detection_source`, `route_path`, `http_methods`, and `entrypoint_count` properties. So the moment detection lands, those nodes light up without a schema change — a query like `MATCH (e:TSEntrypoint) RETURN e.route_path, e.http_methods` is valid Cypher today; it just returns nothing yet.
+</Aside>
+
 <Aside type="caution" title="Empty today">
 Until finders are implemented, `app.entrypoints` is always `{}`, regardless of analysis level. Don't build on its contents yet; the field is present so the artifact shape won't change when detection arrives.
 </Aside>
@@ -68,8 +79,8 @@ Until finders are implemented, `app.entrypoints` is always `{}`, regardless of a
 
 You can pass the flag — the pipeline accepts it and the artifact shape is final — but expect level-1 results:
 
-```shell
-codeanalyzer-typescript --input ./my-ts-project --output ./out --analysis-level 2
+```bash
+cants --input ./my-ts-project --output ./out --analysis-level 2
 # warns: CodeQL enrichment not implemented; emits no extra edges
 ```
 
@@ -79,6 +90,7 @@ That makes `--analysis-level 2` safe to wire into a pipeline now: when enrichmen
 
 <CardGrid>
   <LinkCard title="Call graph & dispatch" description="The level-1 graph that level 2 enriches." href="/codeanalyzer-typescript/guides/call-graph/" />
+  <LinkCard title="Neo4j graph" description="Project the call graph and entrypoints into a labeled property graph." href="/codeanalyzer-typescript/guides/neo4j/" />
   <LinkCard title="Output schema" description="The TSEntrypoint and TSCallEdge models." href="/codeanalyzer-typescript/reference/schema/#tsentrypoint" />
   <LinkCard title="Core concepts" description="Provenance and how merged edges record their engines." href="/codeanalyzer-typescript/guides/concepts/#provenance" />
 </CardGrid>

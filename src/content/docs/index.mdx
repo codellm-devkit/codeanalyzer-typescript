@@ -1,9 +1,9 @@
 ---
 title: codeanalyzer-typescript
-description: Turn a TypeScript or JavaScript project into one typed artifact — symbol table, call graph, and external symbols — with the TypeScript compiler via ts-morph. The TypeScript backend behind CLDK.
+description: Turn a TypeScript or JavaScript project into one typed model — symbol table, call graph, and external symbols — emitted as analysis.json or projected into a Neo4j property graph. The TypeScript backend behind CLDK.
 template: doc
 hero:
-  tagline: Point it at a TypeScript or JavaScript project and get back one typed artifact — symbol table, call graph, and the external library targets it calls. Program analysis your agents can call.
+  tagline: Point it at a TypeScript or JavaScript project and get back one typed model — symbol table, call graph, and the external library targets it calls — as a single analysis.json or projected into a queryable Neo4j property graph. Program analysis your agents can call.
   actions:
     - text: Quickstart
       link: /codeanalyzer-typescript/quickstart/
@@ -19,24 +19,59 @@ hero:
       variant: minimal
 ---
 
-import { CardGrid, LinkCard } from "@astrojs/starlight/components";
+import { CardGrid, LinkCard, Tabs, TabItem } from "@astrojs/starlight/components";
 
-Point `codeanalyzer-typescript` at a project and it emits a single **`analysis.json`** — a typed model of every module, class, interface, enum, function, and call edge, plus phantom stubs for the library calls that leave the project. It's the TypeScript backend behind [CLDK](https://github.com/codellm-devkit/python-sdk), mirroring its [Python](https://github.com/codellm-devkit/codeanalyzer-python) and [Java](https://github.com/codellm-devkit/codeanalyzer-java) siblings, usable standalone as a CLI.
+Point `cants` at a project and it builds one typed model of the program — every module, class, interface, enum, function, and call edge, plus phantom stubs for the library calls that leave the project. Emit it as a single **`analysis.json`** with `--emit json`, or project the same model into a **Neo4j property graph** with `--emit neo4j`. It's the TypeScript backend behind [CLDK](https://github.com/codellm-devkit/python-sdk), mirroring its [Python](https://github.com/codellm-devkit/codeanalyzer-python) and [Java](https://github.com/codellm-devkit/codeanalyzer-java) siblings, usable standalone as a CLI.
+
+`cants` ships as a self-contained binary — install it with pip, Homebrew, or the shell installer; no Bun or Node at runtime:
+
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install codeanalyzer-typescript
+    ```
+  </TabItem>
+  <TabItem label="Homebrew">
+    ```bash
+    brew install codellm-devkit/homebrew-tap/codeanalyzer-typescript
+    ```
+  </TabItem>
+  <TabItem label="Shell installer">
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/codellm-devkit/codeanalyzer-typescript/main/cants-installer.sh | bash
+    ```
+  </TabItem>
+</Tabs>
+
+Then emit a JSON model, or push the same analysis into a Neo4j graph anchored at an application name you choose:
+
+```bash
+# One typed artifact on disk
+cants --input ./my-ts-project --emit json
+
+# The same model, projected into a Neo4j property graph over Bolt
+NEO4J_PASSWORD=secret cants --input ./my-ts-project --emit neo4j \
+  --app-name my-ts-app --neo4j-uri bolt://localhost:7687
+```
+
+The graph is the same model, just persistent and queryable. Where `analysis.json` is one file you load whole into memory per project, a Neo4j database holds **many applications at once** — each anchored at its own `:TSApplication` node — so whole-monorepo and cross-service questions become a Cypher traversal instead of parsing giant JSON blobs. Produce the graph once, centrally, from a CI or Kubernetes job; read it cheaply from agents, dashboards, and the [CLDK](https://github.com/codellm-devkit/python-sdk) Python SDK.
 
 ## Start building
 
 <CardGrid>
-  <LinkCard title="Quickstart" description="Build the CLI and produce your first analysis.json in a couple of minutes." href="/codeanalyzer-typescript/quickstart/" />
-  <LinkCard title="What is codeanalyzer-typescript?" description="The mental model: project in → one typed TSApplication artifact out." href="/codeanalyzer-typescript/what-is-codeanalyzer/" />
-  <LinkCard title="CLI usage" description="Every flag, with worked examples: output formats, caching, incremental mode, build control." href="/codeanalyzer-typescript/guides/cli-usage/" />
-  <LinkCard title="Call graph & dispatch" description="How the checker resolves edges, what RTA expands, and how phantom nodes work." href="/codeanalyzer-typescript/guides/call-graph/" />
+  <LinkCard title="Quickstart" description="Install cants and produce your first analysis.json in a couple of minutes." href="/codeanalyzer-typescript/quickstart/" />
+  <LinkCard title="What is codeanalyzer-typescript?" description="The mental model: project in → one typed TSApplication, as JSON or a property graph." href="/codeanalyzer-typescript/what-is-codeanalyzer/" />
+  <LinkCard title="Neo4j graph" description="Project the analysis into a labeled property graph: a graph.cypher snapshot or an incremental Bolt push, read back by CLDK." href="/codeanalyzer-typescript/guides/neo4j/" />
+  <LinkCard title="CLI usage" description="Every flag, with worked examples: emit targets, caching, incremental mode, build control." href="/codeanalyzer-typescript/guides/cli-usage/" />
 </CardGrid>
 
 ## Learn more
 
 <CardGrid>
   <LinkCard title="Core concepts" description="Symbol table, call graph, external symbols, signatures, provenance, and the analysis cache." href="/codeanalyzer-typescript/guides/concepts/" />
+  <LinkCard title="Call graph & dispatch" description="How the checker resolves edges, what RTA expands, and how phantom nodes work." href="/codeanalyzer-typescript/guides/call-graph/" />
   <LinkCard title="Output schema" description="The TSApplication data model, field by field." href="/codeanalyzer-typescript/reference/schema/" />
+  <LinkCard title="Schema contract" description="The versioned, machine-readable Neo4j schema (--emit schema → schema.json, schema_version 2.0.0)." href="/codeanalyzer-typescript/reference/schema/" />
   <LinkCard title="Level 2: CodeQL & entrypoints" description="What --analysis-level 2 will add, and where it stands today." href="/codeanalyzer-typescript/guides/level-2/" />
   <LinkCard title="CLI options" description="The complete flag table with defaults." href="/codeanalyzer-typescript/reference/cli/" />
 </CardGrid>

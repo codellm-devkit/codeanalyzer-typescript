@@ -1,120 +1,239 @@
 ---
 title: CLI usage
-description: Worked examples for the codeanalyzer-typescript command — output formats, analysis levels, caching, incremental mode, build control, phantom nodes, and verbosity.
+description: Worked examples for the cants command — output targets, the Neo4j property graph, analysis levels, caching, incremental mode, build control, phantom nodes, and verbosity.
 ---
 
 import { Aside, LinkCard, CardGrid, Tabs, TabItem } from "@astrojs/starlight/components";
 
-The `codeanalyzer-typescript` command runs static analysis on a TypeScript/JavaScript project and emits a `TSApplication` artifact. This guide walks through the common invocations; for the full flag table see the [CLI reference](/codeanalyzer-typescript/reference/cli/).
+The `cants` command runs static analysis on a TypeScript/JavaScript project and either emits a `TSApplication` artifact (`analysis.json`) or projects that same analysis into a **Neo4j property graph**. This guide walks through the common invocations; for the full flag table see the [CLI reference](/codeanalyzer-typescript/reference/cli/).
 
 <Aside type="note" title="Invoking the analyzer">
-The examples below call the compiled binary `codeanalyzer-typescript`. If you haven't built it, run from source instead — `bun run start -- --input …` — everything after `--` is identical.
+A prebuilt `cants` binary is self-contained — no Bun or Node at runtime. Install it via `pip install codeanalyzer-typescript`, Homebrew (`brew install codellm-devkit/homebrew-tap/codeanalyzer-typescript`), or the shell installer. The examples below call `cants` directly; if you're working from a source checkout, `bun run start -- --input …` takes the identical flags after `--`.
 </Aside>
 
 ## Basic analysis
 
-The only required flag is `--input` (`-i`), the project root:
+The only required flag for a JSON analysis is `--input` (`-i`), the project root:
 
-```shell
-codeanalyzer-typescript --input ./my-ts-project
+```bash
+cants --input ./my-ts-project
 ```
 
 With no `--output`, the analysis is printed to stdout as compact JSON. Add `--output` (`-o`) to write it to a file instead:
 
-```shell
-codeanalyzer-typescript --input ./my-ts-project --output ./out
+```bash
+cants --input ./my-ts-project --output ./out
 # -> ./out/analysis.json
 ```
 
 <Aside type="note">
-`--output` takes a **directory**. The file is named `analysis.json` (or `analysis.msgpack`) inside it; the directory is created if it doesn't exist.
+`--output` takes a **directory**, not a filename. For the default JSON target the file is named `analysis.json` inside it; for `--emit neo4j` without a live URI it is `graph.cypher`; for `--emit schema` it is `schema.json`. The directory is created if it doesn't exist.
 </Aside>
 
-## Output formats
+## Output targets (`--emit`)
 
-The default format is JSON. Pass `--format msgpack` (`-f`) for a MessagePack artifact — more compact for storage and faster to load for large projects:
+`--emit <target>` selects what the analyzer produces. One analysis is built in memory and then serialized to the chosen target — the targets are **mutually exclusive**, not additive:
 
-```shell
-codeanalyzer-typescript --input ./my-ts-project --output ./out --format msgpack
-# -> ./out/analysis.msgpack
+| Target            | Output                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| `json` *(default)* | The `TSApplication` artifact: `symbol_table`, `call_graph`, and `external_symbols`.       |
+| `neo4j`           | A labeled property graph — a self-contained `graph.cypher` snapshot, or a live Bolt push. |
+| `schema`          | The versioned Neo4j schema contract, `schema.json` (`schema_version` `2.0.0`).            |
+
+```bash
+# Default: the JSON artifact
+cants --input ./my-ts-project --emit json --output ./out
+# -> ./out/analysis.json
 ```
 
-The schema is identical across formats; only the serialization differs.
+<Aside type="note">
+The live `analysis.json` artifact has three top-level keys — `symbol_table`, `call_graph`, and `external_symbols`. (`entrypoints` is reserved in the schema but not emitted today.)
+</Aside>
+
+### The schema contract
+
+`--emit schema` serializes the in-repo catalog to a machine-readable `schema.json` — the node labels, relationship types, and properties that the Neo4j projection guarantees. It needs no `--input` and is stamped with `schema_version` `2.0.0`, so a consumer (a dashboard, the CLDK SDK) can detect a producer/consumer mismatch before it queries:
+
+```bash
+cants --emit schema --output ./out
+# -> ./out/schema.json   (omit --output to print to stdout)
+```
+
+## Neo4j output
+
+`--emit neo4j` replaces the JSON entirely and instead projects the analysis into a Neo4j property graph. Where a single `analysis.json` has to be loaded whole into memory and doesn't compose across a portfolio, the graph is a persistent, queryable system of record: many applications live in one database — each anchored at its own `:TSApplication` node — and whole-monorepo or cross-service questions become a Cypher traversal instead of a parse of giant JSON blobs.
+
+There are **two mutually-exclusive writers**, chosen by whether `--neo4j-uri` is set.
+
+<Tabs>
+<TabItem label="Snapshot (graph.cypher)">
+
+With **no** `--neo4j-uri`, the projection is written as a self-contained `graph.cypher` script: DDL constraints and indexes, a scoped wipe of this app's prior subgraph, then batched `UNWIND … MERGE` for nodes and relationships. Load it with `cypher-shell`:
+
+```bash
+cants --input ./my-ts-project --emit neo4j --app-name my-ts-app --output ./out
+# -> ./out/graph.cypher
+
+cypher-shell -u neo4j -p "$NEO4J_PASSWORD" < ./out/graph.cypher
+```
+
+A snapshot is **not incremental** by design — a static script has no view of the live database, so it always rewrites this application's subgraph from scratch.
+
+</TabItem>
+<TabItem label="Live push (Bolt)">
+
+When `--neo4j-uri` is present, `cants` pushes **incrementally** over Bolt. It ensures the constraints and indexes exist, diffs each module's `content_hash` against the database, and only re-pushes the modules that changed — re-loads touch changed modules only:
+
+```bash
+export NEO4J_PASSWORD=secret
+cants --input ./my-ts-project \
+  --emit neo4j \
+  --app-name my-ts-app \
+  --neo4j-uri bolt://localhost:7687 \
+  --neo4j-user neo4j \
+  --neo4j-database neo4j
+```
+
+This is the producer half of a producer/consumer split: run it out-of-band as a CI job or a Kubernetes `Job`/`CronJob` that pushes into a managed or clustered Neo4j, and let lightweight read-only consumers (agents, the [CLDK Python SDK](/codeanalyzer-typescript/guides/cldk/), dashboards) query the database independently.
+
+</TabItem>
+</Tabs>
+
+### `--app-name`: the scoping anchor
+
+`--app-name` sets the `name` property of the single `:TSApplication` anchor node — the MERGE key for the whole graph (a uniqueness constraint enforces it). Every module hangs off this node via `TS_HAS_MODULE`, and the `schema_version` is stamped onto it. It defaults to the input directory's basename when omitted.
+
+It is also the multi-tenant boundary. The scoped wipe matches `(:TSApplication {name: <app-name>})` and detach-deletes **only that application's** modules and declarations, so loading `billing-service` never clobbers `web-frontend` in the same database. Shared `:TSExternal`, `:TSPackage`, and `:TSDecorator` nodes are MERGE-only and survive across applications. Keep `--app-name` stable — the CLDK SDK reads the graph back by exactly this name (`application_name` must equal the `--app-name` the graph was loaded with).
+
+<Aside type="caution" title="Prefer the password env var">
+Prefer the `NEO4J_PASSWORD` environment variable over `--neo4j-password`. A value passed as a flag is visible in your shell history and the process list. The four connection settings each read an environment variable when the flag is omitted; the flag wins when both are set:
+
+| Flag                | Environment variable | Default                |
+| ------------------- | -------------------- | ---------------------- |
+| `--neo4j-uri`       | `NEO4J_URI`          | *(none — omit ⇒ snapshot)* |
+| `--neo4j-user`      | `NEO4J_USERNAME`     | `neo4j`                |
+| `--neo4j-password`  | `NEO4J_PASSWORD`     | `neo4j`                |
+| `--neo4j-database`  | `NEO4J_DATABASE`     | *(none — server default DB)* |
+</Aside>
+
+### Incremental graph loads
+
+On the Bolt path, `--target-files` (`-t`) flips the run from **full** to **targeted**: per changed module `cants` deletes that module's outgoing edges, detach-deletes the declarations it no longer emits, and MERGE-upserts its current nodes and edges. Nodes are never blindly deleted, so a declaration another unchanged module still references survives.
+
+```bash
+# Push only the modules that changed since the last load
+cants --input ./my-ts-project \
+  --emit neo4j \
+  --app-name my-ts-app \
+  --neo4j-uri bolt://localhost:7687 \
+  --target-files src/billing.ts src/invoice.ts
+```
+
+<Aside type="note">
+A **full** run (no `--target-files`) also prunes orphans: modules whose source file vanished are detach-deleted along with their descendants. A **targeted** run skips that pruning, because it can't distinguish a deleted file from one you simply didn't target this time.
+</Aside>
+
+### Querying across applications
+
+Because many app-scoped subgraphs share one database, cross-portfolio analysis is a single Cypher query. For example, every external package any application imports:
+
+```cypher
+MATCH (a:TSApplication)-[:TS_HAS_MODULE]->(:TSModule)-[:TS_IMPORTS]->(p:TSPackage)
+RETURN a.name AS application, collect(DISTINCT p.name) AS packages
+ORDER BY application
+```
+
+See the [Neo4j graph schema](/codeanalyzer-typescript/reference/schema/) for the full label and relationship topology, and the [Neo4j guide](/codeanalyzer-typescript/guides/neo4j/) for deployment patterns.
+
+## Call-graph provider
+
+`--call-graph-provider` selects the call-graph backend. The default `tsc` uses the TypeScript compiler's resolver; `jelly` uses the embedded [cs-au-dk/jelly](https://github.com/cs-au-dk/jelly) flow analyzer (shipped inside the `cants` binary — no extra install); `both` runs each and diffs them:
+
+```bash
+# tsc resolver (default)
+cants --input ./my-ts-project --call-graph-provider tsc
+
+# jelly flow analysis
+cants --input ./my-ts-project --call-graph-provider jelly
+
+# run both and compare
+cants --input ./my-ts-project --call-graph-provider both
+```
 
 ## Analysis levels
 
 `--analysis-level` (`-a`) selects how deep the call-graph resolution goes:
 
-```shell
+```bash
 # Level 1 (default) — tsc resolver call graph + RTA + phantom external nodes
-codeanalyzer-typescript --input ./my-ts-project --analysis-level 1
+cants --input ./my-ts-project --analysis-level 1
 
-# Level 2 — additionally enrich with CodeQL
-codeanalyzer-typescript --input ./my-ts-project --analysis-level 2
+# Level 2 — additionally enrich the call graph
+cants --input ./my-ts-project --analysis-level 2
 ```
 
-Every run produces a symbol table **and** a call graph. At level 1, edges come from the TypeScript checker plus Rapid Type Analysis, with phantom nodes for calls into imported libraries. Level 2 is intended to merge in CodeQL-derived edges.
+Every run produces a symbol table **and** a call graph. At level 1, edges come from the TypeScript checker plus Rapid Type Analysis, with phantom nodes for calls into imported libraries.
 
 <Aside type="caution">
-Level-2 CodeQL enrichment is **experimental** and currently a stub: it logs a warning and emits no extra edges, falling back to the level-1 graph. See [Level 2: CodeQL & entrypoints](/codeanalyzer-typescript/guides/level-2/).
+Level-2 enrichment is **experimental** and currently a stub: it logs a warning and emits no extra edges, falling back to the level-1 graph. See [Level 2: CodeQL & entrypoints](/codeanalyzer-typescript/guides/level-2/).
 </Aside>
 
 ## Build control: materializing dependencies
 
 By default the analyzer materializes the project's `node_modules` before parsing, so the checker can resolve imported types and library call targets. Two flags control this:
 
-```shell
+```bash
 # Reuse an already-prepared node_modules; skip materialization
-codeanalyzer-typescript --input ./my-ts-project --no-build
+cants --input ./my-ts-project --no-build
 
 # Force a clean rebuild (reinstall dependencies, rebuild the analysis)
-codeanalyzer-typescript --input ./my-ts-project --eager
+cants --input ./my-ts-project --eager
 ```
 
 Materialization runs the project's package manager with `--ignore-scripts` and **degrades gracefully**: if the install fails, the run still completes with partial type information. See [Installation](/codeanalyzer-typescript/installing/#why-your-project-needs-its-dependencies).
 
 ## Caching: eager vs lazy
 
-Analysis is **lazy** by default: codeanalyzer-typescript caches the symbol table and call graph under `.codeanalyzer/` and reuses entries for files that haven't changed (detected by content hash, mtime, and size). Pass `--eager` to rebuild everything from scratch; `--lazy` is the explicit default.
+Analysis is **lazy** by default: `cants` caches the symbol table and call graph under `.codeanalyzer/` and reuses entries for files that haven't changed (detected by content hash, mtime, and size). Pass `--eager` to rebuild everything from scratch; `--lazy` is the explicit default.
 
-```shell
+```bash
 # Lazy (default) — reuse unchanged files from cache
-codeanalyzer-typescript --input ./my-ts-project
+cants --input ./my-ts-project
 
 # Eager — rebuild the analysis and reinstall dependencies
-codeanalyzer-typescript --input ./my-ts-project --eager
+cants --input ./my-ts-project --eager
 ```
 
 Control where the cache lives with `--cache-dir` (`-c`). If unset, it defaults to `.codeanalyzer` inside the input project:
 
-```shell
-codeanalyzer-typescript --input ./my-ts-project --cache-dir /tmp/ca-cache
+```bash
+cants --input ./my-ts-project --cache-dir /tmp/ca-cache
 ```
 
 ## Incremental mode
 
 To re-analyze only specific files rather than the whole project, pass `--target-files` (`-t`) — the rest of the project is served from cache:
 
-```shell
-codeanalyzer-typescript --input ./my-ts-project --target-files src/a.ts src/b.ts
+```bash
+cants --input ./my-ts-project --target-files src/a.ts src/b.ts
 ```
 
-This restricts the work to the named files, reusing the cached analysis for everything else.
+This restricts the work to the named files, reusing the cached analysis for everything else. Combined with `--emit neo4j --neo4j-uri`, it also makes the graph load targeted (see [Incremental graph loads](#incremental-graph-loads) above).
 
 ## Including test files
 
 Test trees are skipped by default. Include them with `--include-tests` (or state the default explicitly with `--skip-tests`):
 
-```shell
-codeanalyzer-typescript --input ./my-ts-project --include-tests
+```bash
+cants --input ./my-ts-project --include-tests
 ```
 
 ## Phantom nodes
 
 By default, calls into imported libraries become phantom `external_symbols` so the graph keeps cross-boundary edges. Disable that with `--no-phantoms` if you want a graph restricted to in-project targets only:
 
-```shell
-codeanalyzer-typescript --input ./my-ts-project --no-phantoms
+```bash
+cants --input ./my-ts-project --no-phantoms
 ```
 
 See [Call graph & dispatch](/codeanalyzer-typescript/guides/call-graph/#phantom-nodes) for what phantom nodes capture.
@@ -123,29 +242,52 @@ See [Call graph & dispatch](/codeanalyzer-typescript/guides/call-graph/#phantom-
 
 The tool is quiet by default. Stack `-v` for progressively more logging:
 
-```shell
-codeanalyzer-typescript --input ./my-ts-project -v     # info
-codeanalyzer-typescript --input ./my-ts-project -vv    # debug
+```bash
+cants --input ./my-ts-project -v     # info
+cants --input ./my-ts-project -vv    # debug
 ```
 
 ## Putting it together
 
-A typical CI invocation — eager rebuild, msgpack out, verbose:
+A typical CI invocation — eager rebuild, incremental push to a shared Neo4j, verbose:
 
-```shell
-codeanalyzer-typescript \
+```bash
+export NEO4J_PASSWORD=secret
+cants \
   --input ./my-ts-project \
-  --output ./artifacts \
-  --format msgpack \
+  --emit neo4j \
+  --app-name my-ts-app \
+  --neo4j-uri bolt://neo4j.internal:7687 \
+  --neo4j-database neo4j \
   --eager \
   -v
 ```
+
+Downstream, a read-only consumer reads that same graph back through the CLDK Python SDK — no JDK, no native binary, no project source, just the Bolt URI and read-only credentials:
+
+```python
+from cldk import CLDK
+from cldk.analysis.commons.backend_config import Neo4jConnectionConfig
+
+analysis = CLDK.typescript(
+    backend=Neo4jConnectionConfig(
+        uri="bolt://neo4j.internal:7687",
+        username="neo4j",
+        password="…",            # read-only credentials suffice
+        application_name="my-ts-app",   # == the --app-name above
+    ),
+)
+classes = analysis.get_classes()   # Dict[str, TSClass]
+cg = analysis.get_call_graph()     # networkx.DiGraph
+```
+
+See the [CLDK guide](/codeanalyzer-typescript/guides/cldk/) for the full read API.
 
 ## Where to go next
 
 <CardGrid>
   <LinkCard title="CLI reference" description="The complete flag table with defaults." href="/codeanalyzer-typescript/reference/cli/" />
-  <LinkCard title="Core concepts" description="What the artifact actually contains." href="/codeanalyzer-typescript/guides/concepts/" />
+  <LinkCard title="Neo4j graph" description="Deploy the producer/consumer split and load the property graph." href="/codeanalyzer-typescript/guides/neo4j/" />
+  <LinkCard title="Neo4j graph schema" description="Node labels, relationships, and the versioned schema contract." href="/codeanalyzer-typescript/reference/schema/" />
   <LinkCard title="Call graph & dispatch" description="How --analysis-level and --no-phantoms change the graph." href="/codeanalyzer-typescript/guides/call-graph/" />
-  <LinkCard title="Output schema" description="The TSApplication data model." href="/codeanalyzer-typescript/reference/schema/" />
 </CardGrid>

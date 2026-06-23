@@ -1,66 +1,112 @@
 ---
 title: Installation
-description: Build codeanalyzer-typescript from source with Bun, and set up what it needs to materialize a project's dependencies for accurate type resolution.
+description: Install the self-contained cants binary via pip, Homebrew, or a shell script, stand up a Neo4j for graph output, and set up what it needs to materialize a project's dependencies for accurate type resolution.
 ---
 
 import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
 
-`codeanalyzer-typescript` is distributed as source on the [GitHub repository](https://github.com/codellm-devkit/codeanalyzer-typescript). You build it once with [Bun](https://bun.sh/) into a standalone native binary, then run that binary anywhere.
+`cants` ships as a **self-contained native binary** — no Bun or Node at runtime. Install the prebuilt binary for your platform with pip, Homebrew, or a one-line shell script; building from source is only needed if you're hacking on the analyzer itself.
 
-## Prerequisites
+<Aside type="note" title="The binary is `cants`">
+The command is `cants` (the package's `bin`). Earlier docs called it `codeanalyzer-typescript` — that's the project and PyPI package name, not the executable.
+</Aside>
 
-- **[Bun](https://bun.sh/) 1.0 or higher** — used to install dependencies, run, and compile the analyzer.
-
-### Install Bun
+## Install
 
 <Tabs>
-  <TabItem label="macOS / Linux">
-    ```shell
-    curl -fsSL https://bun.sh/install | bash
+  <TabItem label="pip (PyPI)">
+    The wheel bundles the prebuilt binary for your platform:
+
+    ```bash
+    pip install codeanalyzer-typescript
+    cants --help
     ```
+
+    This is also the package CLDK's Python SDK depends on to locate the backend — it exposes `codeanalyzer_typescript.bin_path()` and `schema_path()` so the SDK can find the binary and the schema contract.
   </TabItem>
   <TabItem label="Homebrew">
-    ```shell
-    brew install oven-sh/bun/bun
+    ```bash
+    brew install codellm-devkit/homebrew-tap/codeanalyzer-typescript
+    cants --help
     ```
   </TabItem>
-  <TabItem label="npm">
-    ```shell
-    npm install -g bun
+  <TabItem label="Shell script">
+    Download and install the latest release for your platform:
+
+    ```bash
+    curl --proto '=https' --tlsv1.2 -LsSf https://github.com/codellm-devkit/codeanalyzer-typescript/releases/latest/download/cants-installer.sh | sh
     ```
+
+    The installer drops `cants` into `~/.local/bin`. Override the location with `CANTS_INSTALL_DIR` and pin a release with `CANTS_VERSION`:
+
+    ```bash
+    CANTS_INSTALL_DIR=/usr/local/bin CANTS_VERSION=v0.3.0 \
+      curl --proto '=https' --tlsv1.2 -LsSf https://github.com/codellm-devkit/codeanalyzer-typescript/releases/latest/download/cants-installer.sh | sh
+    ```
+
+    Supports macOS (arm64/x86_64) and Linux (x86_64/aarch64).
   </TabItem>
 </Tabs>
 
-## Build the analyzer
+Running a prebuilt `cants` requires **nothing** else — the runtime is bundled, and the [Jelly](/codeanalyzer-typescript/guides/call-graph-providers/) flow analyzer and the `neo4j-driver` used for the live Bolt push are already inside the binary. There is no extra `pip` or `npm` step to push to a graph.
 
-Clone the repository, install dependencies, and compile the binary:
+## Running Neo4j
 
-```shell
-git clone https://github.com/codellm-devkit/codeanalyzer-typescript
-cd codeanalyzer-typescript
-bun install
-bun run build      # -> dist/codeanalyzer-typescript
+`cants --emit neo4j` projects the analysis into a Neo4j property graph — either a self-contained `graph.cypher` snapshot, or an incremental push to a live database over Bolt. The snapshot path needs no running database; the live push needs a Neo4j you can reach over Bolt.
+
+<Tabs>
+  <TabItem label="Docker (local)">
+    A throwaway single instance for local work:
+
+    ```bash
+    docker run --rm \
+      -p 7474:7474 -p 7687:7687 \
+      -e NEO4J_AUTH=neo4j/secret \
+      neo4j:5
+    ```
+
+    Bolt is on `7687`; the browser UI is on `7474`.
+  </TabItem>
+  <TabItem label="Aura / Enterprise">
+    For shared, governed deployments use **Neo4j Aura** (managed) or **Neo4j Enterprise** with clustering for HA. Both speak Bolt; point `--neo4j-uri` at the cluster's Bolt endpoint (e.g. `neo4j+s://<id>.databases.neo4j.io` for Aura) and use the same flags. Hand the analyzer write credentials; hand consumers read-only credentials.
+  </TabItem>
+</Tabs>
+
+`cants` reads the standard Neo4j connection variables when the matching flag is omitted (an explicit flag wins). Prefer the password **env var** — a flag value is visible in shell history and the process list.
+
+```bash
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_USERNAME=neo4j
+export NEO4J_PASSWORD=secret
+export NEO4J_DATABASE=neo4j        # optional; omit to use the server's default DB
+
+cants --input ./my-ts-project --emit neo4j --app-name my-ts-app
 ```
 
-`bun run build` produces a **standalone native binary** at `dist/codeanalyzer-typescript` — it bundles the runtime, so neither Bun nor Node is needed to run it afterward. Verify it:
+The `--app-name` you push with is the scoping key for the whole graph: it names the `:TSApplication` anchor node, the snapshot's scoped wipe matches on it, and the CLDK Python SDK reads the graph back by it. Keep it stable across runs of the same application — and **identical** to the `application_name` the SDK reads with. See the [Neo4j output guide](/codeanalyzer-typescript/guides/neo4j/) for the full producer/consumer story.
 
-```shell
-./dist/codeanalyzer-typescript --help
-```
-
-<Aside type="tip" title="Run without compiling">
-You don't have to build a binary to use the analyzer. Run it straight from source with Bun:
-
-```shell
-bun run start -- --input /path/to/typescript/project
-```
-
-The `--` separates Bun's arguments from the analyzer's.
+<Aside type="caution" title="Snapshots and incremental pushes are not the same">
+With `--neo4j-uri` set, `cants` pushes **incrementally** over Bolt — only modules whose content hash changed are rewritten, and a full run prunes modules whose source file vanished. Without `--neo4j-uri`, it writes a static `graph.cypher` you load yourself (`cypher-shell < graph.cypher`); a self-contained script has no view of the live database, so it does a scoped wipe-and-reload of just that app's subgraph instead.
 </Aside>
+
+### Kubernetes / CI
+
+The producer and consumer scale separately. Run `cants --emit neo4j` **out of band** — as a CI step or a Kubernetes `Job`/`CronJob` that pushes app-scoped subgraphs into a shared, managed Neo4j over Bolt. Consumers (agents, the CLDK SDK, dashboards) are lightweight read-only clients that fan out from the same cluster and never run the analyzer.
+
+In that setup, supply the connection details as environment variables — from a `Secret` for the credentials — so nothing lands in shell history or the pod spec:
+
+```bash
+export NEO4J_URI="$NEO4J_URI"            # from the cluster
+export NEO4J_USERNAME="$NEO4J_USERNAME"
+export NEO4J_PASSWORD="$NEO4J_PASSWORD"  # from a Secret
+cants --input "$WORKSPACE" --emit neo4j --app-name "$APP_NAME"
+```
+
+Each application is anchored at its own `:TSApplication` node, so many analyzer jobs can write into one database without clobbering each other. The graph is stamped with a `schema_version` (currently `2.0.0`) on that node; publish the matching contract with `cants --emit schema` (it needs no project) so consumers can detect a producer/consumer mismatch before they query.
 
 ## Why your project needs its dependencies
 
-To resolve types and call targets the way the project actually compiles, codeanalyzer-typescript drives the TypeScript compiler against the project's own `node_modules`. By default it **materializes** those dependencies before parsing — running the project's package manager with `--ignore-scripts` so packages' `.d.ts`/JS files are present without compiling native addons.
+To resolve types and call targets the way the project actually compiles, `cants` drives the TypeScript compiler against the project's own `node_modules`. By default it **materializes** those dependencies before parsing — running the project's package manager with `--ignore-scripts` so packages' `.d.ts`/JS files are present without compiling native addons.
 
 This means the project you analyze should be a normal Node/TypeScript project (a `package.json`, ideally a `tsconfig.json`). A few notes:
 
@@ -77,14 +123,46 @@ If the project has no `tsconfig.json` or `jsconfig.json`, the analyzer falls bac
 
 Level-2 analysis (`--analysis-level 2`) is designed to enrich the call graph with CodeQL. You do **not** need to install anything for it today — it is an [experimental, not-yet-implemented stub](/codeanalyzer-typescript/guides/level-2/) that currently falls back to the level-1 graph.
 
-## Development
+## Build from source
 
-The project uses Bun as its toolchain.
+You only need this to develop the analyzer; for normal use, prefer a prebuilt install above. Building from source requires [Bun](https://bun.sh/) 1.0+.
 
-```shell
+<Tabs>
+  <TabItem label="macOS / Linux">
+    ```bash
+    curl -fsSL https://bun.sh/install | bash
+    ```
+  </TabItem>
+  <TabItem label="Homebrew">
+    ```bash
+    brew install oven-sh/bun/bun
+    ```
+  </TabItem>
+  <TabItem label="npm">
+    ```bash
+    npm install -g bun
+    ```
+  </TabItem>
+</Tabs>
+
+Clone, install dependencies, and compile the binary:
+
+```bash
 git clone https://github.com/codellm-devkit/codeanalyzer-typescript
 cd codeanalyzer-typescript
+bun install
+bun run build      # -> dist/cants (standalone native binary)
+./dist/cants --help
+```
+
+`bun run build` produces a **standalone native binary** at `dist/cants` — it bundles the runtime, so neither Bun nor Node is needed to run it afterward.
+
+You can also run the analyzer straight from source without compiling:
+
+```bash
 bun install
 bun run start -- --input /path/to/typescript/project   # run from source
 bun run typecheck                                       # tsc --noEmit
 ```
+
+The `--` separates Bun's arguments from the analyzer's.
