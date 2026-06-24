@@ -23,10 +23,11 @@ analysis into a **Neo4j property graph**. It is the TypeScript backend behind
 [Python](https://github.com/codellm-devkit/codeanalyzer-python) and
 [Java](https://github.com/codellm-devkit/codeanalyzer-java) siblings.
 
-The call graph defaults to the TypeScript compiler's resolver, but the `cants` binary also embeds
+By default the call graph is the **union** of two backends: the TypeScript compiler's resolver and
 [Jelly](https://github.com/cs-au-dk/jelly) — a flow-based analyzer that resolves higher-order and
-callback edges the resolver misses — as an experimental backend (`--call-graph-provider jelly`, or
-`both` to diff them). No extra install is needed; Jelly ships inside the binary.
+callback edges the resolver misses, embedded in the `cants` binary (no extra install). Merged edges
+keep a `provenance` tag (`tsc` / `jelly`), so you can still tell the two apart. Pass `--tsc-only` to
+drop Jelly and run the resolver alone, or `--call-graph-provider jelly` for Jelly alone.
 
 ## Table of Contents
 
@@ -53,8 +54,9 @@ callback edges the resolver misses — as an experimental backend (`--call-graph
   methods, variables, decorators, and JSDoc, with precise source spans.
 - **Call graph** — the TypeScript compiler's resolver plus Rapid Type Analysis (RTA), with
   **phantom (external) nodes** for calls into imported libraries and Node builtins.
-- **Pluggable call-graph backend** — the `tsc` resolver by default, the embedded
-  [Jelly](https://github.com/cs-au-dk/jelly) flow analyzer, or `both` to compare edge sets.
+- **Pluggable call-graph backend** — the `union` of the `tsc` resolver and the embedded
+  [Jelly](https://github.com/cs-au-dk/jelly) flow analyzer by default (`--tsc-only` for the resolver
+  alone, `--call-graph-provider jelly` for Jelly alone).
 - **Neo4j output** — project the analysis into a labeled property graph: a self-contained
   `graph.cypher` snapshot, or an **incremental** push to a live database over Bolt.
 - **Versioned schema** — a machine-readable, version-stamped Neo4j schema contract
@@ -169,8 +171,11 @@ Options:
                                  node_modules)
   --no-phantoms                  disable phantom (external) nodes for
                                  imported/required library calls
-  --call-graph-provider <name>   call-graph backend: tsc (default) | jelly |
-                                 both (default: "tsc")
+  --call-graph-provider <name>   call-graph backend: union (default, tsc ∪
+                                 jelly) | tsc | jelly | both (deprecated alias
+                                 of union) (default: "union")
+  --tsc-only                     use the tsc resolver only — opt out of Jelly
+                                 edges (overrides --call-graph-provider)
   -c, --cache-dir <dir>          cache/intermediate directory
   -v, --verbose                  increase verbosity (repeatable)
   -h, --help                     display help for command
@@ -198,9 +203,9 @@ Options:
    cants --input ./my-ts-project --target-files src/a.ts src/b.ts
    ```
 
-4. **Compare call-graph backends:**
+4. **Resolver-only call graph (opt out of Jelly):**
    ```sh
-   cants --input ./my-ts-project --call-graph-provider both
+   cants --input ./my-ts-project --tsc-only
    ```
 
 5. **Force a clean rebuild with a custom cache directory:**
