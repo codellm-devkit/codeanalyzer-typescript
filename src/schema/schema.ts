@@ -379,10 +379,22 @@ export interface TSExternalSymbol {
   module: string; // the import/require specifier, e.g. "node:fs", "express", "@scope/pkg"
 }
 
+// A first-party anonymous callback that Jelly resolves as a call-graph endpoint but the symbol
+// table never names (the canonicalizer returns null for anonymous functions). The map key IS the
+// synthesized signature `<nearest-named-enclosing-signature>:<line:col>`, so an edge `source`/
+// `target` byte-matches it just like a real `Callable.signature` or `TSExternalSymbol.signature`.
+export interface TSSynthesizedCallable {
+  name: string; // display name — always "<anonymous>"; the signature carries the precise identity
+  path: string; // owning module key (project-relative POSIX path WITH extension)
+  start_line: number;
+  start_column: number;
+}
+
 export interface TSApplication {
   symbol_table: Record<string, TSModule>;
   call_graph: TSCallEdge[];
   external_symbols: Record<string, TSExternalSymbol>;
+  synthesized_callables: Record<string, TSSynthesizedCallable>;
 }
 
 // ==============================================================================================

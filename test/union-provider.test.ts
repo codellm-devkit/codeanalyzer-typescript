@@ -17,9 +17,14 @@ const edge = (source: string, target: string, provenance: string[], extra: Parti
   ...extra,
 });
 
-const result = (edges: TSCallEdge[], external: CallGraphResult["external_symbols"] = {}): CallGraphResult => ({
+const result = (
+  edges: TSCallEdge[],
+  external: CallGraphResult["external_symbols"] = {},
+  synthesized: CallGraphResult["synthesized_callables"] = {},
+): CallGraphResult => ({
   edges,
   external_symbols: external,
+  synthesized_callables: synthesized,
 });
 
 describe("mergeCallGraphs", () => {
@@ -49,6 +54,13 @@ describe("mergeCallGraphs", () => {
     const merged = mergeCallGraphs(tsc, jelly);
     expect(Object.keys(merged.external_symbols).sort()).toEqual(["pkg.bar", "pkg.foo"]);
     expect(merged.external_symbols["pkg.foo"].name).toBe("foo"); // base (tsc) wins
+  });
+
+  test("unions synthesized (anonymous-callback) callables from both", () => {
+    const tsc = result([]);
+    const jelly = result([], {}, { "src/x.foo:<3:10>": { name: "<anonymous>", path: "src/x.ts", start_line: 3, start_column: 10 } });
+    const merged = mergeCallGraphs(tsc, jelly);
+    expect(Object.keys(merged.synthesized_callables)).toEqual(["src/x.foo:<3:10>"]);
   });
 
   test("does not mutate the input results", () => {

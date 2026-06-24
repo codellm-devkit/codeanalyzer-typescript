@@ -18,6 +18,7 @@ import {
   type TSExternalSymbol,
   type TSModule,
   type TSNamespace,
+  type TSSynthesizedCallable,
 } from "../schema";
 import { resolveCalleeSignature } from "../schema";
 import type { Logger } from "../utils";
@@ -31,6 +32,9 @@ interface ClassMeta {
 export interface CallGraphResult {
   edges: TSCallEdge[];
   external_symbols: Record<string, TSExternalSymbol>;
+  // Anonymous callbacks resolved as edge endpoints that the symbol table doesn't name. Empty for
+  // the tsc resolver (its edges are gated to real symbol-table signatures); populated by Jelly.
+  synthesized_callables: Record<string, TSSynthesizedCallable>;
 }
 
 export function buildCallGraph(
@@ -165,7 +169,7 @@ export function buildCallGraph(
     `call graph (tsc): ${resolved} resolved, ${rtaCount} RTA-expanded, ${phantomCount} phantom (external), ` +
       `${unresolved} unresolved, ${edges.size} unique edges, ${Object.keys(external_symbols).length} external symbols`,
   );
-  return { edges: [...edges.values()], external_symbols };
+  return { edges: [...edges.values()], external_symbols, synthesized_callables: {} };
 }
 
 /** Concrete, instantiated subtypes of `declType` that declare an override of `methodName`. */
