@@ -60,7 +60,8 @@ export function mergeCallGraphs(a: CallGraphResult, b: CallGraphResult): CallGra
   }
 
   const external_symbols: Record<string, TSExternalSymbol> = { ...b.external_symbols, ...a.external_symbols };
-  return { edges: [...byKey.values()], external_symbols };
+  const synthesized_callables = { ...b.synthesized_callables, ...a.synthesized_callables };
+  return { edges: [...byKey.values()], external_symbols, synthesized_callables };
 }
 
 /** Count how the two edge sets overlap — preserves the old `both`-mode diagnostic. */

@@ -194,6 +194,21 @@ export const NODE_LABELS: NodeLabel[] = [
     key: "signature",
     properties: { signature: "string", name: "string", module: "string" },
   },
+  {
+    // A first-party anonymous callback Jelly resolves as a call endpoint but the symbol table never
+    // names. Thin (no code/params) — the signature carries identity; DECLARES links it to its host.
+    label: "AnonymousCallable",
+    mergeLabel: "Symbol",
+    key: "signature",
+    properties: {
+      signature: "string",
+      name: "string",
+      path: "string",
+      start_line: "integer",
+      start_column: "integer",
+      _module: "string",
+    },
+  },
   { label: "Package", mergeLabel: "Package", key: "name", properties: { name: "string" } },
   {
     label: "Decorator",

@@ -35,7 +35,14 @@ import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Node, type SourceFile } from "ts-morph";
-import { CALL_DEP, computeSignatureForDecl, type TSCallEdge, type TSExternalSymbol } from "../schema";
+import {
+  CALL_DEP,
+  computeSignatureForDecl,
+  fileKeyOf,
+  type TSCallEdge,
+  type TSExternalSymbol,
+  type TSSynthesizedCallable,
+} from "../schema";
 import type { CallGraphResult } from "./callGraph";
 import { type ExternalIndex, buildExternalIndex, resolvePhantom } from "./phantoms";
 import type { CallGraphContext, CallGraphProvider } from "./provider";
@@ -216,7 +223,7 @@ export const jellyProvider: CallGraphProvider = {
 
     if (entryFiles.length === 0) {
       ctx.log.info("call graph (jelly): no first-party source files to analyze");
-      return { edges: [], external_symbols: {} };
+      return { edges: [], external_symbols: {}, synthesized_callables: {} };
     }
 
     const cg = runJelly(ctx, entryFiles);
@@ -229,6 +236,20 @@ export const jellyProvider: CallGraphProvider = {
     const depMeta = new Map<string, { pkg: string; inPkg: string; sl: number; sc: number }>();
     let synthesized = 0;
     let unresolved = 0;
+
+    // Anonymous callbacks get a synthesized signature with no symbol-table node; remember their
+    // location so the projection can materialize a node and the edge won't dangle (issue #13).
+    const synthesizedCallables: Record<string, TSSynthesizedCallable> = {};
+    const recordIfSynth = (fn: Node, sig: string, synth: boolean): void => {
+      if (!synth || synthesizedCallables[sig]) return;
+      const { line, column } = fn.getSourceFile().getLineAndColumnAtPos(fn.getStart());
+      synthesizedCallables[sig] = {
+        name: "<anonymous>",
+        path: fileKeyOf(fn.getSourceFile().getFilePath(), ctx.root).fileKey,
+        start_line: line,
+        start_column: column,
+      };
+    };
     for (const [id, loc] of Object.entries(cg.functions)) {
       const [fileIdx, sl, sc] = loc.split(":").map(Number);
       const rel = cg.files[fileIdx];
@@ -262,6 +283,7 @@ export const jellyProvider: CallGraphProvider = {
       id2sig.set(id, sig);
       firstPartyIds.add(id);
       if (synth) synthesized++;
+      recordIfSynth(fn, sig, synth);
     }
 
     const external_symbols: Record<string, TSExternalSymbol> = {};
@@ -316,7 +338,8 @@ export const jellyProvider: CallGraphProvider = {
       if (!callNode) continue;
       const callerFn = climbToFunctionLike(callNode);
       if (!callerFn) continue; // top-level call, no enclosing function
-      const callerSig = signatureFor(callerFn, ctx.root).sig;
+      const { sig: callerSig, synth: callerSynth } = signatureFor(callerFn, ctx.root);
+      recordIfSynth(callerFn, callerSig, callerSynth);
       const ph = resolvePhantom(callNode, extIndexFor(sf));
       let sig: string;
       if (ph) {
@@ -354,11 +377,21 @@ export const jellyProvider: CallGraphProvider = {
       if (!(srcFP && !tgtFP)) dropped++; // dep→dep / unresolved (first-party→dep is counted in 2a)
     }
 
+    // Keep only synthesized callables that an edge actually references — no orphan nodes.
+    const referenced = new Set<string>();
+    for (const e of edges.values()) {
+      referenced.add(e.source);
+      referenced.add(e.target);
+    }
+    const synthesized_callables: Record<string, TSSynthesizedCallable> = {};
+    for (const [sig, sc] of Object.entries(synthesizedCallables)) if (referenced.has(sig)) synthesized_callables[sig] = sc;
+
     ctx.log.info(
       `call graph (jelly): ${Object.keys(cg.functions).length} jelly funcs, ${firstPartyIds.size} first-party ` +
-        `(${synthesized} synthesized), ${Object.keys(external_symbols).length} external symbols, ${unresolved} unresolved, ` +
+        `(${synthesized} synthesized, ${Object.keys(synthesized_callables).length} materialized), ` +
+        `${Object.keys(external_symbols).length} external symbols, ${unresolved} unresolved, ` +
         `${edges.size} edges (${boundary} library-boundary), ${dropped} dropped`,
     );
-    return { edges: [...edges.values()], external_symbols };
+    return { edges: [...edges.values()], external_symbols, synthesized_callables };
   },
 };

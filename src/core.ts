@@ -32,6 +32,7 @@ export function analyze(opts: AnalysisOptions): TSApplication {
     symbol_table,
     call_graph,
     external_symbols: cg.external_symbols,
+    synthesized_callables: cg.synthesized_callables,
   };
   saveCache(cacheDir, { symbol_table, call_graph });
   return app;
