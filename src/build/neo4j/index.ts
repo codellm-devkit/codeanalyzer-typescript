@@ -3,6 +3,6 @@
 export { project } from "./project";
 export { renderCypher } from "./cypher";
 export { boltWriter, type BoltConfig } from "./bolt";
-export { SCHEMA_VERSION, buildSchemaDocument, NODE_LABELS, REL_TYPES } from "./catalog";
-export type { SchemaDocument } from "./catalog";
+export { SCHEMA_VERSION, buildSchemaDocument, NODE_LABELS, REL_TYPES, MARKER_LABELS } from "./schema";
+export type { SchemaDocument } from "./schema";
 export type { GraphRows, NodeRow, EdgeRow } from "./rows";

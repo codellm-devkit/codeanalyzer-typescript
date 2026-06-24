@@ -1,8 +1,8 @@
 /**
  * Schema conformance test (no container needed). Projects the sample fixture and asserts that the
- * real emitter only ever produces node labels, relationship types and properties that the catalog
- * (src/build/neo4j/catalog.ts) declares. This is the anti-drift guard: if project.ts grows a label
- * or property that catalog.ts doesn't declare, this fails — keeping the published schema.json
+ * real emitter only ever produces node labels, relationship types and properties that the schema
+ * (src/build/neo4j/schema.ts) declares. This is the anti-drift guard: if project.ts grows a label
+ * or property that schema.ts doesn't declare, this fails — keeping the published schema.json
  * honest. It also checks the checked-in schema.neo4j.json is regenerated (run `bun gen:schema`).
  */
 import { describe, expect, test } from "bun:test";
@@ -10,12 +10,12 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import {
+  MARKER_LABELS,
   NODE_LABELS,
   REL_TYPES,
   buildSchemaDocument,
   project,
 } from "../src/build/neo4j";
-import { MARKER_LABELS } from "../src/build/neo4j/catalog";
 import { analyze } from "../src/core";
 import type { AnalysisOptions } from "../src/options";
 
