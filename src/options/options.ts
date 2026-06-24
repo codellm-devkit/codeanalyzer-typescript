@@ -1,5 +1,5 @@
 export type EmitTarget = "json" | "neo4j" | "schema";
-export type CallGraphProviderName = "tsc" | "jelly" | "both";
+export type CallGraphProviderName = "union" | "tsc" | "jelly";
 
 /** Normalized analysis options (produced by the CLI layer, consumed by core). */
 export interface AnalysisOptions {
@@ -28,7 +28,7 @@ export interface AnalysisOptions {
   noBuild: boolean;
   /** Emit phantom (external) nodes/edges for imported/required library call targets. Default on. */
   phantoms: boolean;
-  /** Which call-graph backend to use: tsc resolver (default), jelly (cs-au-dk), or both (diff). */
+  /** Call-graph backend: union of tsc+jelly (default), tsc resolver only (--tsc-only), or jelly. */
   callGraphProvider: CallGraphProviderName;
   /** Where caches/intermediate state live; null ⇒ <input>/.codeanalyzer. */
   cacheDir: string | null;

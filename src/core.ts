@@ -22,7 +22,7 @@ export function analyze(opts: AnalysisOptions): TSApplication {
   const cached = opts.eager ? null : loadCache(cacheDir);
   const { project, symbol_table } = buildSymbolTable(opts, mat, cached?.symbol_table ?? null, log);
 
-  // Call graph via the selected provider (tsc resolver by default; jelly / both opt-in).
+  // Call graph via the selected provider (union of tsc+jelly by default; --tsc-only / jelly opt-in).
   const provider = selectProvider(opts.callGraphProvider);
   log.info(`call graph provider: ${provider.name}`);
   const cg = provider.build({ project, symbol_table, root: opts.input, log, phantoms: opts.phantoms });
