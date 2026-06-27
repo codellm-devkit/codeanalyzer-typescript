@@ -17,6 +17,7 @@ on:
 permissions:
   contents: write          # create GitHub Release + delete tag on failure
   id-token: write          # PyPI Trusted Publishing (OIDC) -- no API token needed
+  discussions: write       # attach the release-linked repo Discussion (Announcements)
 
 jobs:
   release:
