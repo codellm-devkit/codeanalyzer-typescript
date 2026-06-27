@@ -4,7 +4,9 @@
     { "title": "### 🐛 Fixes", "labels": ["fix"] },
     { "title": "### ♻️ Refactoring", "labels": ["refactor"] },
     { "title": "### 📝 Documentation", "labels": ["docs"] },
-    { "title": "### 🧪 Tests", "labels": ["test"] }
+    { "title": "### 🧪 Tests", "labels": ["test"] },
+    { "title": "### 🔧 Maintenance", "labels": ["ci", "chore"] },
+    { "title": "### 📦 Other", "labels": [] }
   ],
   "ignore_labels": ["ignore-for-release"],
   "sort": { "order": "ASC", "on_property": "mergedAt" },
