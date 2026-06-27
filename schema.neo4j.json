@@ -443,14 +443,14 @@
     }
   ],
   "constraints": [
-    "CREATE CONSTRAINT symbol_sig IF NOT EXISTS FOR (s:Symbol) REQUIRE s.signature IS UNIQUE",
-    "CREATE CONSTRAINT app_name IF NOT EXISTS FOR (a:Application) REQUIRE a.name IS UNIQUE",
-    "CREATE CONSTRAINT module_key IF NOT EXISTS FOR (m:Module) REQUIRE m.file_key IS UNIQUE",
-    "CREATE CONSTRAINT package_name IF NOT EXISTS FOR (p:Package) REQUIRE p.name IS UNIQUE",
-    "CREATE CONSTRAINT decorator_qn IF NOT EXISTS FOR (d:Decorator) REQUIRE d.qualified_name IS UNIQUE",
-    "CREATE CONSTRAINT callsite_id IF NOT EXISTS FOR (c:CallSite) REQUIRE c.id IS UNIQUE",
-    "CREATE CONSTRAINT attribute_id IF NOT EXISTS FOR (a:Attribute) REQUIRE a.id IS UNIQUE",
-    "CREATE CONSTRAINT variable_id IF NOT EXISTS FOR (v:Variable) REQUIRE v.id IS UNIQUE"
+    "CREATE CONSTRAINT application_name IF NOT EXISTS FOR (x:Application) REQUIRE x.name IS UNIQUE",
+    "CREATE CONSTRAINT module_file_key IF NOT EXISTS FOR (x:Module) REQUIRE x.file_key IS UNIQUE",
+    "CREATE CONSTRAINT symbol_signature IF NOT EXISTS FOR (x:Symbol) REQUIRE x.signature IS UNIQUE",
+    "CREATE CONSTRAINT package_name IF NOT EXISTS FOR (x:Package) REQUIRE x.name IS UNIQUE",
+    "CREATE CONSTRAINT decorator_qualified_name IF NOT EXISTS FOR (x:Decorator) REQUIRE x.qualified_name IS UNIQUE",
+    "CREATE CONSTRAINT callsite_id IF NOT EXISTS FOR (x:CallSite) REQUIRE x.id IS UNIQUE",
+    "CREATE CONSTRAINT attribute_id IF NOT EXISTS FOR (x:Attribute) REQUIRE x.id IS UNIQUE",
+    "CREATE CONSTRAINT variable_id IF NOT EXISTS FOR (x:Variable) REQUIRE x.id IS UNIQUE"
   ],
   "indexes": [
     "CREATE INDEX callable_name IF NOT EXISTS FOR (c:Callable) ON (c.name)",

@@ -27,7 +27,7 @@ export async function emit(app: TSApplication, opts: AnalysisOptions): Promise<v
 
 /**
  * Emit the Neo4j schema contract (schema.json) — a static artifact derived from the in-repo
- * catalog, independent of any analyzed project. With no -o it prints to stdout.
+ * schema, independent of any analyzed project. With no -o it prints to stdout.
  */
 export function emitSchema(opts: AnalysisOptions): void {
   const doc = `${JSON.stringify(buildSchemaDocument(), null, 2)}\n`;
