@@ -148,6 +148,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: mikepenz/release-changelog-builder-action@v5
         with:
+          configuration: ".github/configuration.json"
           failOnError: "false"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
