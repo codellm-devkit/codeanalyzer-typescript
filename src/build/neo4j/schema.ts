@@ -18,7 +18,7 @@ export const SCHEMA_VERSION = "1.0.0";
 export type PropType = "string" | "integer" | "float" | "boolean" | "string[]" | "integer[]";
 
 export interface NodeLabel {
-  /** The specific label (also the catalog key). */
+  /** The specific label (also the key in NODE_LABELS). */
   label: string;
   /** The label the uniqueness constraint / MERGE is on (`Symbol` for signature-keyed nodes). */
   mergeLabel: string;

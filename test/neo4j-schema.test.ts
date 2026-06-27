@@ -42,7 +42,7 @@ const relByType = new Map(REL_TYPES.map((r) => [r.type, r]));
 const markers = new Set<string>(MARKER_LABELS);
 const mergeLabelsFor = (specifics: string[]) => new Set(specifics.map((s) => mergeOf.get(s)));
 
-/** The specific (catalog) label for a node row: the non-merge, non-marker label. */
+/** The specific (schema) label for a node row: the non-merge, non-marker label. */
 function specificLabel(labels: string[]): string {
   const merge = labels[0];
   if (merge !== "Symbol") return merge;
@@ -52,7 +52,7 @@ function specificLabel(labels: string[]): string {
 describe("neo4j schema conformance", () => {
   const rows = fixtureRows();
 
-  test("every emitted node label + property is declared in the catalog", () => {
+  test("every emitted node label + property is declared in the schema", () => {
     for (const node of rows.nodes) {
       const specific = specificLabel(node.labels);
       const decl = byLabel.get(specific);
@@ -81,7 +81,7 @@ describe("neo4j schema conformance", () => {
     }
   });
 
-  test("checked-in schema.neo4j.json matches the catalog (run `bun gen:schema` if this fails)", () => {
+  test("checked-in schema.neo4j.json matches the schema (run `bun gen:schema` if this fails)", () => {
     const onDisk = fs.readFileSync(path.resolve(import.meta.dir, "..", "schema.neo4j.json"), "utf8").trim();
     const fresh = JSON.stringify(buildSchemaDocument(), null, 2).trim();
     expect(onDisk).toBe(fresh);
