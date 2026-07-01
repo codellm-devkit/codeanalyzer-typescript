@@ -8,3 +8,6 @@ bun.lockb
 # The PyPI long-description is the repo root README, copied in by build_wheels.sh at build time
 # (single source of truth). The copy is generated, not tracked.
 packaging/python/README.md
+
+!CLAUDE.md
+!AGENTS.md
