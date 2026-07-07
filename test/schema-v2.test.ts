@@ -344,6 +344,16 @@ describe("schema v2 — L3 intraprocedural dataflow", () => {
   test("no dangling endpoints at L3", () => {
     expect(danglingCount(dfL3)).toBe(0);
   });
+
+  test("a sampled L3 statement node is source-sliceable (span.bytes reproduces its text)", () => {
+    const mod = dfL3.application.symbol_table["src/flow.ts"];
+    const classify = mod.functions.classify as V2Callable;
+    const stmt = classify.body["4:3"];
+    expect(stmt?.kind).toBe("statement");
+    const [s, e] = (stmt as { span: { bytes: [number, number] } }).span.bytes;
+    expect(e).toBeGreaterThan(s);
+    expect(mod.source.slice(s, e)).toBe('let label = "none";');
+  });
 });
 
 describe("schema v2 — L4 interprocedural SDG", () => {

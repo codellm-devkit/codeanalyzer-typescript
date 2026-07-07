@@ -81,7 +81,16 @@ function emitNode(id: number, kind: GraphNode["kind"], ast: Node | null, build: 
   const target = ast ?? build.fn; // ENTRY/EXIT carry the whole callable's span
   const s = build.sf.getLineAndColumnAtPos(target.getStart());
   const e = build.sf.getLineAndColumnAtPos(target.getEnd());
-  return { id, kind, start_line: s.line, start_column: s.column, end_line: e.line, end_column: e.column };
+  return {
+    id,
+    kind,
+    start_line: s.line,
+    start_column: s.column,
+    end_line: e.line,
+    end_column: e.column,
+    start_offset: target.getStart(),
+    end_offset: target.getEnd(),
+  };
 }
 
 function hasRestParam(build: FunctionCfgBuild): boolean {

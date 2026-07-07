@@ -34,6 +34,9 @@ export interface GraphNode {
   start_column: number;
   end_line: number;
   end_column: number;
+  /** UTF-16 char offsets into the owning module's `source` (same convention as L1 `span.bytes`). */
+  start_offset: number;
+  end_offset: number;
 }
 
 // ----------------------------------------------------------------------------------------------
