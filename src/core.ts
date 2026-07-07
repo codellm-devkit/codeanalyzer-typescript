@@ -29,9 +29,17 @@ export async function analyze(opts: AnalysisOptions): Promise<TSApplication> {
   const extraction = opts.analysisLevel >= 3 ? startExtraction(project, symbol_table, mat.tsConfigFilePath, opts, log) : null;
 
   // Call graph via the selected provider (union of tsc+jelly by default; --tsc-only / jelly opt-in).
+  // Only worth running at level >= 2: the v2 emitter discards call_graph/external_symbols/
+  // synthesized_callables at -a 1 (homeExternals/homeSynthesized in src/schema/v2/emit.ts are
+  // gated to `level >= 2`), so running the solve — including the heavier Jelly leg — at -a 1
+  // would compute a result that's thrown away. Levels 3/4 need the provider for callee
+  // resolution and are always >= 2, so this gate is safe.
   const provider = selectProvider(opts.callGraphProvider);
   log.info(`call graph provider: ${provider.name}`);
-  const cg = provider.build({ project, symbol_table, root: opts.input, log, phantoms: opts.phantoms });
+  const cg =
+    opts.analysisLevel >= 2
+      ? provider.build({ project, symbol_table, root: opts.input, log, phantoms: opts.phantoms })
+      : { edges: [], external_symbols: {}, synthesized_callables: {} };
   const call_graph = cg.edges;
 
   const app: TSApplication = {

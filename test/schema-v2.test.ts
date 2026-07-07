@@ -5,7 +5,7 @@
  * bindings as module `fields{}`, and `body` `call` nodes at L1 — while remaining a superset of
  * every v1 symbol-table fact.
  */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -15,6 +15,7 @@ import type { AnalysisOptions } from "../src/options";
 import type { GraphSelector, TSApplication } from "../src/schema";
 import { type V2Application, type V2Callable, type V2Module, type V2Type, toV2Detailed } from "../src/schema/v2";
 import { type GraphRows, project } from "../src/build/neo4j";
+import { tscProvider } from "../src/semantic_analysis";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/sample-app");
 
@@ -185,6 +186,41 @@ describe("schema v2 — L1 superset", () => {
     }
     const missing = [...v1sigs].filter((s) => !idBySig.has(s));
     expect(missing).toEqual([]);
+  });
+});
+
+// ---- L1: the call-graph solve is skipped entirely (issue #31) -------------------------------
+// The solve (including the heavier Jelly leg) is only useful from L2 up — the v2 emitter never
+// reads call_graph/external_symbols/synthesized_callables at L1 (homeExternals/homeSynthesized
+// are gated to `level >= 2` in src/schema/v2/emit.ts). This locks BOTH the output invariant
+// (already true before the -a 1 gating fix) AND, via a spy, that the provider itself is skipped.
+describe("schema v2 — L1 skips the call-graph solve (issue #31)", () => {
+  test("provider.build is not invoked and no call-graph/external/synth data appears at -a 1", async () => {
+    const spy = spyOn(tscProvider, "build");
+    const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-v2-l1-guard-"));
+    try {
+      const v1L1 = await analyze({ ...options(), analysisLevel: 1, callGraphProvider: "tsc", cacheDir });
+      expect(spy).not.toHaveBeenCalled();
+      expect(v1L1.call_graph).toEqual([]);
+      expect(Object.keys(v1L1.external_symbols)).toEqual([]);
+      expect(Object.keys(v1L1.synthesized_callables)).toEqual([]);
+    } finally {
+      spy.mockRestore();
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
+  });
+
+  test("provider.build IS invoked at -a 2, and produces edges (baseline: L2 unaffected)", async () => {
+    const spy = spyOn(tscProvider, "build");
+    const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-v2-l1-guard-l2-"));
+    try {
+      const v1L2guard = await analyze({ ...options(), analysisLevel: 2, callGraphProvider: "tsc", cacheDir });
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(v1L2guard.call_graph.length).toBeGreaterThan(0);
+    } finally {
+      spy.mockRestore();
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
   });
 });
 
