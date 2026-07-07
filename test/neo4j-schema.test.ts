@@ -108,7 +108,8 @@ describe(":Application node carries analyzer identity (issue #43)", () => {
 
 // ---- Class inheritance: EXTENDS/IMPLEMENTS (issue #33) ------------------------------------------
 // dataflow-app's src/hierarchy.ts is a minimal, first-party heritage fixture: `Rectangle implements
-// Shape`, `Square extends Rectangle implements Labeled`.
+// Shape`, `Square extends Rectangle implements Labeled`, `ColoredShape extends Shape` (interface→
+// interface heritage — issue #45).
 
 describe("neo4j inheritance edges (issue #33)", () => {
   test("EXTENDS and IMPLEMENTS are declared in the schema catalog", () => {
@@ -144,5 +145,21 @@ describe("neo4j inheritance edges (issue #33)", () => {
       expect(nodeValues.has(e.from.value), `dangling EXTENDS/IMPLEMENTS source ${e.from.value}`).toBe(true);
       expect(nodeValues.has(e.to.value), `dangling EXTENDS/IMPLEMENTS target ${e.to.value}`).toBe(true);
     }
+  });
+
+  test("interface-extends-interface projects an EXTENDS edge with an Interface source AND target (issue #45)", () => {
+    const coloredShape = nodeBySignature("src/hierarchy.ColoredShape");
+    const shape = nodeBySignature("src/hierarchy.Shape");
+    expect(coloredShape, "ColoredShape node").toBeDefined();
+    expect(shape, "Shape node").toBeDefined();
+    expect(specificLabel(coloredShape!.labels)).toBe("Interface");
+    expect(specificLabel(shape!.labels)).toBe("Interface");
+
+    const ext = rows.edges.filter((e) => e.type === "EXTENDS");
+    expect(ext.some((e) => e.from.value === coloredShape!.value && e.to.value === shape!.value)).toBe(true);
+
+    const nodeValues = new Set(rows.nodes.map((n) => n.value));
+    expect(nodeValues.has(coloredShape!.value)).toBe(true);
+    expect(nodeValues.has(shape!.value)).toBe(true);
   });
 });

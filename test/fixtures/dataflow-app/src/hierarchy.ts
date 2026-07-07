@@ -1,4 +1,5 @@
-/** A minimal first-party class hierarchy — exercises the Neo4j EXTENDS/IMPLEMENTS projection. */
+/** A minimal first-party class/interface hierarchy — exercises the Neo4j EXTENDS/IMPLEMENTS
+ * projection, including interface→interface EXTENDS (`ColoredShape extends Shape`). */
 
 export interface Shape {
   area(): number;
@@ -6,6 +7,10 @@ export interface Shape {
 
 export interface Labeled {
   readonly label: string;
+}
+
+export interface ColoredShape extends Shape {
+  readonly color: string;
 }
 
 export class Rectangle implements Shape {

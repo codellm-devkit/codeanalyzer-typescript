@@ -448,6 +448,43 @@ describe("schema v2 — L3 intraprocedural dataflow", () => {
     expect(e).toBeGreaterThan(s);
     expect(mod.source.slice(s, e)).toBe('let label = "none";');
   });
+
+  test("@entry/@exit body nodes are source-sliceable and carry the whole-callable span (issue #45)", () => {
+    // Per extract.ts's emitNode: "ENTRY/EXIT carry the whole callable's span" — unlike statement
+    // nodes (which slice out just their own text), entry/exit should reproduce the callable's
+    // entire declaration, including its `export` modifier.
+    const mod = dfL3.application.symbol_table["src/flow.ts"];
+    const classify = mod.functions.classify as V2Callable;
+    const entry = classify.body["@entry"];
+    const exit = classify.body["@exit"];
+    expect(entry?.kind).toBe("entry");
+    expect(exit?.kind).toBe("exit");
+
+    const [cs, ce] = (classify.span as { bytes: [number, number] }).bytes;
+    const callableText = mod.source.slice(cs, ce);
+    expect(callableText.startsWith("export function classify")).toBe(true);
+
+    for (const node of [entry, exit]) {
+      const [s, e] = (node as { span: { bytes: [number, number] } }).span.bytes;
+      expect(e).toBeGreaterThan(s);
+      const slice = mod.source.slice(s, e);
+      expect(slice.length).toBeGreaterThan(0);
+      expect(slice).toBe(callableText); // whole-callable span, byte-identical to classify's own span
+    }
+  });
+
+  // `param` is contracted out before emission (dataflow.ts: `if (n.kind === "param") continue;` in
+  // emitL3) — a param folds onto `@entry` at L3 and only reappears, synthetically, as
+  // `@formal_in:N` at L4 (asserted below). So there is no emitted `param`-kind body node to slice;
+  // slice fidelity for raw `param` is N/A at the emitted-tree level, not merely untested.
+  test("no raw `param`-kind body node is ever emitted (contracted onto @entry/@formal_in)", () => {
+    for (const c of allCallables(dfL3.application)) {
+      for (const node of Object.values(c.body)) expect(node.kind).not.toBe("param");
+    }
+    for (const c of allCallables(dfL4.application)) {
+      for (const node of Object.values(c.body)) expect(node.kind).not.toBe("param");
+    }
+  });
 });
 
 describe("schema v2 — L4 interprocedural SDG", () => {
