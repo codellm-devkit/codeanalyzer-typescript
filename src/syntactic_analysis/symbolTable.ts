@@ -61,7 +61,8 @@ export function buildSymbolTable(
   return { project, symbol_table, files: buildFiles };
 }
 
-function defaultCompilerOptions(): ts.CompilerOptions {
+/** The fallback compiler options when the target has no tsconfig (shared with graph workers). */
+export function defaultCompilerOptions(): ts.CompilerOptions {
   return {
     target: ts.ScriptTarget.ES2022,
     module: ts.ModuleKind.ESNext,

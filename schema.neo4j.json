@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "2.0.0",
   "generator": "codeanalyzer-typescript",
   "marker_labels": [
     "Entrypoint"
@@ -8,39 +8,43 @@
     {
       "label": "Application",
       "mergeLabel": "Application",
-      "key": "name",
+      "key": "id",
       "properties": {
-        "name": "string",
-        "schema_version": "string"
+        "id": "string",
+        "schema_version": "string",
+        "language": "string",
+        "max_level": "integer",
+        "k_limit": "integer"
       }
     },
     {
       "label": "Module",
-      "mergeLabel": "Module",
-      "key": "file_key",
+      "mergeLabel": "CanNode",
+      "key": "id",
       "properties": {
-        "file_key": "string",
-        "module_name": "string",
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
+        "name": "string",
         "is_tsx": "boolean",
         "is_declaration_file": "boolean",
         "content_hash": "string",
-        "last_modified": "integer",
-        "file_size": "integer",
-        "_module": "string"
+        "start_line": "integer",
+        "end_line": "integer"
       }
     },
     {
       "label": "Class",
-      "mergeLabel": "Symbol",
-      "key": "signature",
+      "mergeLabel": "CanNode",
+      "key": "id",
       "properties": {
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
         "signature": "string",
         "name": "string",
-        "code": "string",
         "base_classes": "string[]",
         "implements_types": "string[]",
-        "type_parameter_names": "string[]",
-        "docstring": "string",
         "is_abstract": "boolean",
         "is_exported": "boolean",
         "is_ambient": "boolean",
@@ -50,218 +54,159 @@
         "detection_source": "string",
         "route_path": "string",
         "http_methods": "string[]",
-        "entrypoint_count": "integer",
-        "_module": "string"
+        "entrypoint_count": "integer"
       }
     },
     {
       "label": "Interface",
-      "mergeLabel": "Symbol",
-      "key": "signature",
+      "mergeLabel": "CanNode",
+      "key": "id",
       "properties": {
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
         "signature": "string",
         "name": "string",
-        "code": "string",
         "base_classes": "string[]",
-        "type_parameter_names": "string[]",
-        "call_signatures": "string[]",
-        "index_signatures": "string[]",
-        "docstring": "string",
         "is_exported": "boolean",
         "is_ambient": "boolean",
         "start_line": "integer",
-        "end_line": "integer",
-        "_module": "string"
+        "end_line": "integer"
       }
     },
     {
       "label": "Enum",
-      "mergeLabel": "Symbol",
-      "key": "signature",
+      "mergeLabel": "CanNode",
+      "key": "id",
       "properties": {
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
         "signature": "string",
         "name": "string",
-        "code": "string",
-        "member_names": "string[]",
-        "member_values": "string[]",
-        "docstring": "string",
         "is_const": "boolean",
         "is_exported": "boolean",
         "is_ambient": "boolean",
         "start_line": "integer",
-        "end_line": "integer",
-        "_module": "string"
+        "end_line": "integer"
       }
     },
     {
       "label": "TypeAlias",
-      "mergeLabel": "Symbol",
-      "key": "signature",
+      "mergeLabel": "CanNode",
+      "key": "id",
       "properties": {
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
         "signature": "string",
         "name": "string",
-        "code": "string",
         "aliased_type": "string",
-        "type_parameter_names": "string[]",
-        "docstring": "string",
         "is_exported": "boolean",
         "is_ambient": "boolean",
         "start_line": "integer",
-        "end_line": "integer",
-        "_module": "string"
+        "end_line": "integer"
       }
     },
     {
       "label": "Namespace",
-      "mergeLabel": "Symbol",
-      "key": "signature",
+      "mergeLabel": "CanNode",
+      "key": "id",
       "properties": {
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
         "signature": "string",
         "name": "string",
-        "docstring": "string",
         "is_exported": "boolean",
         "is_ambient": "boolean",
         "start_line": "integer",
-        "end_line": "integer",
-        "_module": "string"
+        "end_line": "integer"
       }
     },
     {
       "label": "Callable",
-      "mergeLabel": "Symbol",
-      "key": "signature",
+      "mergeLabel": "CanNode",
+      "key": "id",
       "properties": {
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
         "signature": "string",
         "name": "string",
-        "path": "string",
-        "kind": "string",
         "return_type": "string",
         "cyclomatic_complexity": "integer",
-        "code": "string",
-        "code_start_line": "integer",
-        "start_line": "integer",
-        "end_line": "integer",
         "accessibility": "string",
         "accessor_kind": "string",
-        "docstring": "string",
-        "type_parameter_names": "string[]",
-        "parameters_json": "string",
-        "accessed_symbols_json": "string",
         "is_static": "boolean",
         "is_abstract": "boolean",
         "is_async": "boolean",
         "is_generator": "boolean",
-        "is_optional": "boolean",
-        "is_readonly": "boolean",
         "is_exported": "boolean",
         "is_ambient": "boolean",
         "is_implicit": "boolean",
+        "start_line": "integer",
+        "end_line": "integer",
         "framework": "string",
         "detection_source": "string",
         "route_path": "string",
         "http_methods": "string[]",
-        "entrypoint_count": "integer",
-        "_module": "string"
+        "entrypoint_count": "integer"
+      }
+    },
+    {
+      "label": "Field",
+      "mergeLabel": "CanNode",
+      "key": "id",
+      "properties": {
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
+        "name": "string",
+        "type": "string",
+        "start_line": "integer",
+        "end_line": "integer"
+      }
+    },
+    {
+      "label": "BodyNode",
+      "mergeLabel": "CanNode",
+      "key": "id",
+      "properties": {
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
+        "of": "string",
+        "parent": "string",
+        "callee": "string",
+        "start_line": "integer",
+        "end_line": "integer"
       }
     },
     {
       "label": "External",
-      "mergeLabel": "Symbol",
-      "key": "signature",
+      "mergeLabel": "CanNode",
+      "key": "id",
       "properties": {
-        "signature": "string",
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
         "name": "string",
         "module": "string"
       }
     },
     {
       "label": "AnonymousCallable",
-      "mergeLabel": "Symbol",
-      "key": "signature",
+      "mergeLabel": "CanNode",
+      "key": "id",
       "properties": {
-        "signature": "string",
+        "id": "string",
+        "kind": "string",
+        "_module": "string",
         "name": "string",
         "path": "string",
         "start_line": "integer",
-        "start_column": "integer",
-        "_module": "string"
-      }
-    },
-    {
-      "label": "Package",
-      "mergeLabel": "Package",
-      "key": "name",
-      "properties": {
-        "name": "string"
-      }
-    },
-    {
-      "label": "Decorator",
-      "mergeLabel": "Decorator",
-      "key": "qualified_name",
-      "properties": {
-        "qualified_name": "string",
-        "name": "string"
-      }
-    },
-    {
-      "label": "CallSite",
-      "mergeLabel": "CallSite",
-      "key": "id",
-      "properties": {
-        "id": "string",
-        "method_name": "string",
-        "receiver_expr": "string",
-        "receiver_type": "string",
-        "argument_types": "string[]",
-        "type_arguments": "string[]",
-        "return_type": "string",
-        "callee_signature": "string",
-        "is_constructor_call": "boolean",
-        "is_optional_chain": "boolean",
-        "start_line": "integer",
-        "start_column": "integer",
-        "end_line": "integer",
-        "end_column": "integer",
-        "_module": "string"
-      }
-    },
-    {
-      "label": "Attribute",
-      "mergeLabel": "Attribute",
-      "key": "id",
-      "properties": {
-        "id": "string",
-        "name": "string",
-        "type": "string",
-        "initializer": "string",
-        "accessibility": "string",
-        "docstring": "string",
-        "is_static": "boolean",
-        "is_readonly": "boolean",
-        "is_optional": "boolean",
-        "is_abstract": "boolean",
-        "start_line": "integer",
-        "end_line": "integer",
-        "_module": "string"
-      }
-    },
-    {
-      "label": "Variable",
-      "mergeLabel": "Variable",
-      "key": "id",
-      "properties": {
-        "id": "string",
-        "name": "string",
-        "type": "string",
-        "initializer": "string",
-        "scope": "string",
-        "declaration_kind": "string",
-        "is_readonly": "boolean",
-        "is_exported": "boolean",
-        "start_line": "integer",
-        "end_line": "integer",
-        "_module": "string"
+        "start_column": "integer"
       }
     }
   ],
@@ -281,7 +226,6 @@
       "from": [
         "Module",
         "Namespace",
-        "Class",
         "Callable"
       ],
       "to": [
@@ -306,155 +250,136 @@
       "properties": {}
     },
     {
-      "type": "HAS_ATTRIBUTE",
-      "from": [
-        "Class",
-        "Interface"
-      ],
-      "to": [
-        "Attribute"
-      ],
-      "properties": {}
-    },
-    {
-      "type": "DECLARES_VAR",
+      "type": "HAS_FIELD",
       "from": [
         "Module",
-        "Namespace",
-        "Callable"
+        "Class",
+        "Interface",
+        "Enum",
+        "Namespace"
       ],
       "to": [
-        "Variable"
+        "Field"
       ],
       "properties": {}
     },
     {
-      "type": "HAS_CALLSITE",
+      "type": "HAS_BODY_NODE",
       "from": [
-        "Callable"
+        "Callable",
+        "AnonymousCallable"
       ],
       "to": [
-        "CallSite"
+        "BodyNode"
       ],
       "properties": {}
     },
     {
       "type": "RESOLVES_TO",
       "from": [
-        "CallSite"
+        "BodyNode"
       ],
       "to": [
         "Callable",
-        "External"
+        "External",
+        "AnonymousCallable"
       ],
       "properties": {}
     },
     {
       "type": "CALLS",
       "from": [
-        "Callable"
+        "Callable",
+        "AnonymousCallable"
       ],
       "to": [
         "Callable",
-        "External"
+        "External",
+        "AnonymousCallable"
       ],
       "properties": {
         "weight": "integer",
-        "provenance": "string[]",
-        "dispatch": "string",
-        "external": "boolean",
-        "module": "string"
+        "prov": "string[]"
       }
     },
     {
-      "type": "EXTENDS",
+      "type": "CFG_NEXT",
       "from": [
-        "Class",
-        "Interface"
+        "BodyNode"
       ],
       "to": [
-        "Class",
-        "Interface"
-      ],
-      "properties": {}
-    },
-    {
-      "type": "IMPLEMENTS",
-      "from": [
-        "Class"
-      ],
-      "to": [
-        "Interface"
-      ],
-      "properties": {}
-    },
-    {
-      "type": "IMPORTS",
-      "from": [
-        "Module"
-      ],
-      "to": [
-        "Module",
-        "Package"
+        "BodyNode"
       ],
       "properties": {
-        "imported_names": "string[]",
-        "import_kinds": "string[]",
-        "is_type_only": "boolean"
+        "kind": "string"
       }
     },
     {
-      "type": "RE_EXPORTS",
+      "type": "CDG",
       "from": [
-        "Module"
+        "BodyNode"
       ],
       "to": [
-        "Module",
-        "Package"
+        "BodyNode"
       ],
       "properties": {}
     },
     {
-      "type": "MEMBER_OF",
+      "type": "DDG",
       "from": [
-        "External"
+        "BodyNode"
       ],
       "to": [
-        "Package"
-      ],
-      "properties": {}
-    },
-    {
-      "type": "DECORATED_BY",
-      "from": [
-        "Class",
-        "Callable",
-        "Attribute"
-      ],
-      "to": [
-        "Decorator"
+        "BodyNode"
       ],
       "properties": {
-        "positional_arguments": "string[]",
-        "keyword_arguments_json": "string",
-        "start_line": "integer",
-        "end_line": "integer"
+        "var": "string",
+        "prov": "string[]"
+      }
+    },
+    {
+      "type": "SUMMARY",
+      "from": [
+        "BodyNode"
+      ],
+      "to": [
+        "BodyNode"
+      ],
+      "properties": {
+        "var": "string"
+      }
+    },
+    {
+      "type": "PARAM_IN",
+      "from": [
+        "BodyNode"
+      ],
+      "to": [
+        "BodyNode"
+      ],
+      "properties": {
+        "var": "string"
+      }
+    },
+    {
+      "type": "PARAM_OUT",
+      "from": [
+        "BodyNode"
+      ],
+      "to": [
+        "BodyNode"
+      ],
+      "properties": {
+        "var": "string"
       }
     }
   ],
   "constraints": [
-    "CREATE CONSTRAINT application_name IF NOT EXISTS FOR (x:Application) REQUIRE x.name IS UNIQUE",
-    "CREATE CONSTRAINT module_file_key IF NOT EXISTS FOR (x:Module) REQUIRE x.file_key IS UNIQUE",
-    "CREATE CONSTRAINT symbol_signature IF NOT EXISTS FOR (x:Symbol) REQUIRE x.signature IS UNIQUE",
-    "CREATE CONSTRAINT package_name IF NOT EXISTS FOR (x:Package) REQUIRE x.name IS UNIQUE",
-    "CREATE CONSTRAINT decorator_qualified_name IF NOT EXISTS FOR (x:Decorator) REQUIRE x.qualified_name IS UNIQUE",
-    "CREATE CONSTRAINT callsite_id IF NOT EXISTS FOR (x:CallSite) REQUIRE x.id IS UNIQUE",
-    "CREATE CONSTRAINT attribute_id IF NOT EXISTS FOR (x:Attribute) REQUIRE x.id IS UNIQUE",
-    "CREATE CONSTRAINT variable_id IF NOT EXISTS FOR (x:Variable) REQUIRE x.id IS UNIQUE"
+    "CREATE CONSTRAINT application_id IF NOT EXISTS FOR (x:Application) REQUIRE x.id IS UNIQUE",
+    "CREATE CONSTRAINT cannode_id IF NOT EXISTS FOR (x:CanNode) REQUIRE x.id IS UNIQUE"
   ],
   "indexes": [
     "CREATE INDEX callable_name IF NOT EXISTS FOR (c:Callable) ON (c.name)",
-    "CREATE INDEX decorator_name IF NOT EXISTS FOR (d:Decorator) ON (d.name)",
-    "CREATE FULLTEXT INDEX code_fts IF NOT EXISTS FOR (c:Callable) ON EACH [c.code, c.docstring]"
+    "CREATE INDEX cannode_kind IF NOT EXISTS FOR (n:CanNode) ON (n.kind)"
   ]
 }

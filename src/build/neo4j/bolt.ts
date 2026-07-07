@@ -30,7 +30,7 @@ export interface BoltConfig {
   database: string | null;
 }
 
-const DESCENDANTS = "[:DECLARES|HAS_METHOD|HAS_ATTRIBUTE|DECLARES_VAR|HAS_CALLSITE*1..]";
+const DESCENDANTS = "[:DECLARES|HAS_METHOD|HAS_FIELD|HAS_BODY_NODE*1..]";
 const BATCH = 1000;
 
 export async function boltWriter(
@@ -68,7 +68,7 @@ export async function boltWriter(
     // 2. diff content_hash.
     const dbHash = new Map<string, string | null>();
     await withSession(session, async (s) => {
-      const res = await s.run("MATCH (m:Module) RETURN m.file_key AS k, m.content_hash AS h");
+      const res = await s.run("MATCH (m:Module) RETURN m._module AS k, m.content_hash AS h");
       for (const rec of res.records) dbHash.set(rec.get("k"), rec.get("h"));
     });
     const changed = new Set<string>();
@@ -92,7 +92,7 @@ export async function boltWriter(
         await s.executeWrite(async (tx: any) => {
           await tx.run(`MATCH (x {_module: $m})-[r]->() DELETE r`, { m });
           await tx.run(
-            `MATCH (x {_module: $m}) WHERE NOT coalesce(x.signature, x.id, x.file_key) IN $keys DETACH DELETE x`,
+            `MATCH (x {_module: $m}) WHERE NOT x.id IN $keys DETACH DELETE x`,
             { m, keys },
           );
         });
@@ -112,7 +112,7 @@ export async function boltWriter(
       const present = [...byModule.keys()];
       await withSession(session, async (s) => {
         const res = await s.run(
-          `MATCH (m:Module) WHERE NOT m.file_key IN $present ` +
+          `MATCH (m:Module) WHERE NOT m._module IN $present ` +
             `OPTIONAL MATCH (m)-${DESCENDANTS}->(x) DETACH DELETE x, m RETURN count(m) AS pruned`,
           { present },
         );
@@ -189,8 +189,9 @@ function bucket<K, V>(map: Map<K, V[]>, key: K): V[] {
   return arr;
 }
 
-function hashOf(nodes: NodeRow[], fileKey: string): string | undefined {
-  const mod = nodes.find((n) => n.labels[0] === "Module" && n.value === fileKey);
+function hashOf(nodes: NodeRow[], _fileKey: string): string | undefined {
+  // Every node in `nodes` shares the same _module; the Module row (labels include "Module") carries the hash.
+  const mod = nodes.find((n) => n.labels.includes("Module"));
   const h = mod?.props.content_hash;
   return typeof h === "string" ? h : undefined;
 }

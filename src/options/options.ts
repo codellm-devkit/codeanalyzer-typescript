@@ -1,3 +1,5 @@
+import type { GraphSelector } from "../schema";
+
 export type EmitTarget = "json" | "neo4j" | "schema";
 export type CallGraphProviderName = "union" | "tsc" | "jelly";
 
@@ -16,8 +18,24 @@ export interface AnalysisOptions {
   neo4jUser: string;
   neo4jPassword: string;
   neo4jDatabase: string | null;
-  /** Analysis depth requested by the caller (1 = symbol table + call graph [default]; 2 = call graph). */
-  analysisLevel: 1 | 2;
+  /**
+   * Analysis depth requested by the caller (schema v2): 1 = symbol table (+ call sites);
+   * 2 = + resolver call graph; 3 = + intraprocedural dataflow (cfg/cdg/ddg in the tree);
+   * 4 = + interprocedural SDG (param_in/param_out/summary + synthetic vertices).
+   */
+  analysisLevel: 1 | 2 | 3 | 4;
+  /** Which level-3 graph sections to emit (`--graphs`); only consulted at level 3. */
+  graphs: GraphSelector[];
+  /** k-limit for access-path depth in the level-3 dataflow (`--graph-field-depth`, default 3). */
+  graphFieldDepth: number;
+  /**
+   * Worker parallelism for the level-3 pipeline (`-j/--jobs`). 0 = auto (currently sequential:
+   * each extraction worker must materialize its own whole-program ts-morph project, which
+   * measurably dominates the parallelizable graph math on small/mid repos); an explicit N ≥ 2
+   * opts in for large codebases; 1 = fully sequential (the debug mode and differential oracle —
+   * `--jobs N` output is byte-identical).
+   */
+  jobs: number;
   /** Restrict analysis to these files (project-relative or absolute). null ⇒ whole project. */
   targetFiles: string[] | null;
   /** Skip test trees (default true). */

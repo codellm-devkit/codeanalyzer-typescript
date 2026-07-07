@@ -6,11 +6,45 @@ Agent guidance for `codellm-devkit/codeanalyzer-typescript` (`cants`).
 
 `cants` is a TypeScript/JavaScript static analyzer built on the TypeScript compiler
 (via [ts-morph](https://ts-morph.com/)). It is the CLDK TypeScript backend: it emits
-the canonical CLDK `analysis.json` — a **symbol table** plus a **resolver-based call
-graph** — and can project that same analysis into a **Neo4j** property graph. It
-mirrors its [Python](https://github.com/codellm-devkit/codeanalyzer-python) and
+the **canonical schema v2** — one additive Code Property Graph — in **two projections**,
+`analysis.json` and a **Neo4j** property graph. It mirrors its
+[Python](https://github.com/codellm-devkit/codeanalyzer-python) and
 [Java](https://github.com/codellm-devkit/codeanalyzer-java) sibling analyzers, so
 output-shape parity with them is a first-class concern.
+
+## Schema v2 — the additive CPG (read this before touching output)
+
+The output is **one scale-free structure**: a containment tree of nodes (id / kind /
+`span` / children) with **typed edge overlays** (a CPG). Every classic artifact — symbol
+table, call graph, CFG, PDG, SDG — is a *projection* of that one structure, and analysis
+**levels** are how deeply it is populated (each level only ever *adds*, never rewrites):
+
+- **L1** (`-a 1`): the tree to callable depth — `application → symbol_table{module} →
+  types{}/functions{}/fields{} → callables{}` — plus `call` nodes in each callable's
+  `body{}` (with `callee` unresolved). `source` is stored once per module; every node's
+  text slices off it via `span.bytes`.
+- **L2** (`-a 2`): the `call_graph` edge list (callable→callable) at the application scope,
+  and the `callee` slot on each call node refined `null → id` (the one sanctioned mutation).
+- **L3** (`-a 3`): the rest of `body{}` (statements + `@entry`/`@exit`) and the intra-callable
+  edge lists `cfg`/`cdg`/`ddg` (reaching-definitions, `prov:["reaching-defs"]`) hung on each callable.
+- **L4** (`-a 4`): the synthetic `@formal_in:N`/`@formal_out`/`<L>/actual_in:N`/`<L>/actual_out`
+  vertices, the intra-caller `summary` edges, and the application-scope `param_in`/`param_out`
+  lists (the interprocedural SDG).
+
+**Identity is two-tier**: durable `can://<lang>/<app>/<file>/<type>/<sig>` ids at callable
+depth and above; ordinal `<callable-id>@<line>:<col>` (or `@<tag>`) below. Intra-callable
+edge lists use **bare local ids**; cross-callable lists use **fully-qualified `can://…@local`**
+ids. `L1 ⊆ L2 ⊆ L3 ⊆ L4` is a CI-checkable monotonicity gate (`test/schema-v2.test.ts`). The
+model + every decision live in `.claude/SCHEMA_DECISIONS.md` (§ "Schema v2 migration") and the
+skillset's `canonical-schema.md`.
+
+**Provider/client boundary:** the analyzer is a *pure graph provider* — it emits the graph
+substrate (CFG/PDG/SDG + `summary` edges) and stops. Slicing and taint are reachability
+*queries* over it and belong to the frontend SDK; never add a `taint_flows` section here.
+
+The v1→v2 emitter is a pure transform in **`src/schema/v2/`** (`emit.ts` reshapes the v1
+in-memory model, `dataflow.ts` maps `program_graphs` into the tree) — the parse/resolve/
+dataflow *compute* is untouched; only serialization is v2.
 
 The call graph defaults to the **union** of two backends: the TS compiler's resolver
 and the embedded [Jelly](https://github.com/cs-au-dk/jelly) flow analyzer (which
@@ -29,14 +63,23 @@ it first; everything else is a stage it calls, in order:
    JSDoc, with precise source spans.
 3. **call graph** (`src/semantic_analysis`) — `selectProvider()` picks tsc / jelly /
    union; each provider returns edges + external (phantom) symbols.
-4. **cache** (`src/utils/cache.ts`) — content-hash cache under `.codeanalyzer/`, so
-   re-analysis only touches what changed.
-5. **output** (`src/build`, `src/build/neo4j`) — `analysis.json`, a self-contained
-   `graph.cypher` snapshot, or an incremental Bolt push to a live database.
+4. **program graphs** (`src/dataflow`) — levels 3–4 (`-a 3`/`-a 4`): CFG → post-dominance/CDG →
+   access-path def-use → PDG → SCC-condensed bottom-up summaries → SDG. This is the *compute*;
+   it produces the internal `program_graphs` model, which `src/schema/v2/dataflow.ts` then maps
+   **into the v2 tree** (`body{}` + `cfg`/`cdg`/`ddg`/`summary` per callable + `param_in`/
+   `param_out`). Decisions: `.claude/SCHEMA_DECISIONS.md`; contract + staged follow-ups: issue #2.
+5. **cache** (`src/utils/cache.ts`) — content-hash cache under `.codeanalyzer/`, so
+   re-analysis only touches what changed (levels 3–4 also record summaries +
+   dependency edges in `graphs_summaries.json`).
+6. **output** (`src/schema/v2`, `src/build/neo4j`) — `src/schema/v2/emit.ts` reshapes the v1
+   compute model into the schema-v2 `analysis.json`; `src/build/neo4j` projects the *same* v2
+   tree into a `graph.cypher` snapshot or an incremental Bolt push. `--emit neo4j` is always
+   **full-depth** (levels gate the JSON path only; combining `-a`/`--graphs` with it is an error).
 
-The shape of everything is the **schema** in `src/schema` (`TSApplication` is the top
-type). The Neo4j schema is versioned and enforced by a conformance test — treat it as
-a contract.
+The **output** shape is schema v2 (`src/schema/v2/model.ts`, `V2Application` the top type); the
+types in `src/schema` (`TSApplication`) are the *internal compute model* the emitter transforms.
+The Neo4j schema (`src/build/neo4j/schema.ts`, v2.0.0) is versioned and enforced by a conformance
+test — treat both as contracts and keep them in lockstep with the JSON.
 
 ## Directory map
 
@@ -47,10 +90,12 @@ a contract.
 | `src/options` | Parsed CLI options / `AnalysisOptions` |
 | `src/syntactic_analysis` | Symbol table (ts-morph traversal) |
 | `src/semantic_analysis` | Call-graph providers (tsc, jelly, union), phantoms |
-| `src/schema` | `TSApplication` types + signatures (the output contract) |
-| `src/build` | Dep materialization + output; `build/neo4j` = graph projection |
-| `src/utils` | fs, caching, logging, serialization, version |
-| `test` | Bun tests + `fixtures/sample-app` |
+| `src/dataflow` | L3/L4 program-graph **compute**: CFG, dominance/CDG, def-use, summaries, SDG |
+| `src/schema` | `TSApplication` — the internal compute model + `signatureOf` + `program_graphs` |
+| `src/schema/v2` | **the schema-v2 emitter**: `model.ts` (target shape) + `emit.ts` (tree/L1/L2) + `dataflow.ts` (L3/L4) |
+| `src/build` | Dep materialization; `build/neo4j` = the v2 graph projection (project/rows/cypher/bolt/schema) |
+| `src/utils` | fs, caching, logging, serialization (`serialize.ts` → `toV2`), version |
+| `test` | Bun tests + `fixtures/sample-app` + `fixtures/dataflow-app`; `schema-v2.test.ts` = the L1–L4 gates |
 
 ## Commands
 

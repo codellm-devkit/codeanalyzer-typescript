@@ -1,0 +1,6 @@
+{
+  "name": "dataflow-app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Level-3 dataflow fixture: exercises every stage-1 lowering construct and the shared fixture minimums (dataflow-construction.md)."
+}

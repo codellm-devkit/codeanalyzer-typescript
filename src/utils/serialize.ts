@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { boltWriter, buildSchemaDocument, project, renderCypher } from "../build/neo4j";
 import type { AnalysisOptions } from "../options";
 import type { TSApplication } from "../schema";
+import { toV2, toV2Detailed } from "../schema/v2";
 import { Logger } from "./logging";
 
 /**
@@ -17,12 +18,14 @@ export async function emit(app: TSApplication, opts: AnalysisOptions): Promise<v
     await emitNeo4j(app, opts);
     return;
   }
+  // schema v2: reshape the v1 model into the canonical additive-CPG tree before serializing.
+  const out = toV2(app, opts);
   if (opts.output === null) {
-    process.stdout.write(JSON.stringify(app));
+    process.stdout.write(JSON.stringify(out));
     return;
   }
   fs.mkdirSync(opts.output, { recursive: true });
-  fs.writeFileSync(path.join(opts.output, "analysis.json"), JSON.stringify(app));
+  fs.writeFileSync(path.join(opts.output, "analysis.json"), JSON.stringify(out));
 }
 
 /**
@@ -40,8 +43,11 @@ export function emitSchema(opts: AnalysisOptions): void {
 }
 
 async function emitNeo4j(app: TSApplication, opts: AnalysisOptions): Promise<void> {
-  const appName = opts.appName ?? path.basename(opts.input);
-  const rows = project(app, appName);
+  // Second projection of the SAME v2 tree the JSON path emits. --emit neo4j forces full depth
+  // (cli.ts), so `app` carries the L4 dataflow and the projected graph is the complete CPG.
+  const { application } = toV2Detailed(app, opts);
+  const appId = application.application.id;
+  const rows = project(application, appId);
 
   if (opts.neo4jUri) {
     const log = new Logger(opts.verbosity);
@@ -61,5 +67,5 @@ async function emitNeo4j(app: TSApplication, opts: AnalysisOptions): Promise<voi
 
   const dir = opts.output ?? process.cwd();
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "graph.cypher"), renderCypher(rows, appName));
+  fs.writeFileSync(path.join(dir, "graph.cypher"), renderCypher(rows, appId));
 }

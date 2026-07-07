@@ -1,7 +1,7 @@
 {
   "name": "codeanalyzer-typescript",
-  "version": "0.4.3",
-  "description": "CLDK TypeScript analyzer — emits the canonical CLDK analysis.json (symbol table + resolver-based call graph) via ts-morph.",
+  "version": "0.5.0",
+  "description": "CLDK TypeScript analyzer — emits the canonical schema v2 (additive CPG: symbol table → call graph → intraprocedural dataflow → interprocedural SDG) as analysis.json and Neo4j, via ts-morph.",
   "type": "module",
   "module": "src/index.ts",
   "bin": {
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "bun run src/index.ts",
-    "build": "bun build ./src/main.ts --compile --external @babel/preset-typescript --outfile dist/cants",
+    "build": "bun build ./src/main.ts ./src/dataflow/worker.ts --compile --external @babel/preset-typescript --outfile dist/cants",
     "gen:schema": "bun run src/index.ts --emit schema > schema.neo4j.json",
     "gen:readme": "bun run scripts/update-readme.ts",
     "test:container": "RUN_CONTAINER_TESTS=1 bun test test/neo4j-bolt.test.ts",

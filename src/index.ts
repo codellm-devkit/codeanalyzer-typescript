@@ -11,7 +11,7 @@ async function main(): Promise<void> {
       emitSchema(opts);
       return;
     }
-    const app = analyze(opts);
+    const app = await analyze(opts);
     await emit(app, opts);
   } catch (e) {
     const err = e as Error;

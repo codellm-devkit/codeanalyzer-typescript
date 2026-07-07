@@ -13,15 +13,15 @@ import { CONSTRAINTS, INDEXES } from "./schema";
 
 const BATCH = 500;
 
-export function renderCypher(rows: GraphRows, appName: string): string {
+export function renderCypher(rows: GraphRows, appId: string): string {
   const out: string[] = [];
 
   out.push("// ── constraints & indexes ──");
   for (const stmt of CONSTRAINTS) out.push(`${stmt};`);
   for (const stmt of INDEXES) out.push(`${stmt};`);
 
-  out.push("", "// ── wipe this project's prior subgraph (externals/packages/decorators are shared) ──");
-  out.push(wipe(appName));
+  out.push("", "// ── wipe this project's prior subgraph (external targets are shared) ──");
+  out.push(wipe(appId));
 
   out.push("", "// ── nodes ──");
   for (const block of nodeStatements(rows.nodes)) out.push(block);
@@ -33,12 +33,12 @@ export function renderCypher(rows: GraphRows, appName: string): string {
   return out.join("\n");
 }
 
-function wipe(appName: string): string {
-  const name = cypherValue(appName);
+function wipe(appId: string): string {
+  const id = cypherValue(appId);
   return [
-    `MATCH (a:Application {name: ${name}})`,
+    `MATCH (a:Application {id: ${id}})`,
     "OPTIONAL MATCH (a)-[:HAS_MODULE]->(m:Module)",
-    "OPTIONAL MATCH (m)-[:DECLARES|HAS_METHOD|HAS_ATTRIBUTE|DECLARES_VAR|HAS_CALLSITE*1..]->(x)",
+    "OPTIONAL MATCH (m)-[:DECLARES|HAS_METHOD|HAS_FIELD|HAS_BODY_NODE*1..]->(x)",
     "DETACH DELETE x, m, a;",
   ].join("\n");
 }

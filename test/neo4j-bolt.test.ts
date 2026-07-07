@@ -37,6 +37,9 @@ function optsFor(overrides: Partial<AnalysisOptions> = {}): AnalysisOptions {
     neo4jPassword: "",
     neo4jDatabase: null,
     analysisLevel: 1,
+    graphs: ["cfg", "dfg", "pdg", "sdg"],
+    graphFieldDepth: 3,
+    jobs: 1,
     targetFiles: null,
     skipTests: true,
     eager: true,
@@ -86,7 +89,7 @@ containerSuite("neo4j bolt writer", () => {
   test(
     "full push materializes the whole graph + schema",
     async () => {
-      const rows = project(analyze(optsFor()), "sample-app");
+      const rows = project(await analyze(optsFor()), "sample-app");
       await boltWriter(rows, cfg, log, true);
 
       // Every projected node/edge lands (the fixture has no library deps, so endpoints all resolve).
@@ -119,7 +122,7 @@ containerSuite("neo4j bolt writer", () => {
   test(
     "re-pushing identical analysis is idempotent",
     async () => {
-      const rows = project(analyze(optsFor()), "sample-app");
+      const rows = project(await analyze(optsFor()), "sample-app");
       await boltWriter(rows, cfg, log, true);
       expect(await num("MATCH (n) RETURN count(n)")).toBe(rows.nodes.length);
       expect(await num("MATCH ()-[r]->() RETURN count(r)")).toBe(rows.edges.length);
@@ -130,7 +133,7 @@ containerSuite("neo4j bolt writer", () => {
   test(
     "a full run prunes a module whose source vanished",
     async () => {
-      const app = analyze(optsFor());
+      const app = await analyze(optsFor());
       const victim = Object.keys(app.symbol_table).sort()[0];
       delete app.symbol_table[victim];
 

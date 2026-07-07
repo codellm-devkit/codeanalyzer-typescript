@@ -14,6 +14,19 @@
  */
 
 // ----------------------------------------------------------------------------------------------
+// Span (schema-v2) — the one universal attribute. `bytes` are char offsets into the owning
+// module's `source` blob, so `source.slice(bytes[0], bytes[1])` reproduces the node's text
+// (what the per-node `code` field used to hold). `start`/`end` are [line, column], 1-based, for
+// display and addressing. Captured on every container node during the AST walk (builders.ts).
+// ----------------------------------------------------------------------------------------------
+
+export interface TSSpan {
+  start: [number, number]; // [line, column], 1-based
+  end: [number, number]; // [line, column], 1-based
+  bytes: [number, number]; // [startOffset, endOffset], char offsets into module.source
+}
+
+// ----------------------------------------------------------------------------------------------
 // Leaf models
 // ----------------------------------------------------------------------------------------------
 
@@ -62,6 +75,7 @@ export interface TSSymbol {
 }
 
 export interface TSVariableDeclaration {
+  span?: TSSpan; // schema-v2 precise span
   name: string;
   type: string | null;
   initializer: string | null;
@@ -122,6 +136,7 @@ export interface TSCallsite {
   start_column: number;
   end_line: number;
   end_column: number;
+  bytes?: [number, number]; // schema-v2: char offsets [start, end] into module.source
 }
 
 // ----------------------------------------------------------------------------------------------
@@ -146,6 +161,7 @@ export interface TSOverloadSignature {
 }
 
 export interface TSCallable {
+  span?: TSSpan; // schema-v2 precise span (line/col + char offsets into module.source)
   name: string;
   path: string; // file path of the declaration
   signature: string; // e.g. src/user.UserService.getUser — the edge id
@@ -186,6 +202,7 @@ export interface TSCallable {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSClassAttribute {
+  span?: TSSpan; // schema-v2 precise span
   name: string;
   type: string | null;
   comments: TSComment[];
@@ -205,6 +222,7 @@ export interface TSClassAttribute {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSClass {
+  span?: TSSpan; // schema-v2 precise span
   name: string;
   signature: string; // e.g. src/user.UserService
   comments: TSComment[];
@@ -229,6 +247,7 @@ export interface TSClass {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSInterface {
+  span?: TSSpan; // schema-v2 precise span
   name: string;
   signature: string;
   comments: TSComment[];
@@ -250,6 +269,7 @@ export interface TSInterface {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSEnumMember {
+  span?: TSSpan; // schema-v2 precise span
   name: string;
   value: string | null; // initializer text or computed const value
   start_line: number;
@@ -257,6 +277,7 @@ export interface TSEnumMember {
 }
 
 export interface TSEnum {
+  span?: TSSpan; // schema-v2 precise span
   name: string;
   signature: string;
   comments: TSComment[];
@@ -274,6 +295,7 @@ export interface TSEnum {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSTypeAlias {
+  span?: TSSpan; // schema-v2 precise span
   name: string;
   signature: string;
   comments: TSComment[];
@@ -291,6 +313,7 @@ export interface TSTypeAlias {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSNamespace {
+  span?: TSSpan; // schema-v2 precise span
   name: string;
   signature: string;
   comments: TSComment[];
@@ -312,6 +335,8 @@ export interface TSNamespace {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSModule {
+  span?: TSSpan; // schema-v2 precise span (whole file)
+  source?: string | null; // schema-v2: full file text; every node's text slices off this
   file_path: string;
   module_name: string; // the file key minus extension (== signature prefix)
   imports: TSImport[];
@@ -395,6 +420,8 @@ export interface TSApplication {
   call_graph: TSCallEdge[];
   external_symbols: Record<string, TSExternalSymbol>;
   synthesized_callables: Record<string, TSSynthesizedCallable>;
+  /** Level-3 CFG/PDG/SDG section — present only at `-a 3` (see schema/graphs.ts). */
+  program_graphs?: import("./graphs").ProgramGraphs;
 }
 
 // ==============================================================================================
