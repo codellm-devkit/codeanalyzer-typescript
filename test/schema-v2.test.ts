@@ -11,8 +11,9 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { analyze } from "../src/core";
 import type { AnalysisOptions } from "../src/options";
-import type { TSApplication } from "../src/schema";
-import { type V2Callable, type V2Module, type V2Type, toV2Detailed } from "../src/schema/v2";
+import type { GraphSelector, TSApplication } from "../src/schema";
+import { type V2Application, type V2Callable, type V2Module, type V2Type, toV2Detailed } from "../src/schema/v2";
+import { type GraphRows, project } from "../src/build/neo4j";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/sample-app");
 
@@ -402,24 +403,178 @@ describe("schema v2 — L4 interprocedural SDG", () => {
     expect(total - callee).toBe(0); // absence encodes "no fact"; only callee:null is sanctioned
   });
 
-  test("monotonicity: every L3 body key and cfg/cdg/ddg edge survives into L4", () => {
-    const key = (c: V2Callable, list: "cfg" | "cdg" | "ddg"): Set<string> =>
-      new Set((c[list] ?? []).map((e: { src: string; dst: string; kind?: string; var?: string }) => `${e.src}>${e.dst}:${e.kind ?? e.var ?? ""}`));
-    const l4 = new Map(allCallables(dfL4.application).map((c) => [c.id, c]));
-    let violations = 0;
-    for (const c3 of allCallables(dfL3.application)) {
-      const c4 = l4.get(c3.id);
-      if (!c4) {
-        violations++;
-        continue;
-      }
-      const body4 = new Set(Object.keys(c4.body));
-      for (const k of Object.keys(c3.body)) if (!body4.has(k)) violations++;
-      for (const list of ["cfg", "cdg", "ddg"] as const) {
-        const e4 = key(c4, list);
-        for (const e of key(c3, list)) if (!e4.has(e)) violations++;
+  // The full L1⊆L2⊆L3⊆L4 gate (including this L3→L4 edge/body-key check, plus symbol-table ids,
+  // call_graph, summary, and param_in/param_out) lives below in the dedicated monotonicity
+  // describe block, run end-to-end across all four levels rather than just this one pair.
+});
+
+// ---- Real end-to-end monotonicity gate + Neo4j↔JSON count parity (issue #27) -------------------
+//
+// `analyze()` run fresh at each of `-a 1/2/3/4` on dataflow-app (four full runs — the fixture is
+// small), then the emitted V2Application at each level is reduced to three KEY-sets — symbol-table
+// ids, body-node keys, and edge keys (call_graph / cfg / cdg / ddg / summary / param_in / param_out)
+// — and every level's set must be a superset of the level below (canonical-schema.md's additive
+// invariant). Comparing KEYS (not values) means the one sanctioned value mutation, a `call` node's
+// `callee: null → id` refinement between L1 and L2, needs no special-casing: the body key survives
+// unchanged even though its `callee` value changes.
+
+function optsAt(level: 1 | 2 | 3 | 4): AnalysisOptions {
+  // Mirrors the CLI's own `--graphs` default per level (src/cli.ts): graphs is only consulted once
+  // `analysisLevel >= 3` starts extraction at all, so it's `[]` and inert below that.
+  const graphs: GraphSelector[] = level >= 4 ? ["cfg", "dfg", "pdg", "sdg"] : level === 3 ? ["cfg", "dfg", "pdg"] : [];
+  return { ...options(), input: DF_FIXTURE, analysisLevel: level, graphs };
+}
+
+async function appAt(level: 1 | 2 | 3 | 4): Promise<V2Application> {
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-mono-"));
+  try {
+    const v1run = await analyze({ ...optsAt(level), cacheDir });
+    return toV2Detailed(v1run, optsAt(level)).application;
+  } finally {
+    fs.rmSync(cacheDir, { recursive: true, force: true });
+  }
+}
+
+/** Every symbol-table id — module/type/callable/field — recursing through nested scopes. */
+function symbolIds(app: V2Application): Set<string> {
+  const out = new Set<string>();
+  const walkCallable = (c: V2Callable): void => {
+    out.add(c.id);
+    for (const cc of Object.values(c.callables ?? {})) walkCallable(cc);
+    for (const t of Object.values(c.types ?? {})) walkType(t);
+  };
+  const walkType = (t: V2Type): void => {
+    out.add(t.id);
+    for (const c of Object.values(t.callables ?? {})) walkCallable(c);
+    for (const f of Object.values(t.fields ?? {})) out.add(f.id);
+    for (const nested of Object.values(t.types ?? {})) walkType(nested);
+    for (const fn of Object.values(t.functions ?? {})) walkCallable(fn);
+  };
+  for (const m of Object.values(app.application.symbol_table)) {
+    out.add(m.id);
+    for (const t of Object.values(m.types)) walkType(t);
+    for (const c of Object.values(m.functions)) walkCallable(c);
+    for (const f of Object.values(m.fields)) out.add(f.id);
+  }
+  return out;
+}
+
+/** Every body-node key, namespaced by its owning callable id so bare local keys never collide. */
+function bodyKeys(app: V2Application): Set<string> {
+  const out = new Set<string>();
+  for (const c of allCallables(app.application)) {
+    for (const k of Object.keys(c.body)) out.add(`${c.id}::${k}`);
+  }
+  return out;
+}
+
+/** Every edge key: call_graph + param_in/param_out (app scope), cfg/cdg/ddg/summary (per callable). */
+function edgeKeys(app: V2Application): Set<string> {
+  const out = new Set<string>();
+  const root = app.application;
+  for (const e of root.call_graph) out.add(`call_graph::${e.src}>${e.dst}:${[...e.prov].sort().join(",")}`);
+  for (const c of allCallables(root)) {
+    for (const list of ["cfg", "cdg", "ddg", "summary"] as const) {
+      for (const e of (c[list] ?? []) as Array<{ src: string; dst: string; kind?: string; var?: string }>) {
+        out.add(`${c.id}::${list}::${e.src}>${e.dst}:${e.kind ?? e.var ?? ""}`);
       }
     }
-    expect(violations).toBe(0);
+  }
+  for (const list of ["param_in", "param_out"] as const) {
+    for (const e of root[list]) out.add(`${list}::${e.src}>${e.dst}:${e.var ?? ""}`);
+  }
+  return out;
+}
+
+/** Elements of `lo` missing from `hi` — empty means `lo` is a subset of `hi`. */
+function missingFrom(lo: Set<string>, hi: Set<string>): string[] {
+  return [...lo].filter((k) => !hi.has(k));
+}
+
+const monoApp1 = await appAt(1);
+const monoApp2 = await appAt(2);
+const monoApp3 = await appAt(3);
+const monoApp4 = await appAt(4);
+const monoPairs: Array<[V2Application, V2Application, string]> = [
+  [monoApp1, monoApp2, "L1 -> L2"],
+  [monoApp2, monoApp3, "L2 -> L3"],
+  [monoApp3, monoApp4, "L3 -> L4"],
+];
+
+describe("additive monotonicity — real L1 ⊆ L2 ⊆ L3 ⊆ L4 gate (issue #27)", () => {
+  test("fixture sanity: each level actually adds new facts (guards against a vacuous superset)", () => {
+    expect(bodyKeys(monoApp1).size).toBeGreaterThan(0);
+    expect(edgeKeys(monoApp2).size).toBeGreaterThan(0); // call_graph appears at L2
+    expect(edgeKeys(monoApp3).size).toBeGreaterThan(edgeKeys(monoApp2).size); // cfg/cdg/ddg appear at L3
+    expect(edgeKeys(monoApp4).size).toBeGreaterThan(edgeKeys(monoApp3).size); // summary/param_in/out appear at L4
+    expect(bodyKeys(monoApp3).size).toBeGreaterThan(bodyKeys(monoApp2).size); // statements appear at L3
+    expect(bodyKeys(monoApp4).size).toBeGreaterThan(bodyKeys(monoApp3).size); // synthetic vertices appear at L4
+  });
+
+  for (const [lo, hi, label] of monoPairs) {
+    test(`symbol-table ids (module/type/callable/field): ${label}`, () => {
+      expect(missingFrom(symbolIds(lo), symbolIds(hi))).toEqual([]);
+    });
+    test(`body-node keys: ${label}`, () => {
+      expect(missingFrom(bodyKeys(lo), bodyKeys(hi))).toEqual([]);
+    });
+    test(`edge keys (call_graph/cfg/cdg/ddg/summary/param_in/param_out): ${label}`, () => {
+      expect(missingFrom(edgeKeys(lo), edgeKeys(hi))).toEqual([]);
+    });
+  }
+});
+
+// ---- Neo4j ↔ JSON count parity, full depth (issue #27) -----------------------------------------
+//
+// `project()` is a second projection of the SAME v2 tree the JSON path emits, so node/edge counts
+// must line up exactly at `-a 4` (full depth). `RowBuilder` dedupes nodes by (labels[0], id) — every
+// project-owned node shares the "CanNode" label — so the JS-side count must dedupe on id the same
+// way; a plain sum-of-walks would silently diverge from `rows.nodes.length` if two tree positions
+// ever produced the same id (which the L1 identity test elsewhere guards against, but this test
+// doesn't lean on that guarantee holding).
+
+const monoRows: GraphRows = project(monoApp4, "dataflow-app");
+
+function relCount(rows: GraphRows, type: string): number {
+  return rows.edges.filter((e) => e.type === type).length;
+}
+
+/** Every id materialized as a `:CanNode` row: symbol-table ids + body-node fq ids + external/synth. */
+function canNodeIds(app: V2Application): Set<string> {
+  const ids = new Set(symbolIds(app));
+  for (const c of allCallables(app.application)) {
+    for (const k of Object.keys(c.body)) ids.add(k.startsWith("@") ? `${c.id}${k}` : `${c.id}@${k}`);
+  }
+  for (const id of Object.keys(app.application.external_symbols ?? {})) ids.add(id);
+  for (const id of Object.keys(app.application.synthesized_callables ?? {})) ids.add(id);
+  return ids;
+}
+
+describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
+  test("node count: 1 :Application row + every :CanNode id", () => {
+    expect(monoRows.nodes.length).toBe(1 + canNodeIds(monoApp4).size);
+  });
+
+  test("typed overlay relationships match their JSON edge-list length 1:1", () => {
+    const callables = allCallables(monoApp4.application);
+    expect(relCount(monoRows, "CALLS")).toBe(monoApp4.application.call_graph.length);
+    expect(relCount(monoRows, "PARAM_IN")).toBe(monoApp4.application.param_in.length);
+    expect(relCount(monoRows, "PARAM_OUT")).toBe(monoApp4.application.param_out.length);
+    expect(relCount(monoRows, "CFG_NEXT")).toBe(callables.reduce((n, c) => n + (c.cfg?.length ?? 0), 0));
+    expect(relCount(monoRows, "CDG")).toBe(callables.reduce((n, c) => n + (c.cdg?.length ?? 0), 0));
+    expect(relCount(monoRows, "DDG")).toBe(callables.reduce((n, c) => n + (c.ddg?.length ?? 0), 0));
+    expect(relCount(monoRows, "SUMMARY")).toBe(callables.reduce((n, c) => n + (c.summary?.length ?? 0), 0));
+  });
+
+  test("containment relationships (HAS_*/DECLARES) match tree cardinality, not a JSON edge-list", () => {
+    // HAS_MODULE/DECLARES/HAS_METHOD/HAS_FIELD/HAS_BODY_NODE have no JSON edge-list counterpart —
+    // they ARE the containment tree. Every node except :Application and the off-tree External/
+    // AnonymousCallable homes gets exactly one incoming containment edge from its tree parent, so
+    // their total must equal every other CanNode id.
+    const containment = ["HAS_MODULE", "DECLARES", "HAS_METHOD", "HAS_FIELD", "HAS_BODY_NODE"];
+    const containmentEdges = containment.reduce((n, t) => n + relCount(monoRows, t), 0);
+    const externalCount = Object.keys(monoApp4.application.external_symbols ?? {}).length;
+    const synthCount = Object.keys(monoApp4.application.synthesized_callables ?? {}).length;
+    expect(containmentEdges).toBe(canNodeIds(monoApp4).size - externalCount - synthCount);
   });
 });
