@@ -187,6 +187,8 @@ Options:
                                  of union) (default: "union")
   --tsc-only                     use the tsc resolver only — opt out of Jelly
                                  edges (overrides --call-graph-provider)
+  -f, --format <fmt>             output format: json (default) | msgpack (not
+                                 yet implemented) (default: "json")
   -c, --cache-dir <dir>          cache/intermediate directory
   -v, --verbose                  increase verbosity (repeatable)
   -h, --help                     display help for command

@@ -26,7 +26,7 @@ async function fixtureRows() {
   const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-schema-test-"));
   // --emit neo4j is always full-depth, so exercise every node/edge kind at L4.
   const opts: AnalysisOptions = {
-    input: FIXTURE, output: null, emit: "neo4j", appName: "dataflow-app",
+    input: FIXTURE, output: null, emit: "neo4j", format: "json", appName: "dataflow-app",
     neo4jUri: null, neo4jUser: "neo4j", neo4jPassword: "", neo4jDatabase: null,
     analysisLevel: 4, graphs: ["cfg", "dfg", "pdg", "sdg"], graphFieldDepth: 3, jobs: 1,
     targetFiles: null, skipTests: true, eager: true,

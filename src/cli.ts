@@ -63,6 +63,7 @@ export function buildProgram(): Command {
       "union",
     )
     .option("--tsc-only", "use the tsc resolver only — opt out of Jelly edges (overrides --call-graph-provider)")
+    .option("-f, --format <fmt>", "output format: json (default) | msgpack (not yet implemented)", "json")
     .option("-c, --cache-dir <dir>", "cache/intermediate directory")
     .option("-v, --verbose", "increase verbosity (repeatable)", (_v: string, prev: number) => prev + 1, 0)
     .allowExcessArguments(true);
@@ -96,6 +97,16 @@ export function parseArgs(argv: string[]): AnalysisOptions {
       program.error("error: --graphs does not apply to --emit neo4j; the graph is always projected at full depth");
     }
     level = 4; // force max implemented depth so the projected graph is the full CPG
+  }
+
+  // --format: strict validation — an unrecognized value must error, never silently fall back to
+  // json; msgpack is a recognized-but-unimplemented value and must error too, not silently degrade.
+  const format = String(o.format ?? "json");
+  if (!["json", "msgpack"].includes(format)) {
+    program.error(`error: invalid --format '${format}' (expected: json, msgpack)`);
+  }
+  if (format === "msgpack") {
+    program.error("error: msgpack output is not yet implemented; use --format json");
   }
 
   // --graphs: strict validation (never a silent fallback). Default = all rungs at or below the level;
@@ -158,6 +169,7 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     input: o.input ? path.resolve(String(o.input)) : "",
     output: o.output ? path.resolve(String(o.output)) : null,
     emit,
+    format: format as "json",
     appName: o.appName ? String(o.appName) : null,
     neo4jUri: o.neo4jUri ? String(o.neo4jUri) : null,
     neo4jUser: String(o.neo4jUser),

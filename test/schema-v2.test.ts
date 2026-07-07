@@ -23,6 +23,7 @@ function options(): AnalysisOptions {
     input: FIXTURE,
     output: null,
     emit: "json",
+    format: "json",
     appName: null,
     neo4jUri: null,
     neo4jUser: "neo4j",

@@ -20,6 +20,7 @@ function options(level: 1 | 2 | 3, cacheDir: string, jobs: number): AnalysisOpti
     input: FIXTURE,
     output: null,
     emit: "json",
+    format: "json",
     appName: null,
     neo4jUri: null,
     neo4jUser: "neo4j",
@@ -421,5 +422,34 @@ describe("--graphs flag validation", () => {
     const r = cli("-i", FIXTURE, "-a", "3", "--jobs", "0", "--no-build");
     expect(r.exitCode).not.toBe(0);
     expect(r.stderr.toString()).toContain("invalid --jobs");
+  });
+});
+
+describe("--format flag validation", () => {
+  const cli = (...args: string[]) =>
+    Bun.spawnSync(["bun", "run", path.resolve(import.meta.dir, "../src/index.ts"), ...args], {
+      cwd: path.resolve(import.meta.dir, ".."),
+    });
+
+  test("--format msgpack is rejected — not yet implemented, never a silent fallback to json", () => {
+    const r = cli("-i", FIXTURE, "--format", "msgpack", "--no-build");
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr.toString()).toContain("msgpack output is not yet implemented");
+  });
+
+  test("unknown --format value fails with a clear error", () => {
+    const r = cli("-i", FIXTURE, "--format", "bogus", "--no-build");
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr.toString()).toContain("invalid --format 'bogus'");
+  });
+
+  test("--format json succeeds (exit 0)", () => {
+    const r = cli("-i", FIXTURE, "--format", "json", "--no-build");
+    expect(r.exitCode).toBe(0);
+  });
+
+  test("omitting --format succeeds (defaults to json)", () => {
+    const r = cli("-i", FIXTURE, "--no-build");
+    expect(r.exitCode).toBe(0);
   });
 });
