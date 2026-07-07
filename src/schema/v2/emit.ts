@@ -12,6 +12,7 @@
 
 import * as path from "node:path";
 import type { AnalysisOptions } from "../../options";
+import { ANALYZER_VERSION } from "../../utils/version";
 import type {
   TSApplication,
   TSCallable,
@@ -30,6 +31,7 @@ import type { V2Application, V2BodyNode, V2CallEdge, V2Callable, V2External, V2F
 
 const LANGUAGE = "typescript";
 const SCHEMA_VERSION = "2.0.0";
+const ANALYZER_NAME = "codeanalyzer-typescript";
 /** Highest analysis level this emitter populates today (L1 tree, L2 call graph, L3/L4 dataflow). */
 const MAX_IMPLEMENTED = 4;
 
@@ -371,6 +373,7 @@ export function toV2Detailed(app: TSApplication, opts: AnalysisOptions): ToV2Res
     language: LANGUAGE,
     max_level: Math.min(level, MAX_IMPLEMENTED),
     ...(k_limit !== undefined ? { k_limit } : {}),
+    analyzer: { name: ANALYZER_NAME, version: ANALYZER_VERSION },
     application: root,
   };
   return { application, idBySig, collisions, dangling };

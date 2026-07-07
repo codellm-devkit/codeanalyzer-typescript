@@ -9,6 +9,7 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import pkg from "../package.json";
 import { analyze } from "../src/core";
 import type { AnalysisOptions } from "../src/options";
 import type { GraphSelector, TSApplication } from "../src/schema";
@@ -102,6 +103,11 @@ describe("schema v2 — L1 envelope", () => {
       expect(key.includes("..")).toBe(false);
       expect(key).not.toContain("\\");
     }
+  });
+
+  test("envelope carries analyzer{name,version}", () => {
+    expect(v2.analyzer?.name).toBe("codeanalyzer-typescript");
+    expect(v2.analyzer?.version).toBe(pkg.version);
   });
 });
 

@@ -25,7 +25,14 @@ export interface V2Application {
   language: string; // "typescript"
   max_level: number; // highest level populated; consumers read this, not key-sniffing
   k_limit?: number; // access-path depth bound for the L3/L4 dataflow (present at L3+)
+  analyzer: V2Analyzer; // which analyzer produced this artifact, and at what version
   application: V2Root;
+}
+
+/** Analyzer identity — lets consumers correlate an `analysis.json` with the tool/version that emitted it. */
+export interface V2Analyzer {
+  name: string; // "codeanalyzer-typescript"
+  version: string; // ANALYZER_VERSION (src/utils/version.ts)
 }
 
 export interface V2Root {
