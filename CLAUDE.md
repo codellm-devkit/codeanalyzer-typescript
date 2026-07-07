@@ -85,10 +85,30 @@ Act as a helper, not the author:
    back when a simpler approach exists. Stop when confused.
 2. **Simplicity first.** Guide me toward the minimum idiomatic code that solves the
    problem. Nothing speculative; no abstractions for single-use code.
-3. **Issue → branch → work → PR.** Every change starts as an issue, on a branch named
-   `feat/issue-XXX`, `fix/issue-XXX`, `chore/issue-XXX`, and lands via a PR.
+3. **Issue → branch → work → PR.** Every change starts as a GitHub issue, worked on a branch
+   named `<type>/issue-XXX-<dash-separated-short-title>` — `<type>` is the change's nature/bump
+   (`feat | fix | chore | minor | major | …`) — and lands via **one PR against `main` that closes
+   the issue**. Specs and plans map onto this ladder; see "Tracking work" below.
 4. **Guard the contract.** Changes to `src/schema` or Neo4j output must keep parity
    with the sibling analyzers and pass the schema conformance test.
+
+## Tracking work — specs → epics, plans → issues
+
+The Superpowers workflow (`brainstorming → writing-plans → executing-plans`) writes its artifacts
+under `docs/superpowers/` (specs, plans, …), which is **globally gitignored** — those files live
+only as local drafting scratchpads and are never committed (don't `git add -f` them). Track the
+*work itself* in GitHub instead:
+
+- **A spec (`docs/superpowers/specs/<date>-<topic>-design.md`) → a GitHub _epic_ issue.** Open one
+  tracking issue holding the design summary and a checklist that links its child issues.
+- **A plan (`docs/superpowers/plans/<…>`) → one GitHub _issue_ per work item.** Each plan step /
+  PR-unit becomes a child issue linked to the epic.
+- **Each issue → a branch → a PR against `main`** (rule 3): branch
+  `<type>/issue-XXX-<dash-separated-short-title>`, one PR per issue that closes it.
+
+So the epic is the durable home for the design, the child issues are the durable home for the plan,
+and the local `docs/superpowers/**` files are just the drafting surface that produced them. When a
+spec or plan is finalized, create the epic/issues with `gh issue create` before starting a branch.
 
 ## Goal-driven execution, as a teaching loop
 
