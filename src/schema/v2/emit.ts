@@ -111,11 +111,19 @@ function memberKey(sig: string, accessorKind?: string | null): string {
   return seg;
 }
 
+/** A type's heritage signatures, resolved to `can://` ids once the whole tree walk registers them. */
+interface PendingHeritage {
+  node: V2Type;
+  extendsSigs: string[]; // class: the extended base class; interface: extended interface(s)
+  implementsSigs: string[]; // class only: implemented interfaces
+}
+
 /** State shared across the whole tree walk (edge-rewriting + gating). */
 interface SharedState {
   idBySig: Map<string, string>;
   collisions: string[];
   pendingCallees: Array<{ node: V2BodyNode; calleeSig: string | null }>; // backfilled at L2
+  pendingHeritage: PendingHeritage[]; // resolved sig→id once the whole tree walk completes
   callableBySig: Map<string, V2Callable>; // locates each callable's node for the L3/L4 dataflow pass
   level: number;
 }
@@ -201,7 +209,14 @@ function toClass(c: TSClass, ctx: Ctx): V2Type {
   const fields: Record<string, V2Field> = {};
   for (const [name, a] of Object.entries(c.attributes ?? {}))
     fields[name] = fieldNode(id, name, (a as TSClassAttribute).span, a as unknown as Record<string, unknown>);
-  return { ...carry(c as unknown as Record<string, unknown>), id, kind: "class", signature: c.signature, span: c.span, callables, fields };
+  const node: V2Type = { ...carry(c as unknown as Record<string, unknown>), id, kind: "class", signature: c.signature, span: c.span, callables, fields };
+  // `base_classes` is the union of extends + implements (schema.ts:231); subtract implements_types
+  // to recover just the extended base class (0 or 1 — TS classes extend at most one class).
+  if (c.base_classes.length) {
+    const extendsSigs = c.base_classes.filter((s) => !c.implements_types.includes(s));
+    ctx.pendingHeritage.push({ node, extendsSigs, implementsSigs: c.implements_types });
+  }
+  return node;
 }
 
 function toInterface(i: TSInterface, ctx: Ctx): V2Type {
@@ -212,7 +227,11 @@ function toInterface(i: TSInterface, ctx: Ctx): V2Type {
   const fields: Record<string, V2Field> = {};
   for (const [name, p] of Object.entries(i.properties ?? {}))
     fields[name] = fieldNode(id, name, (p as TSClassAttribute).span, p as unknown as Record<string, unknown>);
-  return { ...carry(i as unknown as Record<string, unknown>), id, kind: "interface", signature: i.signature, span: i.span, callables, fields };
+  const node: V2Type = { ...carry(i as unknown as Record<string, unknown>), id, kind: "interface", signature: i.signature, span: i.span, callables, fields };
+  // Interface heritage is extends-only (schema.ts:255) — an interface can extend other interfaces
+  // (or, rarely, a class's instance type), but never "implements".
+  if (i.base_classes.length) ctx.pendingHeritage.push({ node, extendsSigs: i.base_classes, implementsSigs: [] });
+  return node;
 }
 
 function toEnum(e: TSEnum, ctx: Ctx): V2Type {
@@ -332,8 +351,9 @@ export function toV2Detailed(app: TSApplication, opts: AnalysisOptions): ToV2Res
   const idBySig = new Map<string, string>();
   const collisions: string[] = [];
   const pendingCallees: Array<{ node: V2BodyNode; calleeSig: string | null }> = [];
+  const pendingHeritage: PendingHeritage[] = [];
   const callableBySig = new Map<string, V2Callable>();
-  const shared: SharedState = { idBySig, collisions, pendingCallees, callableBySig, level };
+  const shared: SharedState = { idBySig, collisions, pendingCallees, pendingHeritage, callableBySig, level };
 
   // L1 — the containment tree (registers every real callable/type id in idBySig).
   const symbol_table: Record<string, V2Module> = {};
@@ -341,6 +361,16 @@ export function toV2Detailed(app: TSApplication, opts: AnalysisOptions): ToV2Res
     symbol_table[fileKey] = toModule(m, `${appId}/${fileKey}`, shared);
   }
   const root: V2Root = { id: appId, kind: "application", symbol_table, call_graph: [], param_in: [], param_out: [] };
+
+  // Resolve heritage sig → can:// id now that every first-party type is registered in idBySig
+  // (independent of level: types are homed during the unconditional L1 walk above). Unresolved
+  // (external/library) supertypes are dropped, never nulled — the "resolved-only" rule.
+  for (const { node, extendsSigs, implementsSigs } of pendingHeritage) {
+    const extendsIds = extendsSigs.map((s) => idBySig.get(s)).filter((x): x is string => x !== undefined);
+    const implementsIds = implementsSigs.map((s) => idBySig.get(s)).filter((x): x is string => x !== undefined);
+    if (extendsIds.length) node.extends_ids = extendsIds;
+    if (implementsIds.length) node.implements_ids = implementsIds;
+  }
 
   // L2 — home the off-tree edge endpoints, backfill `callee`, rewrite the call graph.
   const dangling: string[] = [];

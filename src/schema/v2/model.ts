@@ -102,6 +102,11 @@ export interface V2Type extends V2Node {
   fields?: Record<string, V2Field>; // class attributes / interface properties / enum members
   types?: Record<string, V2Type>; // namespace: nested types
   functions?: Record<string, V2Callable>; // namespace: nested functions
+  // Heritage: `base_classes`/`implements_types` (carried from v1) stay signature strings — the
+  // resolved-id projection lives here, additively, for the Neo4j EXTENDS/IMPLEMENTS overlay.
+  // External/library supertypes that never resolve to a first-party id are dropped, not nulled.
+  extends_ids?: string[]; // resolved `can://` id(s) of the extended class/interface(s)
+  implements_ids?: string[]; // resolved `can://` id(s) of implemented interfaces (classes only)
 }
 
 export interface V2Callable extends V2Node {

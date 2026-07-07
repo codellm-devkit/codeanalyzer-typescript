@@ -372,6 +372,29 @@
       "properties": {
         "var": "string"
       }
+    },
+    {
+      "type": "EXTENDS",
+      "from": [
+        "Class",
+        "Interface"
+      ],
+      "to": [
+        "Class",
+        "Interface"
+      ],
+      "properties": {}
+    },
+    {
+      "type": "IMPLEMENTS",
+      "from": [
+        "Class"
+      ],
+      "to": [
+        "Interface",
+        "Class"
+      ],
+      "properties": {}
     }
   ],
   "constraints": [

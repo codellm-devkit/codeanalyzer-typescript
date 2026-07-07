@@ -170,6 +170,58 @@ describe("schema v2 — L1 tree shape", () => {
   });
 });
 
+// ---- Inheritance: heritage signatures resolve to can:// ids (issue #33) ------------------------
+// sample-app's models.ts is first-party heritage: Entity implements Identifiable; User extends
+// Entity implements Named; Robot implements Named (a second, unrelated implementer of Named).
+// This resolution is unconditional (independent of `-a` level) — it only needs idBySig, which the
+// unconditional L1 tree walk already populates — so it's exercised here even though `st` is L1.
+describe("schema v2 — inheritance resolves heritage signatures to can:// ids (issue #33)", () => {
+  test("a class's extends/implements signatures resolve to their declaring node's id", () => {
+    const types = st["src/models.ts"].types;
+    const entity = types.Entity;
+    const user = types.User;
+    const robot = types.Robot;
+    const identifiable = types.Identifiable;
+    const named = types.Named;
+
+    expect(entity.extends_ids).toBeUndefined(); // no base class, only `implements`
+    expect(entity.implements_ids).toEqual([identifiable.id]);
+
+    expect(user.extends_ids).toEqual([entity.id]);
+    expect(user.implements_ids).toEqual([named.id]);
+
+    expect(robot.extends_ids).toBeUndefined();
+    expect(robot.implements_ids).toEqual([named.id]);
+  });
+
+  test("base_classes/implements_types (signature strings) are unchanged — additive, not replaced", () => {
+    const entity = st["src/models.ts"].types.Entity as unknown as { base_classes: string[]; implements_types: string[] };
+    const user = st["src/models.ts"].types.User as unknown as { base_classes: string[]; implements_types: string[] };
+    const identifiableSig = st["src/models.ts"].types.Identifiable.signature;
+    const entitySig = st["src/models.ts"].types.Entity.signature;
+    const namedSig = st["src/models.ts"].types.Named.signature;
+
+    expect(entity.base_classes).toEqual([identifiableSig]);
+    expect(entity.implements_types).toEqual([identifiableSig]);
+    expect(user.base_classes).toEqual([entitySig, namedSig]);
+    expect(user.implements_types).toEqual([namedSig]);
+  });
+
+  test("an unresolved (external/library) supertype is dropped, not nulled", () => {
+    // Every type in sample-app either has no heritage or fully first-party heritage, so there is no
+    // dropped entry to observe directly here — instead assert the shape invariant the resolver
+    // relies on: extends_ids/implements_ids, when present, are always non-empty arrays of can://
+    // ids (never contain undefined/null placeholders for an unresolved signature).
+    for (const t of Object.values(st["src/models.ts"].types)) {
+      for (const ids of [t.extends_ids, t.implements_ids]) {
+        if (ids === undefined) continue;
+        expect(ids.length).toBeGreaterThan(0);
+        for (const id of ids) expect(id.startsWith("can://")).toBe(true);
+      }
+    }
+  });
+});
+
 describe("schema v2 — L1 superset", () => {
   test("every v1 callable/type signature has a v2 id", () => {
     const v1sigs = new Set<string>();
@@ -511,6 +563,26 @@ function symbolIds(app: V2Application): Set<string> {
   return out;
 }
 
+/** Every type node — classes/interfaces/enums/aliases/namespaces — recursing through nested scopes. */
+function allTypes(app: V2Application): V2Type[] {
+  const out: V2Type[] = [];
+  const walkCallable = (c: V2Callable): void => {
+    for (const cc of Object.values(c.callables ?? {})) walkCallable(cc);
+    for (const t of Object.values(c.types ?? {})) walkType(t);
+  };
+  const walkType = (t: V2Type): void => {
+    out.push(t);
+    for (const c of Object.values(t.callables ?? {})) walkCallable(c);
+    for (const nested of Object.values(t.types ?? {})) walkType(nested);
+    for (const fn of Object.values(t.functions ?? {})) walkCallable(fn);
+  };
+  for (const m of Object.values(app.application.symbol_table)) {
+    for (const t of Object.values(m.types)) walkType(t);
+    for (const c of Object.values(m.functions)) walkCallable(c);
+  }
+  return out;
+}
+
 /** Every body-node key, namespaced by its owning callable id so bare local keys never collide. */
 function bodyKeys(app: V2Application): Set<string> {
   const out = new Set<string>();
@@ -602,6 +674,15 @@ function canNodeIds(app: V2Application): Set<string> {
   return ids;
 }
 
+/** Every `call` body node whose `callee` resolved to an id — the JSON-side source of RESOLVES_TO. */
+function resolvesToCount(app: V2Application): number {
+  let n = 0;
+  for (const c of allCallables(app.application)) {
+    for (const bn of Object.values(c.body)) if (typeof bn.callee === "string") n++;
+  }
+  return n;
+}
+
 describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
   test("node count: 1 :Application row + every :CanNode id", () => {
     expect(monoRows.nodes.length).toBe(1 + canNodeIds(monoApp4).size);
@@ -622,11 +703,50 @@ describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
     // HAS_MODULE/DECLARES/HAS_METHOD/HAS_FIELD/HAS_BODY_NODE have no JSON edge-list counterpart —
     // they ARE the containment tree. Every node except :Application and the off-tree External/
     // AnonymousCallable homes gets exactly one incoming containment edge from its tree parent, so
-    // their total must equal every other CanNode id.
+    // their total must equal every other CanNode id. (RESOLVES_TO and EXTENDS/IMPLEMENTS ALSO have
+    // no top-level JSON edge-list — they're sourced from a body node's `callee` and a type node's
+    // `extends_ids`/`implements_ids` props respectively — but they are not containment either, so
+    // they're deliberately excluded from this invariant too; see the dedicated tests below and the
+    // exhaustive edge-accounting test that folds every relationship family back into one total.)
     const containment = ["HAS_MODULE", "DECLARES", "HAS_METHOD", "HAS_FIELD", "HAS_BODY_NODE"];
     const containmentEdges = containment.reduce((n, t) => n + relCount(monoRows, t), 0);
     const externalCount = Object.keys(monoApp4.application.external_symbols ?? {}).length;
     const synthCount = Object.keys(monoApp4.application.synthesized_callables ?? {}).length;
     expect(containmentEdges).toBe(canNodeIds(monoApp4).size - externalCount - synthCount);
+  });
+
+  test("EXTENDS/IMPLEMENTS have no JSON edge-list (extends_ids/implements_ids node props are the source of truth); counts still match 1:1", () => {
+    const types = allTypes(monoApp4);
+    const extendsCount = types.reduce((n, t) => n + (t.extends_ids?.length ?? 0), 0);
+    const implementsCount = types.reduce((n, t) => n + (t.implements_ids?.length ?? 0), 0);
+    // sanity: dataflow-app's first-party hierarchy (src/hierarchy.ts) exercises both relationship
+    // kinds — guards against a vacuous 0 === 0 pass if the fixture ever loses its heritage.
+    expect(extendsCount).toBeGreaterThan(0);
+    expect(implementsCount).toBeGreaterThan(0);
+    expect(relCount(monoRows, "EXTENDS")).toBe(extendsCount);
+    expect(relCount(monoRows, "IMPLEMENTS")).toBe(implementsCount);
+  });
+
+  test("every projected edge is accounted for: typed overlay + containment + RESOLVES_TO + EXTENDS/IMPLEMENTS sums to the total", () => {
+    // The exhaustive form of the parity gate: unlike the per-family tests above (which only prove
+    // each family individually matches its JSON source), this proves nothing is left over — if
+    // project.ts ever grows a new relationship family without this test learning about it, the two
+    // sides diverge and the gate fails, instead of silently passing on an incomplete accounting.
+    const typedOverlay =
+      relCount(monoRows, "CALLS") +
+      relCount(monoRows, "PARAM_IN") +
+      relCount(monoRows, "PARAM_OUT") +
+      relCount(monoRows, "CFG_NEXT") +
+      relCount(monoRows, "CDG") +
+      relCount(monoRows, "DDG") +
+      relCount(monoRows, "SUMMARY");
+    const containment = ["HAS_MODULE", "DECLARES", "HAS_METHOD", "HAS_FIELD", "HAS_BODY_NODE"].reduce(
+      (n, t) => n + relCount(monoRows, t),
+      0,
+    );
+    const resolvesTo = relCount(monoRows, "RESOLVES_TO");
+    const heritage = relCount(monoRows, "EXTENDS") + relCount(monoRows, "IMPLEMENTS");
+    expect(resolvesTo).toBe(resolvesToCount(monoApp4));
+    expect(typedOverlay + containment + resolvesTo + heritage).toBe(monoRows.edges.length);
   });
 });

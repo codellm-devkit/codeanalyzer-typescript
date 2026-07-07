@@ -96,6 +96,10 @@ function projectType(b: RowBuilder, t: V2Type, parent: NodeRef, fileKey: string)
   const label = KIND_LABEL[t.kind] ?? "Class";
   const node = b.node([CAN, label], "id", t.id, typeProps(t, fileKey));
   b.edge("DECLARES", parent, node);
+  // Inheritance overlay — resolved-only (emit.ts already dropped unresolved/external supertypes);
+  // the deferred gate is defense-in-depth against a resolved id that never materialized as a node.
+  for (const eid of t.extends_ids ?? []) b.edgeToSymbol("EXTENDS", node, eid);
+  for (const iid of t.implements_ids ?? []) b.edgeToSymbol("IMPLEMENTS", node, iid);
   if (t.kind === "namespace") {
     projectScope(b, t, node, fileKey); // a namespace nests types/functions/fields
     return;

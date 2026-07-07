@@ -91,3 +91,44 @@ describe("neo4j schema conformance", () => {
     expect(onDisk).toBe(fresh);
   });
 });
+
+// ---- Class inheritance: EXTENDS/IMPLEMENTS (issue #33) ------------------------------------------
+// dataflow-app's src/hierarchy.ts is a minimal, first-party heritage fixture: `Rectangle implements
+// Shape`, `Square extends Rectangle implements Labeled`.
+
+describe("neo4j inheritance edges (issue #33)", () => {
+  test("EXTENDS and IMPLEMENTS are declared in the schema catalog", () => {
+    expect(relByType.has("EXTENDS")).toBe(true);
+    expect(relByType.has("IMPLEMENTS")).toBe(true);
+  });
+
+  function nodeBySignature(signature: string) {
+    return rows.nodes.find((n) => n.props.signature === signature);
+  }
+
+  test("hierarchy.ts's first-party heritage projects the expected, non-dangling EXTENDS/IMPLEMENTS edges", () => {
+    const square = nodeBySignature("src/hierarchy.Square");
+    const rectangle = nodeBySignature("src/hierarchy.Rectangle");
+    const shape = nodeBySignature("src/hierarchy.Shape");
+    const labeled = nodeBySignature("src/hierarchy.Labeled");
+    expect(square, "Square node").toBeDefined();
+    expect(rectangle, "Rectangle node").toBeDefined();
+    expect(shape, "Shape node").toBeDefined();
+    expect(labeled, "Labeled node").toBeDefined();
+
+    const ext = rows.edges.filter((e) => e.type === "EXTENDS");
+    const impl = rows.edges.filter((e) => e.type === "IMPLEMENTS");
+    expect(ext.length).toBeGreaterThan(0);
+    expect(impl.length).toBeGreaterThan(0);
+
+    expect(ext.some((e) => e.from.value === square!.value && e.to.value === rectangle!.value)).toBe(true);
+    expect(impl.some((e) => e.from.value === rectangle!.value && e.to.value === shape!.value)).toBe(true);
+    expect(impl.some((e) => e.from.value === square!.value && e.to.value === labeled!.value)).toBe(true);
+
+    const nodeValues = new Set(rows.nodes.map((n) => n.value));
+    for (const e of [...ext, ...impl]) {
+      expect(nodeValues.has(e.from.value), `dangling EXTENDS/IMPLEMENTS source ${e.from.value}`).toBe(true);
+      expect(nodeValues.has(e.to.value), `dangling EXTENDS/IMPLEMENTS target ${e.to.value}`).toBe(true);
+    }
+  });
+});
