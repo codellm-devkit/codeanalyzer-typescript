@@ -9,6 +9,7 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import pkg from "../package.json";
 import {
   MARKER_LABELS,
   NODE_LABELS,
@@ -89,6 +90,19 @@ describe("neo4j schema conformance", () => {
     const onDisk = fs.readFileSync(path.resolve(import.meta.dir, "..", "schema.neo4j.json"), "utf8").trim();
     const fresh = JSON.stringify(buildSchemaDocument(), null, 2).trim();
     expect(onDisk).toBe(fresh);
+  });
+});
+
+// ---- :Application analyzer identity (issue #43) ------------------------------------------------
+// The JSON envelope advertises `analyzer{name,version}` (#29); the Neo4j :Application node is the
+// co-primary projection of the same envelope and must not diverge on analyzer identity.
+
+describe(":Application node carries analyzer identity (issue #43)", () => {
+  test("version matches package.json (the same source the JSON envelope's analyzer.version uses)", () => {
+    const appNode = rows.nodes.find((n) => n.labels.includes("Application"));
+    expect(appNode, "no :Application node projected").toBeDefined();
+    expect(appNode!.props.analyzer_version).toBe(pkg.version);
+    expect(appNode!.props.analyzer_name).toBe("codeanalyzer-typescript");
   });
 });
 

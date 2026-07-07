@@ -51,6 +51,12 @@ export function project(app: V2Application, _appName?: string): GraphRows {
     language: app.language,
     max_level: app.max_level,
     k_limit: app.k_limit ?? null,
+    // Same analyzer{name,version} the JSON envelope carries (emit.ts) — the two co-primary
+    // projections must never diverge on analyzer identity (issue #43). Namespaced as
+    // analyzer_name/analyzer_version (not bare name/version) to avoid colliding with the
+    // app-name param (project()'s _appName) and every other CanNode's bare `name`.
+    analyzer_name: app.analyzer.name,
+    analyzer_version: app.analyzer.version,
   }));
 
   for (const mod of Object.values(root.symbol_table)) {

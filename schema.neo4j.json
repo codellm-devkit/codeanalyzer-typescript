@@ -14,7 +14,9 @@
         "schema_version": "string",
         "language": "string",
         "max_level": "integer",
-        "k_limit": "integer"
+        "k_limit": "integer",
+        "analyzer_name": "string",
+        "analyzer_version": "string"
       }
     },
     {

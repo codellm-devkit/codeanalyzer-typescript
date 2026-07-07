@@ -56,7 +56,13 @@ export const NODE_LABELS: NodeLabel[] = [
     label: "Application",
     mergeLabel: "Application",
     key: "id",
-    properties: { id: "string", schema_version: "string", language: "string", max_level: "integer", k_limit: "integer" },
+    properties: {
+      id: "string", schema_version: "string", language: "string", max_level: "integer", k_limit: "integer",
+      // Analyzer identity — mirrors the JSON envelope's `analyzer{name,version}` (issue #43),
+      // namespaced (not bare name/version) to avoid colliding with the app-name param / every
+      // other CanNode's bare `name`.
+      analyzer_name: "string", analyzer_version: "string",
+    },
   },
   {
     label: "Module",
