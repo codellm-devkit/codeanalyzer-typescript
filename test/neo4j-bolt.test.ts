@@ -96,13 +96,14 @@ containerSuite("neo4j bolt writer", () => {
       expect(await num("MATCH (n) RETURN count(n)")).toBe(rows.nodes.length);
       expect(await num("MATCH ()-[r]->() RETURN count(r)")).toBe(rows.edges.length);
 
-      // Shared :Symbol label spans the signature-keyed declaration kinds.
-      const symbol = await num("MATCH (s:Symbol) RETURN count(s)");
+      // Shared :CanNode label spans every project-owned node kind (schema v2's universal
+      // merge label — Application is the only node kind that sits outside it).
+      const canNode = await num("MATCH (s:CanNode) RETURN count(s)");
       const kinds = await num(
-        "MATCH (s:Symbol) WHERE s:Callable OR s:Class OR s:Interface OR s:Enum OR s:TypeAlias OR s:Namespace OR s:External RETURN count(s)",
+        "MATCH (s:CanNode) WHERE s:Module OR s:Class OR s:Interface OR s:Enum OR s:TypeAlias OR s:Namespace OR s:Callable OR s:Field OR s:BodyNode OR s:External OR s:AnonymousCallable RETURN count(s)",
       );
-      expect(symbol).toBeGreaterThan(0);
-      expect(kinds).toBe(symbol);
+      expect(canNode).toBeGreaterThan(0);
+      expect(kinds).toBe(canNode);
 
       // Constraints + indexes were created up front.
       expect(await num("SHOW CONSTRAINTS YIELD name RETURN count(*)")).toBeGreaterThanOrEqual(8);
