@@ -150,18 +150,21 @@ async function upsertNodes(session: () => any, neo4j: any, nodes: NodeRow[]): Pr
 async function upsertEdges(session: () => any, neo4j: any, edges: EdgeRow[]): Promise<void> {
   const groups = new Map<string, EdgeRow[]>();
   for (const e of edges) {
-    bucket(groups, `${e.type}|${e.from.label}.${e.from.keyProp}|${e.to.label}.${e.to.keyProp}`).push(e);
+    bucket(groups, `${e.type}|${e.from.label}.${e.from.keyProp}|${e.to.label}.${e.to.keyProp}|${e.key !== undefined}`).push(e);
   }
 
   for (const group of groups.values()) {
     const { type, from, to } = group[0];
+    // Discriminated relationships MERGE on `{_k}` so several distinct edges of one type coexist
+    // between the same endpoint pair (per-var DDG, the true/false CFG_NEXT pair). See EdgeRow.key.
+    const relKey = group[0].key !== undefined ? " {_k: row.k}" : "";
     const cypher =
       `UNWIND $rows AS row ` +
       `MATCH (a:${from.label} {${from.keyProp}: row.f}) ` +
       `MATCH (b:${to.label} {${to.keyProp}: row.t}) ` +
-      `MERGE (a)-[r:${type}]->(b) SET r += row.p`;
+      `MERGE (a)-[r:${type}${relKey}]->(b) SET r += row.p`;
     for (const batch of chunk(group, BATCH)) {
-      const payload = batch.map((e) => ({ f: e.from.value, t: e.to.value, p: toParams(e.props, neo4j) }));
+      const payload = batch.map((e) => ({ f: e.from.value, t: e.to.value, k: e.key ?? null, p: toParams(e.props, neo4j) }));
       await withSession(session, (s) => s.run(cypher, { rows: payload }));
     }
   }

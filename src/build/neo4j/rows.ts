@@ -33,6 +33,13 @@ export interface EdgeRow {
   from: NodeRef;
   to: NodeRef;
   props: Props;
+  /**
+   * Optional relationship discriminant: when set, the MERGE is on `{_k: key}` so several
+   * legitimately-distinct edges of one type may coexist between the same endpoint pair (per-var
+   * DDG edges, a conditional's true/false CFG_NEXT pair). Undefined keeps the plain
+   * endpoint-pair MERGE. (issue #70)
+   */
+  key?: string;
 }
 
 export interface GraphRows {
@@ -86,9 +93,10 @@ export class RowBuilder {
     return { label: labels[0], keyProp, value };
   }
 
-  /** An edge whose endpoints are known to exist (both ends emitted as nodes this run). */
-  edge(type: string, from: NodeRef, to: NodeRef, props: Props = {}): void {
-    this.edges.push({ type, from, to, props });
+  /** An edge whose endpoints are known to exist (both ends emitted as nodes this run).
+   * `key` sets the relationship discriminant (see EdgeRow.key). */
+  edge(type: string, from: NodeRef, to: NodeRef, props: Props = {}, key?: string): void {
+    this.edges.push({ type, from, to, props, key });
   }
 
   /**

@@ -179,9 +179,13 @@ export const REL_TYPES: RelType[] = [
     to: ["Callable", "External", "AnonymousCallable"],
     properties: { weight: "integer", prov: "string[]" },
   },
-  { type: "CFG_NEXT", from: ["BodyNode"], to: ["BodyNode"], properties: { kind: "string" } },
+  // `_k` is the relationship-identity discriminant (internal): CFG_NEXT merges per `kind`
+  // (a conditional's true/false pair), DDG per `(var, prov)` (one dependence per variable, plus
+  // the prov split) — a plain endpoint-pair MERGE would collapse legitimately-distinct edges
+  // (issue #70).
+  { type: "CFG_NEXT", from: ["BodyNode"], to: ["BodyNode"], properties: { kind: "string", _k: "string" } },
   { type: "CDG", from: ["BodyNode"], to: ["BodyNode"], properties: {} },
-  { type: "DDG", from: ["BodyNode"], to: ["BodyNode"], properties: { var: "string", prov: "string[]" } },
+  { type: "DDG", from: ["BodyNode"], to: ["BodyNode"], properties: { var: "string", prov: "string[]", _k: "string" } },
   { type: "SUMMARY", from: ["BodyNode"], to: ["BodyNode"], properties: { var: "string" } },
   { type: "PARAM_IN", from: ["BodyNode"], to: ["BodyNode"], properties: { var: "string" } },
   { type: "PARAM_OUT", from: ["BodyNode"], to: ["BodyNode"], properties: { var: "string" } },

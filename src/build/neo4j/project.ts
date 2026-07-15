@@ -126,9 +126,15 @@ function projectCallable(b: RowBuilder, c: V2Callable, owner: NodeRef, ownerRel:
     b.edge("HAS_BODY_NODE", node, bref);
     if (typeof bn.callee === "string") b.edge("RESOLVES_TO", bref, ref(bn.callee));
   }
-  for (const e of edges(c.cfg)) b.edge("CFG_NEXT", ref(fq(c.id, e.src)), ref(fq(c.id, e.dst)), prune({ kind: e.kind ?? null }));
+  // kind-discriminated: a conditional's true/false pair between one endpoint pair must stay
+  // two relationships, not one MERGE (issue #70).
+  for (const e of edges(c.cfg)) b.edge("CFG_NEXT", ref(fq(c.id, e.src)), ref(fq(c.id, e.dst)), prune({ kind: e.kind ?? null }), e.kind ?? "");
   for (const e of edges(c.cdg)) b.edge("CDG", ref(fq(c.id, e.src)), ref(fq(c.id, e.dst)));
-  for (const e of edges(c.ddg)) b.edge("DDG", ref(fq(c.id, e.src)), ref(fq(c.id, e.dst)), prune({ var: e.var ?? null, prov: e.prov ?? null }));
+  // (var, prov)-discriminated: the DDG legitimately carries several edges between one statement
+  // pair (one per variable, and the prov split) — a plain endpoint-pair MERGE collapses them and
+  // silently drops dependences (issue #70).
+  for (const e of edges(c.ddg))
+    b.edge("DDG", ref(fq(c.id, e.src)), ref(fq(c.id, e.dst)), prune({ var: e.var ?? null, prov: e.prov ?? null }), `${e.var ?? ""}|${(e.prov ?? []).join(",")}`);
   for (const e of edges(c.summary)) b.edge("SUMMARY", ref(fq(c.id, e.src)), ref(fq(c.id, e.dst)), prune({ var: e.var ?? null }));
 
   // Nested callables (closures) + local classes.

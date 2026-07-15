@@ -81,22 +81,24 @@ function nodeStatements(nodes: NodeRow[]): string[] {
 function edgeStatements(edges: EdgeRow[]): string[] {
   const groups = new Map<string, EdgeRow[]>();
   for (const e of edges) {
-    const k = `${e.type}|${e.from.label}.${e.from.keyProp}|${e.to.label}.${e.to.keyProp}`;
+    const k = `${e.type}|${e.from.label}.${e.from.keyProp}|${e.to.label}.${e.to.keyProp}|${e.key !== undefined}`;
     (groups.get(k) ?? groups.set(k, []).get(k)!).push(e);
   }
 
   const blocks: string[] = [];
   for (const group of groups.values()) {
     const { type, from, to } = group[0];
+    // Discriminated relationships MERGE on `{_k}` — see EdgeRow.key (issue #70).
+    const keyed = group[0].key !== undefined;
     for (const batch of chunk(group, BATCH)) {
       const list = batch
-        .map((e) => `  {f: ${cypherValue(e.from.value)}, t: ${cypherValue(e.to.value)}, p: ${cypherMap(e.props)}}`)
+        .map((e) => `  {f: ${cypherValue(e.from.value)}, t: ${cypherValue(e.to.value)}, ${keyed ? `k: ${cypherValue(e.key!)}, ` : ""}p: ${cypherMap(e.props)}}`)
         .join(",\n");
       blocks.push(
         `UNWIND [\n${list}\n] AS row\n` +
           `MATCH (a:${from.label} {${from.keyProp}: row.f})\n` +
           `MATCH (b:${to.label} {${to.keyProp}: row.t})\n` +
-          `MERGE (a)-[r:${type}]->(b)\n` +
+          `MERGE (a)-[r:${type}${keyed ? " {_k: row.k}" : ""}]->(b)\n` +
           `SET r += row.p;`,
       );
     }
