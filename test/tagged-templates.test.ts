@@ -20,6 +20,8 @@ fs.writeFileSync(
     "export const top = inline`module-scope`;",
     "declare const unknownTag: any;",
     "export function throughLinker(): void { unknownTag`unresolved-tag`; }",
+    "export function mkSheet(): number { return 1; }",
+    "export function createRule(sel: string, sheet = mkSheet()): number { return sheet; }",
   ].join("\n"),
 );
 
@@ -39,6 +41,10 @@ describe("tagged template calls (#98)", () => {
 
   test("a module-scope tagged template is attributed to the module", () => {
     expect(result.internal.call_graph.some((e) => e.source === "src/x" && e.target === "src/x.inline")).toBe(true);
+  });
+
+  test("a parameter-default initializer call is attributed to the callable (#98)", () => {
+    expect(result.internal.call_graph.some((e) => e.source === "src/x.createRule" && e.target === "src/x.mkSheet")).toBe(true);
   });
 
   test("the tagged call is a body call node with a refined callee", () => {

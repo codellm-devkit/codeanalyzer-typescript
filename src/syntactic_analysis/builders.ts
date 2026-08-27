@@ -457,19 +457,23 @@ export function buildCallable(
   const callables: Record<string, TSCallable> = {};
   const types: Record<string, TSType> = {};
 
+  const handlers = {
+    onCall: (n: Node) => call_sites.push(buildCallsite(n)),
+    onNestedCallable: (n: Node) => {
+      const r = buildNestedCallable(n, root);
+      if (r) callables[memberKey(r.sig, r.callable.accessor_kind)] = r.callable;
+    },
+    onNestedClass: (n: Node) => {
+      const r = buildClass(n, root);
+      types[memberKey(r.sig)] = r.cls;
+    },
+  };
   const body = (fnNode as unknown as { getBody?: () => Node | undefined }).getBody?.();
-  if (body) {
-    walkBody(body, {
-      onCall: (n) => call_sites.push(buildCallsite(n)),
-      onNestedCallable: (n) => {
-        const r = buildNestedCallable(n, root);
-        if (r) callables[memberKey(r.sig, r.callable.accessor_kind)] = r.callable;
-      },
-      onNestedClass: (n) => {
-        const r = buildClass(n, root);
-        types[memberKey(r.sig)] = r.cls;
-      },
-    });
+  if (body) walkBody(body, handlers);
+  // Parameter DEFAULT initializers execute in the callee's own activation (`f(x = mk())`), so
+  // their calls (and nested arrows) belong to this callable — they live outside getBody().
+  for (const p of (fnNode as unknown as { getParameters?: () => Node[] }).getParameters?.() ?? []) {
+    walkBody(p, handlers);
   }
 
   const nameNode = sigNode as unknown as { getName?: () => string | undefined };
