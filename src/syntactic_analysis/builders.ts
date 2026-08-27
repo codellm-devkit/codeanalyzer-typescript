@@ -365,13 +365,10 @@ function walkBody(body: Node, h: BodyHandlers): void {
     if (Node.isCallExpression(node) || Node.isNewExpression(node)) h.onCall(node);
     node.forEachChild(visit);
   };
-  // A concise arrow body can *be* a callable (`() => () => x`). Visiting only the body's children
-  // would skip it and attribute its call sites to the callable that merely returns it.
-  if (namedBoundary(body) !== null) {
-    visit(body);
-    return;
-  }
-  body.forEachChild(visit);
+  // Visit the body NODE itself, not only its children: a concise arrow body can *be* a callable
+  // (`() => () => x`) — the boundary handler claims it — or *be* the call (`u => u.describe()`),
+  // which a children-only walk would silently skip (the call-site gap Jelly used to paper over).
+  visit(body);
 }
 
 function computeCC(body: Node): number {
