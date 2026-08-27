@@ -20,7 +20,24 @@ import {
   type TSType,
   forEachCallable,
 } from "../schema";
-import { resolveCalleeSignature } from "../schema";
+import { fileKeyOf, resolveCalleeSignature } from "../schema";
+import { isCallableDecl } from "../schema";
+
+/** The nearest ancestor that is itself a callable declaration (incl. `const f = () => …`), or undefined. */
+function enclosingCallable(node: Node): Node | undefined {
+  for (const a of node.getAncestors()) {
+    if (isCallableDecl(a)) return a;
+    if (Node.isVariableDeclaration(a)) {
+      const init = a.getInitializer?.();
+      if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) return a;
+    }
+  }
+  return undefined;
+}
+
+function fileKeyOfNode(node: Node, root: string): { fileKey: string; modulePrefix: string } {
+  return fileKeyOf(node.getSourceFile().getFilePath(), root);
+}
 import type { Logger } from "../utils";
 import { type ExternalIndex, buildExternalIndex, resolvePhantom } from "./phantoms";
 
@@ -130,6 +147,42 @@ export function buildCallGraph(
   let rtaCount = 0;
   let phantomCount = 0;
   let unresolved = 0;
+
+  // Module-scope sweep (python #131 parity): a call with NO enclosing callable — top-level
+  // statements, class property initializers, namespace bodies — is attributed to the MODULE
+  // (source = the module prefix, re-identified onto the module node at L2). These sites are
+  // never recorded in call_sites (modules have no body{}), so resolve them straight off the AST.
+  for (const node of callExprIndex.values()) {
+    if (enclosingCallable(node)) continue;
+    const fileKey = fileKeyOfNode(node, root);
+    if (only && !only.has(fileKey.fileKey)) continue;
+    const source = fileKey.modulePrefix;
+    const r = resolveCalleeSignature(node, root, allSignatures);
+    if (r?.external) {
+      if (phantoms) {
+        if (!external_symbols[r.signature]) external_symbols[r.signature] = { name: r.external.member, module: r.external.module };
+        addPhantomEdge(source, r.signature, r.external.module);
+        phantomCount++;
+      } else unresolved++;
+      continue;
+    }
+    if (!r) {
+      if (phantoms) {
+        const ph = resolvePhantom(node, extIndexFor(node));
+        if (ph) {
+          if (!external_symbols[ph.signature]) external_symbols[ph.signature] = { name: ph.member, module: ph.module };
+          addPhantomEdge(source, ph.signature, ph.module);
+          phantomCount++;
+          continue;
+        }
+      }
+      unresolved++;
+      continue;
+    }
+    addEdge(source, r.signature, false);
+    resolved++;
+  }
+
   for (const caller of callables) {
     for (const site of caller.call_sites) {
       const node = callExprIndex.get(
@@ -258,7 +311,7 @@ export function indexCallExpressions(project: Project): Map<string, Node> {
     const fp = sf.getFilePath();
     if (sf.isDeclarationFile() || fp.includes("/node_modules/")) continue;
     sf.forEachDescendant((n) => {
-      if (Node.isCallExpression(n) || Node.isNewExpression(n)) {
+      if (Node.isCallExpression(n) || Node.isNewExpression(n) || Node.isTaggedTemplateExpression(n)) {
         const s = sf.getLineAndColumnAtPos(n.getStart());
         const e = sf.getLineAndColumnAtPos(n.getEnd());
         // Full span (start AND end) keys the node uniquely; chained calls like `f(x).g(y)`

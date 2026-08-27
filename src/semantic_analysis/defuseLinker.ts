@@ -27,7 +27,7 @@
  */
 import { Node } from "ts-morph";
 import { CALL_DEP, type TSCallEdge, type TSCallable, type TSCallsite, type TSExternalSymbol, forEachCallable } from "../schema";
-import { computeSignatureForDecl, externalHomeOf, resolveCalleeSignature } from "../schema";
+import { computeSignatureForDecl, externalHomeOf, fileKeyOf, isCallableDecl, resolveCalleeSignature } from "../schema";
 import { callBodyKeys } from "../schema/l1Body";
 import type { CallGraphContext } from "./provider";
 import type { CallGraphResult } from "./callGraph";
@@ -101,6 +101,8 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
    * `const f = () => …` binding, or `const f = g` (g eventually a function) — else null.
    */
   const functionValueSig = (expr: Node): string | null => {
+    // IIFE / parenthesized function values: `(() => …)()`, `(function f() {})()`.
+    while (Node.isParenthesizedExpression(expr)) expr = expr.getExpression();
     if (Node.isArrowFunction(expr) || Node.isFunctionExpression(expr)) {
       const s = computeSignatureForDecl(expr, root);
       return s && allSignatures.has(s) ? s : null;
@@ -226,8 +228,47 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
   }
 
   // ---------------------------------------------------------------------------------------------
-  // T2 — decorator invocations (edge-only; method/accessor owners — the only owners that are
-  // themselves call-graph endpoints; class/property/param decorators are outside the edge domain).
+  // Module-scope sweep (python #131 parity: module-scope execution is attributed to the MODULE).
+  // These sites have no call_sites record and no body node — T1 chase and the T3 callback rule
+  // apply edge-only, with the module prefix as the source.
+  // ---------------------------------------------------------------------------------------------
+  const enclosingCallable = (node: Node): Node | undefined => {
+    for (const a of node.getAncestors()) if (isCallableDecl(a)) return a;
+    return undefined;
+  };
+  for (const [, node] of [...callExprIndex.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    if (enclosingCallable(node)) continue;
+    const fk = fileKeyOf(node.getSourceFile().getFilePath(), root);
+    if (ctx.only && !ctx.only.has(fk.fileKey)) continue;
+    const source = fk.modulePrefix;
+    const r = resolveCalleeSignature(node, root, allSignatures);
+    if (!r) {
+      // T1 at module scope: `const f = handler; f()` in top-level code.
+      const expr = (node as unknown as { getExpression: () => Node }).getExpression();
+      const chased = functionValueSig(expr);
+      if (chased) {
+        addEdge(source, chased);
+        t1++;
+      }
+    }
+    // T3 at module scope — the dominant express idiom: `app.get('/x', handler)` top-level.
+    if (!r || r.external) {
+      const args = (node as unknown as { getArguments?: () => Node[] }).getArguments?.() ?? [];
+      for (const arg of args) {
+        const fn = functionValueSig(arg);
+        if (fn && fn !== source) {
+          addEdge(source, fn);
+          t3++;
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // T2 — decorator invocations (edge-only). The SOURCE is where the decorator executes: the
+  // decorated callable for method/accessor/parameter decorators; the MODULE for class and
+  // property decorators (a decorator on a top-level definition runs in module scope — python
+  // #131's rule, and Joern's own attribution).
   // ---------------------------------------------------------------------------------------------
   let t2 = 0;
   const files = [...project.getSourceFiles()]
@@ -236,18 +277,19 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
   for (const sf of files) {
     sf.forEachDescendant((n) => {
       if (!Node.isDecorator(n)) return;
-      // The edge SOURCE must be a call-graph endpoint (a callable): method/accessor decorators use
-      // the decorated callable; a PARAMETER decorator (`@Param('id') id: string`) attributes to the
-      // callable owning the parameter. Class/property decorators have no callable owner — skipped.
+      // The edge SOURCE is where the decorator executes: the decorated callable for method/
+      // accessor/parameter decorators; the MODULE prefix for class and property decorators.
       let owner = n.getParent();
       if (owner && Node.isParameterDeclaration(owner)) owner = owner.getParent();
-      if (
-        !owner ||
-        !(Node.isMethodDeclaration(owner) || Node.isGetAccessorDeclaration(owner) || Node.isSetAccessorDeclaration(owner))
-      )
+      let ownerSig: string | null = null;
+      if (owner && (Node.isMethodDeclaration(owner) || Node.isGetAccessorDeclaration(owner) || Node.isSetAccessorDeclaration(owner))) {
+        ownerSig = computeSignatureForDecl(owner, root);
+        if (!ownerSig || !allSignatures.has(ownerSig)) return;
+      } else if (owner && (Node.isClassDeclaration(owner) || Node.isPropertyDeclaration(owner))) {
+        ownerSig = fileKeyOf(sf.getFilePath(), root).modulePrefix;
+      } else {
         return;
-      const ownerSig = computeSignatureForDecl(owner, root);
-      if (!ownerSig || !allSignatures.has(ownerSig)) return;
+      }
       const expr = n.getExpression();
       let targetSig: string | null = null;
       let external: { module: string; member: string } | null = null;

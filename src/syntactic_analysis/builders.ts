@@ -294,7 +294,10 @@ function buildAttributeField(prop: Node): TSField {
 
 function buildCallsite(call: Node): TSCallsite {
   const isNew = Node.isNewExpression(call);
-  const expr = (call as unknown as { getExpression: () => Node }).getExpression();
+  // A tagged template (`inline\`url(...)\``) is a call whose callee is the tag.
+  const expr = Node.isTaggedTemplateExpression(call)
+    ? call.getTag()
+    : (call as unknown as { getExpression: () => Node }).getExpression();
   let method_name = expr.getText();
   let receiver_expr: string | undefined;
   let receiver_type: string | undefined;
@@ -362,7 +365,7 @@ function walkBody(body: Node, h: BodyHandlers): void {
       return;
     }
     if (b === "skip") return;
-    if (Node.isCallExpression(node) || Node.isNewExpression(node)) h.onCall(node);
+    if (Node.isCallExpression(node) || Node.isNewExpression(node) || Node.isTaggedTemplateExpression(node)) h.onCall(node);
     node.forEachChild(visit);
   };
   // Visit the body NODE itself, not only its children: a concise arrow body can *be* a callable

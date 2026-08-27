@@ -54,6 +54,10 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
     const moduleId = moduleIdOf(appId, fileKey);
     const modulePrefix = modulePrefixOf(fileKey);
     mod.id = moduleId;
+    // Module-scope execution is a call-graph SOURCE (python #131 parity: a call in module scope
+    // is attributed to the MODULE). The prefix is the module's "signature", so those edges
+    // re-identify onto the module node's id instead of dangling.
+    register(modulePrefix, moduleId);
     doFields(moduleId, mod.fields);
     for (const fn of Object.values(mod.functions ?? {})) doCallable(moduleId, modulePrefix, fn);
     for (const t of Object.values(mod.types ?? {})) doType(moduleId, modulePrefix, t);

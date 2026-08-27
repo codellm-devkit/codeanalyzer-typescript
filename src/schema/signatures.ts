@@ -82,10 +82,10 @@ export function computeSignatureForDecl(node: Node, root: string): string | null
   return signatureOf(modulePrefix, ...parts);
 }
 
-/** Resolve the declaration a call/new expression targets, following import aliases. */
+/** Resolve the declaration a call/new/tagged-template expression targets, following import aliases. */
 export function resolveCalleeDecl(call: Node): Node | undefined {
-  if (!Node.isCallExpression(call) && !Node.isNewExpression(call)) return undefined;
-  const expr = call.getExpression();
+  if (!Node.isCallExpression(call) && !Node.isNewExpression(call) && !Node.isTaggedTemplateExpression(call)) return undefined;
+  const expr = Node.isTaggedTemplateExpression(call) ? call.getTag() : call.getExpression();
   let symNode: Node = expr;
   if (Node.isPropertyAccessExpression(expr)) symNode = expr.getNameNode();
   else if (Node.isElementAccessExpression(expr)) return undefined; // dynamic dispatch — best-effort skip
