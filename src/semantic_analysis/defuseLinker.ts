@@ -70,6 +70,9 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
   callables.sort((a, b) => a.signature.localeCompare(b.signature));
 
   const callExprIndex = indexCallExpressions(project);
+  /** The callee expression of a call/new/tagged-template node. */
+  const calleeExprOf = (node: Node): Node =>
+    Node.isTaggedTemplateExpression(node) ? node.getTag() : (node as unknown as { getExpression: () => Node }).getExpression();
   const nodeOf = (c: TSCallable, cs: TSCallsite): Node | undefined =>
     callExprIndex.get(`${c.abs_path}#${cs.start_line}:${cs.start_column}-${cs.end_line}:${cs.end_column}`);
 
@@ -187,7 +190,7 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
       if (cs.callee_signature) {
         recordCallArgs(cs.callee_signature, node);
       } else if (node) {
-        const expr = (node as unknown as { getExpression: () => Node }).getExpression();
+        const expr = calleeExprOf(node);
         // T1 — local value chase on the callee expression itself.
         const chased = functionValueSig(expr);
         if (chased) {
@@ -244,7 +247,7 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
     const r = resolveCalleeSignature(node, root, allSignatures);
     if (!r) {
       // T1 at module scope: `const f = handler; f()` in top-level code.
-      const expr = (node as unknown as { getExpression: () => Node }).getExpression();
+      const expr = calleeExprOf(node);
       const chased = functionValueSig(expr);
       if (chased) {
         addEdge(source, chased);

@@ -18,6 +18,8 @@ fs.writeFileSync(
     "export function inline(strings: TemplateStringsArray, ...v: string[]): string { return ''; }",
     "export function asCSSUrl(): string { return inline`url('x')`; }",
     "export const top = inline`module-scope`;",
+    "declare const unknownTag: any;",
+    "export function throughLinker(): void { unknownTag`unresolved-tag`; }",
   ].join("\n"),
 );
 
