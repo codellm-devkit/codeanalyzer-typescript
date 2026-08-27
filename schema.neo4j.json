@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.1.0",
+  "schema_version": "2.2.0",
   "generator": "codeanalyzer-typescript",
   "marker_labels": [],
   "node_labels": [
@@ -15,6 +15,52 @@
         "k_limit": "integer",
         "analyzer_name": "string",
         "analyzer_version": "string"
+      }
+    },
+    {
+      "label": "TSArtifact",
+      "mergeLabel": "CanNode",
+      "key": "id",
+      "properties": {
+        "id": "string",
+        "kind": "string",
+        "path": "string",
+        "artifact_kind": "string",
+        "format": "string",
+        "source": "string",
+        "content_hash": "string",
+        "size_bytes": "integer",
+        "_module": "string"
+      }
+    },
+    {
+      "label": "TSDependency",
+      "mergeLabel": "CanNode",
+      "key": "id",
+      "properties": {
+        "id": "string",
+        "kind": "string",
+        "name": "string",
+        "version_spec": "string",
+        "resolved_version": "string",
+        "ecosystem": "string",
+        "scope": "string",
+        "direct": "boolean",
+        "_module": "string"
+      }
+    },
+    {
+      "label": "TSConfigKey",
+      "mergeLabel": "CanNode",
+      "key": "id",
+      "properties": {
+        "id": "string",
+        "kind": "string",
+        "key": "string",
+        "namespace": "string",
+        "value": "string",
+        "references": "string[]",
+        "_module": "string"
       }
     },
     {
@@ -221,6 +267,36 @@
       ],
       "to": [
         "TSModule"
+      ],
+      "properties": {}
+    },
+    {
+      "type": "TS_HAS_ARTIFACT",
+      "from": [
+        "TSApplication"
+      ],
+      "to": [
+        "TSArtifact"
+      ],
+      "properties": {}
+    },
+    {
+      "type": "TS_DECLARES_DEPENDENCY",
+      "from": [
+        "TSArtifact"
+      ],
+      "to": [
+        "TSDependency"
+      ],
+      "properties": {}
+    },
+    {
+      "type": "TS_DEFINES_CONFIG",
+      "from": [
+        "TSArtifact"
+      ],
+      "to": [
+        "TSConfigKey"
       ],
       "properties": {}
     },

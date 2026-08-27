@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { Command, Option } from "commander";
 import type { AnalysisOptions, EmitTarget } from "./options";
+import { DEFAULT_ARTIFACT_TEXT_MAX_BYTES } from "./options";
 import { ALL_GRAPHS, type GraphSelector } from "./schema";
 
 /**
@@ -57,6 +58,12 @@ export function buildProgram(): Command {
     .option("--lazy", "reuse the cache (default)")
     .option("--no-build", "skip dependency materialization (use a prepared node_modules)")
     .option("--no-phantoms", "disable phantom (external) nodes for imported/required library calls")
+    .option("--no-artifact-text", "keep the artifact inventory but drop captured raw text (secrets posture)")
+    .option(
+      "--artifact-text-max-bytes <n>",
+      "per-file byte cap for captured artifact text; larger files are truncated and flagged",
+      String(DEFAULT_ARTIFACT_TEXT_MAX_BYTES),
+    )
     .option("-c, --cache-dir <dir>", "cache/intermediate directory")
     .option("-v, --verbose", "increase verbosity (repeatable)", (_v: string, prev: number) => prev + 1, 0)
     .allowExcessArguments(true);
@@ -150,6 +157,8 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     // commander maps --no-build / --no-phantoms to opts.build/phantoms === false
     noBuild: o.build === false,
     phantoms: o.phantoms !== false,
+    artifactText: o.artifactText !== false,
+    artifactTextMaxBytes: Number(o.artifactTextMaxBytes ?? DEFAULT_ARTIFACT_TEXT_MAX_BYTES),
     cacheDir: o.cacheDir ? path.resolve(String(o.cacheDir)) : null,
     verbosity: typeof o.verbose === "number" ? o.verbose : 0,
   };

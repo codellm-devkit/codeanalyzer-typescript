@@ -33,8 +33,33 @@ const ANALYZER_NAME = "codeanalyzer-typescript";
 /** Highest analysis level this emitter populates today (L1 tree, L2 call graph, L3/L4 dataflow). */
 const MAX_IMPLEMENTED = 4;
 
-/** INTERNAL model fields — never on the wire (see schema.ts header). */
-const INTERNAL_KEYS = new Set<string>(["call_sites", "abs_path", "content_hash", "last_modified", "file_size"]);
+/**
+ * Structural internal-field strip on the WIRE CLONE: module cache trio + callable join fields.
+ * Structural (walks the tree shape) rather than key-name-based, for two load-bearing reasons:
+ * the artifact layer's `content_hash` is WIRE payload (a name-keyed replacer would eat it), and
+ * a `JSON.stringify` deep-copy roundtrip builds one multi-GB string at vscode-L4 scale and OOMs
+ * (measured). `structuredClone` + targeted deletes never materializes a string.
+ */
+function stripInternal(root: TSApplication): void {
+  const stripCallable = (c: Record<string, unknown>): void => {
+    delete c["call_sites"];
+    delete c["abs_path"];
+    for (const nested of Object.values((c["callables"] as Record<string, Record<string, unknown>>) ?? {})) stripCallable(nested);
+    for (const t of Object.values((c["types"] as Record<string, Record<string, unknown>>) ?? {})) stripType(t);
+  };
+  const stripType = (t: Record<string, unknown>): void => {
+    for (const m of Object.values((t["callables"] as Record<string, Record<string, unknown>>) ?? {})) stripCallable(m);
+    for (const f of Object.values((t["functions"] as Record<string, Record<string, unknown>>) ?? {})) stripCallable(f);
+    for (const nt of Object.values((t["types"] as Record<string, Record<string, unknown>>) ?? {})) stripType(nt);
+  };
+  for (const mod of Object.values(root.symbol_table) as unknown as Record<string, unknown>[]) {
+    delete mod["content_hash"];
+    delete mod["last_modified"];
+    delete mod["file_size"];
+    for (const fn of Object.values((mod["functions"] as Record<string, Record<string, unknown>>) ?? {})) stripCallable(fn);
+    for (const t of Object.values((mod["types"] as Record<string, Record<string, unknown>>) ?? {})) stripType(t);
+  }
+}
 
 // ----------------------------------------------------------------------------------------------
 // entry point
@@ -63,7 +88,15 @@ export function finalizeAnalysis(
   populateL1Body(app);
   resolveHeritageIds(app, idBySig);
 
-  const root: TSApplication = { id: appId, kind: "application", symbol_table: app.symbol_table, call_graph: [], param_in: [], param_out: [] };
+  const root: TSApplication = {
+    id: appId,
+    kind: "application",
+    symbol_table: app.symbol_table,
+    call_graph: [],
+    param_in: [],
+    param_out: [],
+    artifacts: app.artifacts ?? {},
+  };
 
   // L2 — home the off-tree edge endpoints, backfill `callee`, re-identify the call graph.
   const dangling: string[] = [];
@@ -89,9 +122,9 @@ export function finalizeAnalysis(
     analyzer: { name: ANALYZER_NAME, version: ANALYZER_VERSION },
     application: root,
   };
-  // The wire copy: deep, detached from the live tree, internal fields stripped by key.
-  const application = JSON.parse(
-    JSON.stringify(envelope, (key, value) => (INTERNAL_KEYS.has(key) ? undefined : value)),
-  ) as TSAnalysis;
+  // The wire copy: deep, detached from the live tree, internals stripped STRUCTURALLY —
+  // structuredClone instead of a stringify roundtrip (the string form OOMs at vscode-L4 scale).
+  const application = structuredClone(envelope) as TSAnalysis;
+  stripInternal(application.application);
   return { application, internal: app, ...(pg ? { program_graphs: pg } : {}), idBySig, collisions, dangling };
 }

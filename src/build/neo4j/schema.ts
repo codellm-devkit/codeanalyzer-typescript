@@ -19,7 +19,7 @@
  * SCHEMA_VERSION: MAJOR on a breaking change (renamed/removed label, relationship or key), MINOR
  * on additive. v2 is a MAJOR bump from v1 (keys moved signature→can:// id; labels reshaped).
  */
-export const SCHEMA_VERSION = "2.1.0";
+export const SCHEMA_VERSION = "2.2.0";
 
 export type PropType = "string" | "integer" | "float" | "boolean" | "string[]" | "integer[]";
 
@@ -62,6 +62,34 @@ export const NODE_LABELS: NodeLabel[] = [
       // namespaced (not bare name/version) to avoid colliding with the app-name param / every
       // other CanNode's bare `name`.
       analyzer_name: "string", analyzer_version: "string",
+    },
+  },
+  // Repository-artifact layer (#101, contract 2.2.0): non-source inventory + contained children.
+  {
+    label: "TSArtifact",
+    mergeLabel: CAN,
+    key: "id",
+    properties: {
+      id: "string", kind: "string", path: "string", artifact_kind: "string", format: "string",
+      source: "string", content_hash: "string", size_bytes: "integer", _module: "string",
+    },
+  },
+  {
+    label: "TSDependency",
+    mergeLabel: CAN,
+    key: "id",
+    properties: {
+      id: "string", kind: "string", name: "string", version_spec: "string", resolved_version: "string",
+      ecosystem: "string", scope: "string", direct: "boolean", _module: "string",
+    },
+  },
+  {
+    label: "TSConfigKey",
+    mergeLabel: CAN,
+    key: "id",
+    properties: {
+      id: "string", kind: "string", key: "string", namespace: "string", value: "string",
+      references: "string[]", _module: "string",
     },
   },
   {
@@ -144,6 +172,10 @@ export const NODE_LABELS: NodeLabel[] = [
 
 export const REL_TYPES: RelType[] = [
   { type: "TS_HAS_MODULE", from: ["TSApplication"], to: ["TSModule"], properties: {} },
+  // Repository-artifact layer (#101, contract 2.2.0)
+  { type: "TS_HAS_ARTIFACT", from: ["TSApplication"], to: ["TSArtifact"], properties: {} },
+  { type: "TS_DECLARES_DEPENDENCY", from: ["TSArtifact"], to: ["TSDependency"], properties: {} },
+  { type: "TS_DEFINES_CONFIG", from: ["TSArtifact"], to: ["TSConfigKey"], properties: {} },
   {
     type: "TS_DECLARES",
     from: ["TSModule", "TSNamespace", "TSCallable"],

@@ -8,7 +8,7 @@
  * id-uniqueness gate's collision list.
  */
 
-import { applicationIdOf, idFromSig, memberKey, moduleIdOf, modulePrefixOf } from "./ids";
+import { applicationIdOf, artifactIdOf, idFromSig, memberKey, moduleIdOf, modulePrefixOf } from "./ids";
 import type { AnalysisInternal, TSCallable, TSField, TSType } from "./schema";
 
 export interface AssignedIds {
@@ -61,6 +61,14 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
     doFields(moduleId, mod.fields);
     for (const fn of Object.values(mod.functions ?? {})) doCallable(moduleId, modulePrefix, fn);
     for (const t of Object.values(mod.types ?? {})) doType(moduleId, modulePrefix, t);
+  }
+
+  // Repository-artifact layer: same per-run rule (ids embed --app-name; the scan is not cached,
+  // but the invariant is uniform — builders/scanners leave ids "" and this pass stamps them).
+  for (const [relPath, art] of Object.entries(app.artifacts ?? {})) {
+    art.id = artifactIdOf(appId, relPath);
+    for (const [name, dep] of Object.entries(art.dependencies)) dep.id = `${art.id}/${name}`;
+    for (const [key, ck] of Object.entries(art.config_keys)) ck.id = `${art.id}/${key}`;
   }
 
   return { appId, idBySig, callableBySig, collisions };

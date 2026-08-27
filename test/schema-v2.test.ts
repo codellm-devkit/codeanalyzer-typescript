@@ -87,7 +87,7 @@ describe("schema v2 — L1 envelope", () => {
     expect(v2.schema_version).toBe("2.1.0");
     expect(v2.language).toBe("typescript");
     expect(v2.max_level).toBe(1);
-    expect(Object.keys(root).sort()).toEqual(["call_graph", "id", "kind", "param_in", "param_out", "symbol_table"]);
+    expect(Object.keys(root).sort()).toEqual(["artifacts", "call_graph", "id", "kind", "param_in", "param_out", "symbol_table"]);
     expect(root.id).toBe("can://typescript/sample-app");
     expect(root.kind).toBe("application");
   });
@@ -700,6 +700,12 @@ function canNodeIds(app: TSAnalysis): Set<string> {
   }
   for (const id of Object.keys(app.application.external_symbols ?? {})) ids.add(id);
   for (const id of Object.keys(app.application.synthesized_callables ?? {})) ids.add(id);
+  // Repository-artifact layer (#101): artifact nodes + contained dependency/config-key children.
+  for (const art of Object.values(app.application.artifacts ?? {})) {
+    ids.add(art.id);
+    for (const d of Object.values(art.dependencies)) ids.add(d.id);
+    for (const k of Object.values(art.config_keys)) ids.add(k.id);
+  }
   return ids;
 }
 
@@ -737,7 +743,11 @@ describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
     // `extends_ids`/`implements_ids` props respectively — but they are not containment either, so
     // they're deliberately excluded from this invariant too; see the dedicated tests below and the
     // exhaustive edge-accounting test that folds every relationship family back into one total.)
-    const containment = ["TS_HAS_MODULE", "TS_DECLARES", "TS_HAS_METHOD", "TS_HAS_FIELD", "TS_HAS_BODY_NODE"];
+    const containment = [
+      "TS_HAS_MODULE", "TS_DECLARES", "TS_HAS_METHOD", "TS_HAS_FIELD", "TS_HAS_BODY_NODE",
+      // artifact-layer containment (#101): one incoming edge per artifact/dependency/config-key
+      "TS_HAS_ARTIFACT", "TS_DECLARES_DEPENDENCY", "TS_DEFINES_CONFIG",
+    ];
     const containmentEdges = containment.reduce((n, t) => n + relCount(monoRows, t), 0);
     const externalCount = Object.keys(monoApp4.application.external_symbols ?? {}).length;
     const synthCount = Object.keys(monoApp4.application.synthesized_callables ?? {}).length;
@@ -769,7 +779,10 @@ describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
       relCount(monoRows, "TS_CDG") +
       relCount(monoRows, "TS_DDG") +
       relCount(monoRows, "TS_SUMMARY");
-    const containment = ["TS_HAS_MODULE", "TS_DECLARES", "TS_HAS_METHOD", "TS_HAS_FIELD", "TS_HAS_BODY_NODE"].reduce(
+    const containment = [
+      "TS_HAS_MODULE", "TS_DECLARES", "TS_HAS_METHOD", "TS_HAS_FIELD", "TS_HAS_BODY_NODE",
+      "TS_HAS_ARTIFACT", "TS_DECLARES_DEPENDENCY", "TS_DEFINES_CONFIG",
+    ].reduce(
       (n, t) => n + relCount(monoRows, t),
       0,
     );

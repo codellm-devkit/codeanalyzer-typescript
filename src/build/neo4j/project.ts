@@ -66,6 +66,33 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
     projectScope(b, mod, modRef, fileKey);
   }
 
+  // Repository-artifact layer (#101): artifact nodes + contained dependency/config-key children.
+  // `text` deliberately stays OFF the graph (python parity — hash+size dereference to source).
+  for (const [relPath, art] of Object.entries(root.artifacts ?? {})) {
+    const aRef = b.node([CAN, "TSArtifact"], "id", art.id, prune({
+      id: art.id, kind: "artifact", path: art.path, artifact_kind: art.artifact_kind,
+      format: art.format ?? null, source: art.source ?? null,
+      content_hash: art.content_hash, size_bytes: art.size_bytes, _module: relPath,
+    }));
+    b.edge("TS_HAS_ARTIFACT", appRef, aRef);
+    for (const dep of Object.values(art.dependencies)) {
+      const dRef = b.node([CAN, "TSDependency"], "id", dep.id, prune({
+        id: dep.id, kind: "dependency", name: dep.name, version_spec: dep.version_spec ?? null,
+        resolved_version: dep.resolved_version ?? null, ecosystem: dep.ecosystem, scope: dep.scope,
+        direct: dep.direct, _module: relPath,
+      }));
+      b.edge("TS_DECLARES_DEPENDENCY", aRef, dRef);
+    }
+    for (const ck of Object.values(art.config_keys)) {
+      const kRef = b.node([CAN, "TSConfigKey"], "id", ck.id, prune({
+        id: ck.id, kind: "config_key", key: ck.key, namespace: ck.namespace ?? null,
+        value: ck.value !== undefined ? String(ck.value) : null,
+        references: ck.references.length ? ck.references : null, _module: relPath,
+      }));
+      b.edge("TS_DEFINES_CONFIG", aRef, kRef);
+    }
+  }
+
   // External library targets (shared nodes — no _module).
   for (const ext of Object.values(root.external_symbols ?? {})) {
     b.node([CAN, "TSExternal"], "id", ext.id, prune({ id: ext.id, kind: "external", name: ext.name, module: ext.module }));

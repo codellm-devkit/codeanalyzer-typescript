@@ -102,11 +102,12 @@ Dotfiles keep their leading dot in ids (python's rule — `.env` is exactly what
   every scope token incl. `peer` asserted; artifact `content_hash` asserted ON the wire.
 - Neo4j rows for the three families + `schema.neo4j.json` regenerated at 2.2.0.
 - Determinism: two consecutive default runs byte-identical.
-- python-sdk TS models verified tolerant of the new keys (checklist).
+- python-sdk: VERIFIED NOT tolerant — `cldk/models/typescript/models.py` is `extra="forbid"` by design, so the SDK must gain the three families (TSArtifact/TSDependency/TSConfigKey + `application.artifacts`) BEFORE its pinned analyzer version moves to a release carrying this layer. Release-ordering constraint, python's own 51ee29e has the same obligation.
 - CLAUDE.md + SCHEMA_DECISIONS.md updated; `--artifact-text-max-bytes` in `--help`/README.
 
 ## Release plan
 
 Ships in the minor AFTER the linker train (#97 → #99 → #100 → this), as an additive schema
-feature; no SDK lockstep (additive keys), no schema_version movement, Neo4j 2.2.0 noted in
-release notes.
+feature; schema_version unmoved, Neo4j 2.2.0 noted in release notes. SDK LOCKSTEP REQUIRED
+(discovered at implementation): the SDK's `extra="forbid"` models reject the new keys — the
+python-sdk model update must land before the SDK's analyzer pin moves.

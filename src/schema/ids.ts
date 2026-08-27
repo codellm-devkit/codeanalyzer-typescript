@@ -29,6 +29,18 @@ export function idFromSig(moduleId: string, modulePrefix: string, sig: string): 
   return `${moduleId}/${tail.split(".").join("/")}`;
 }
 
+/**
+ * Repository-artifact ids: application-anchored under the `@artifact/` marker, which keeps them
+ * outside the callable `signatureOf` space (like `@external/`). Leading "./" and "/" are dropped
+ * as SEPARATORS only — dotfiles (`.env`, `.github/...`) keep their leading dot (python's rule).
+ */
+export function artifactIdOf(appId: string, relPath: string): string {
+  let rel = relPath.replace(/\\/g, "/");
+  while (rel.startsWith("./")) rel = rel.slice(2);
+  rel = rel.replace(/^\/+/, "");
+  return `${appId}/@artifact/${rel}`;
+}
+
 /** The map key for a callable/type within its parent: the last signature segment (+ accessor tag). */
 export function memberKey(sig: string, accessorKind?: string | null): string {
   const seg = sig.split(".").pop() ?? sig;

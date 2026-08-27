@@ -3,6 +3,7 @@ import { buildProgramGraphs, startExtraction } from "./dataflow";
 import { type LinkerResolutions, mergeCallGraphs, runDefuseLinker, tscProvider } from "./semantic_analysis";
 import { loadCache, saveCache } from "./utils";
 import { materialize } from "./build";
+import { inventoryArtifacts } from "./artifacts";
 import type { AnalysisOptions } from "./options";
 import type { AnalysisInternal } from "./schema";
 import { type AnalysisResult, finalizeAnalysis } from "./schema/emit";
@@ -76,11 +77,16 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   }
   const call_graph = cg.edges;
 
+  // Repository-artifact layer (#101): level-free non-source inventory, identical at every -a.
+  const artifacts = inventoryArtifacts(opts.input, opts);
+  log.info(`artifacts: ${Object.keys(artifacts).length} files inventoried`);
+
   const app: AnalysisInternal = {
     symbol_table,
     call_graph,
     external_symbols: cg.external_symbols,
     synthesized_callables: cg.synthesized_callables,
+    artifacts,
   };
 
   // Level 3 join: stages 5–7 (summary wavefront + SDG) consume the extraction AND the
