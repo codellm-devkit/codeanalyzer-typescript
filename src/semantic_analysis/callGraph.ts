@@ -252,7 +252,7 @@ function indexClasses(
   }
 }
 
-function indexCallExpressions(project: Project): Map<string, Node> {
+export function indexCallExpressions(project: Project): Map<string, Node> {
   const idx = new Map<string, Node>();
   for (const sf of project.getSourceFiles()) {
     const fp = sf.getFilePath();

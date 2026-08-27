@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import { buildProgramGraphs, startExtraction } from "./dataflow";
-import { mergeCallGraphs, tscProvider } from "./semantic_analysis";
+import { type LinkerResolutions, mergeCallGraphs, runDefuseLinker, tscProvider } from "./semantic_analysis";
 import { loadCache, saveCache } from "./utils";
 import { materialize } from "./build";
 import type { AnalysisOptions } from "./options";
@@ -50,17 +50,28 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   // are always >= 2, so this gate is safe. Signature gating uses the full merged symbol_table
   // (passed to every program), so a cross-program in-project call resolves.
   let cg: ReturnType<typeof tscProvider.build> = { edges: [], external_symbols: {}, synthesized_callables: {} };
+  const resolutions: LinkerResolutions = new Map();
   if (opts.analysisLevel >= 2) {
     for (const prog of programs) {
-      const pcg = tscProvider.build({
+      const ctx = {
         project: prog.project,
         symbol_table,
         root: opts.input,
         log,
         phantoms: opts.phantoms,
         only: prog.fileKeys,
-      });
-      cg = mergeCallGraphs(cg, pcg);
+      };
+      cg = mergeCallGraphs(cg, tscProvider.build(ctx));
+      // The defuse linker overlays the tsc base: it reads the callee_signature backfill the tsc
+      // leg just wrote, resolves what remains (tiers T1–T5, defuseLinker.ts), and returns its
+      // body-node resolutions out-of-band (never persisted — cache provenance rule).
+      const linked = runDefuseLinker(ctx);
+      cg = mergeCallGraphs(cg, linked.result);
+      for (const [caller, m] of linked.resolutions) {
+        const ex = resolutions.get(caller);
+        if (!ex) resolutions.set(caller, m);
+        else for (const [k, v] of m) if (!ex.has(k)) ex.set(k, v);
+      }
     }
   }
   const call_graph = cg.edges;
@@ -79,5 +90,5 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   // Cache the id-free base (ids/body/heritage are per-run layers stamped by finalizeAnalysis;
   // the cached tree must stay --app-name-free).
   saveCache(cacheDir, { symbol_table });
-  return finalizeAnalysis(app, pg, opts);
+  return finalizeAnalysis(app, pg, opts, resolutions);
 }

@@ -49,7 +49,12 @@ export interface AnalysisResult {
   dangling: string[]; // call-graph endpoints with no id home (L2 no-dangling gate; should be empty)
 }
 
-export function finalizeAnalysis(app: AnalysisInternal, pg: ProgramGraphs | null, opts: AnalysisOptions): AnalysisResult {
+export function finalizeAnalysis(
+  app: AnalysisInternal,
+  pg: ProgramGraphs | null,
+  opts: AnalysisOptions,
+  resolutions?: Map<string, Map<string, string>>,
+): AnalysisResult {
   const level = opts.analysisLevel;
   const appName = (opts.appName ?? (opts.input ? path.basename(opts.input) : "") ?? "").trim() || "app";
 
@@ -65,7 +70,7 @@ export function finalizeAnalysis(app: AnalysisInternal, pg: ProgramGraphs | null
   if (level >= 2) {
     root.external_symbols = homeExternals(app, appId, idBySig);
     root.synthesized_callables = homeSynthesized(app, appId, idBySig);
-    backfillCallees(app, idBySig);
+    backfillCallees(app, idBySig, resolutions);
     root.call_graph = reidentifyCallGraph(app.call_graph ?? [], idBySig, dangling);
   }
 

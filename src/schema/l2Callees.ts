@@ -14,14 +14,23 @@ import type { AnalysisInternal, TSCallEdge, TSCallGraphEdge, TSModule } from "./
 import { forEachCallable } from "./schema";
 import { callBodyKeys } from "./l1Body";
 
-export function backfillCallees(app: AnalysisInternal, idBySig: Map<string, string>): void {
+export function backfillCallees(
+  app: AnalysisInternal,
+  idBySig: Map<string, string>,
+  resolutions?: Map<string, Map<string, string>>,
+): void {
   for (const mod of Object.values(app.symbol_table) as TSModule[]) {
     forEachCallable(mod, (c) => {
+      const linked = resolutions?.get(c.signature);
       for (const [key, cs] of callBodyKeys(c.call_sites)) {
-        if (!cs.callee_signature) continue;
+        // The resolver's in-place backfill wins; the linker's returned map fills the gaps. Linker
+        // resolutions are deliberately NOT persisted into callee_signature (cache provenance rule
+        // — see defuseLinker.ts header).
+        const sig = cs.callee_signature ?? linked?.get(key);
+        if (!sig) continue;
         const node = c.body[key];
         if (!node || node.kind !== "call") continue;
-        node.callee = idBySig.get(cs.callee_signature) ?? null;
+        node.callee = idBySig.get(sig) ?? null;
       }
     });
   }
