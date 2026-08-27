@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "workspaces": ["packages/*"],
   "dependencies": { "express": "^4.19.0", "@scope/util": "~2.1.0" },
-  "devDependencies": { "typescript": "^5.5.0" },
+  "devDependencies": { "typescript": "^5.5.0", "@types/typed-only-pkg": "^1.0.0" },
   "optionalDependencies": { "fsevents": "^2.3.3" },
   "peerDependencies": { "react": ">=18" }
 }

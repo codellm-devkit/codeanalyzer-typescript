@@ -1,113 +1,96 @@
 # Artifacts and dependencies — the repository-artifact layer for TypeScript
 
-- **Status:** implemented (branch feat/issue-101-artifacts)
+- **Status:** implemented (branch `feat/issue-101-artifacts`); **recalibrated 2026-08-27** to the
+  ratified python contract after the first cut anchored on an orphaned branch
 - **Scope:** `codeanalyzer-typescript`; schema v2 **additive** (no level, id-tier, or existing-field movement)
-- **Parity anchor:** codeanalyzer-python's SHIPPED layer (`51ee29e`, "repository-artifact layer
-  (artifact/dependency/config_key)") — the implementation, which supersedes the draft
-  `2026-08-27-artifacts-and-dependencies-design.md` where they differ (ids are
-  language-namespaced with an `@artifact/` marker, not the draft's neutral `can://artifact/`
-  namespace; Neo4j labels are language-prefixed per the org label contract; no import-binding
-  or purl in this unit)
-- **Tracking:** one work item, one PR, branch stacked on `feat/issue-100-linker-propagation`
+- **Parity anchor:** codeanalyzer-python **PR #160** (implementation of the approved spec
+  `2026-08-27-artifacts-and-dependencies-design.md`, PR #158). NOT the `51ee29e`
+  `feat/configuration-files` branch — that shape (language-namespaced `@artifact/` ids, contained
+  dependency/config-key children, `artifact_kind` enum, text-capture caps) was never merged; this
+  spec's first revision mirrored it and has been rebuilt.
+- **Tracking:** one work item (#101), one PR (#103), branch stacked on `feat/issue-100-linker-propagation`
 
 ## Contract-impact triage
 
 | Question | Answer |
 | --- | --- |
-| Schema v2 shape | **additive**: `application.artifacts{}` + contained `dependencies{}`/`config_keys{}`; new node kinds `artifact`, `dependency`, `config_key`; new id marker `@artifact/` (outside the `signatureOf` space, like `@external/`) |
-| Levels / monotonicity | ungated, identical at `-a 1..4` (entrypoints posture); `L1 ⊆ … ⊆ L4` holds trivially |
-| schema_version | unchanged (python kept 2.0.0 for the same change); Neo4j contract bumps additively 2.1.0 → **2.2.0** |
-| Repos | `codeanalyzer-typescript` now; **python-sdk**: verify its TS models tolerate the new `application` keys (extras-ignore) — checklist line, not a child issue; repo docs |
-| Shared vocabulary movement | ONE additive token: dependency `scope: "peer"` (npm's contract-with-host; the closed enum was runtime\|development\|test\|build\|optional\|unknown). Recorded like the `"reaching-defs"` precedent; python's Literal grows when next touched |
+| Schema v2 shape | **additive**: `application.artifacts{}` (flat nodes), `application.dependencies[]` (flat evidence rows), `application.unresolved_imports[]` |
+| Identity | artifact ids are **language-NEUTRAL**: `can://artifact/<app>/<path>` — the first `can://` segment is a namespace (a language for code, the literal `artifact` for files), so sibling analyzers over one repo emit the SAME id for the same file. `<app>` agreement is the precondition for cross-analyzer joins |
+| Levels / monotonicity | ungated, identical at `-a 1..4`; monotonicity holds trivially |
+| schema_version | unchanged; Neo4j contract 2.1.0 → **2.2.0** (additive) |
+| Repos | `codeanalyzer-typescript` now; **python-sdk** must gain the three families before its analyzer pin moves (its models are `extra="forbid"` — verified; python's own PR #160 carries the same obligation); repo docs |
+| Shared vocabulary movement | ONE additive token: dependency `kind: "peer"` (npm's contract-with-host) against the ratified enum `runtime\|dev\|optional\|build`. Recorded like the `"reaching-defs"` precedent |
 
-## The mirrored model (field-for-field with python's shipped shapes)
+## The mirrored model (python PR #160 shapes)
 
 ```
-application.artifacts: Record<repoRelPath, TSArtifact>     # like symbol_table keys modules
+application.artifacts: Record<repoRelPath, TSArtifact>
+TSArtifact       id = can://artifact/<app>/<path> (per-run), kind "artifact", path,
+                 format (json|jsonc|yaml|toml|ini|dockerfile|yarnlock|env|text),
+                 roles[] (dependency-manifest|tool-config|container-image|service-topology|
+                          ci|env|packaging|legal|docs|script|unknown),
+                 size_bytes, sha256, source (verbatim, UNBOUNDED by decision — spec §3),
+                 extraction (none|partial|full)
 
-TSArtifact    id = can://typescript/<app>/@artifact/<path> (assignIds stamps per run)
-              kind: "artifact"
-              artifact_kind: build_manifest | dependency_lockfile | configuration |
-                             deployment_manifest | container | infrastructure | ci |
-                             script | documentation | data | other      (closed, catch-all)
-              path, format?, source? (producing subsystem), content_hash (sha256, always),
-              size_bytes (always), text? (verbatim, capture policy), text_encoding?,
-              text_truncated
-              dependencies: Record<name, TSDependency>     # contained children
-              config_keys: Record<dottedKey, TSConfigKey>
+application.dependencies: TSDependency[]        # flat, no node ids — :Package (purl) is the node
+TSDependency     name (@scope kept), spec, kind (runtime|dev|optional|peer|build), extras[] (npm: []),
+                 declared_in (artifact id), locked_version?, provides_imports[],
+                 prov[] (declared|lockfile|installed-metadata|heuristic)
 
-TSDependency  id = <artifactId>/<name>   kind: "dependency"
-              name (npm-native, @scope kept), version_spec?, resolved_version?,
-              ecosystem: "npm", scope: runtime|development|test|build|optional|peer|unknown,
-              direct: true    (direct:false reserved; no transitive records this unit)
-
-TSConfigKey   id = <artifactId>/<dotted-key>   kind: "config_key"
-              key, namespace?, value?, references[], span?
+application.unresolved_imports: TSImportBinding[]
+TSImportBinding  module (specifier root), bound_to?, prov[]
 ```
 
-Dotfiles keep their leading dot in ids (python's rule — `.env` is exactly what this inventories).
-`TSArtifact.source` is the SUBSYSTEM string (python's field), not file text — text lives in
-`text`; the name collision with `module.source` is inherited parity, documented here.
+## Locked TS decisions (recalibration session 2026-08-27)
 
-## Locked TS decisions (design session 2026-08-27)
-
-1. **`peer` scope token coined** (additive shared vocabulary). npm mapping:
-   `dependencies→runtime`, `devDependencies→development`, `optionalDependencies→optional`,
-   `peerDependencies→peer`; `bundledDependencies` names ride the matching records (no own scope).
-2. **Extraction targets:** every `package.json` (workspace roots AND members — each is its own
-   `build_manifest` artifact with its own contained dependencies). Lockfiles all become
-   `dependency_lockfile` artifacts; **extraction parses the JSON family only** —
-   `package-lock.json` / `npm-shrinkwrap.json` / `bun.lock` backfill `resolved_version`;
-   `yarn.lock` / `pnpm-lock.yaml` are inventory-only (no new parser dependency), documented as
-   such via absent `resolved_version`.
-3. **Declared-only records:** lockfiles never create dependency records; transitive-only
-   packages are skipped this unit (payload sanity on npm's full trees; `direct:false` stays
-   reserved for a later unit).
-4. **Config keys this unit:** `.env`-family (flat keys, `namespace: "env"`) and JSON configs
-   (dotted keys — `tsconfig*.json`, `.eslintrc.json`, …). YAML configs are artifact nodes
-   without key extraction (no YAML dependency), same posture as the lockfile rule.
-5. **Roles table** (filename rules → artifact_kind/format) ships in code,
-   `src/artifacts/rules.ts`: package manifests/locks, `tsconfig*`/rc-configs, `Dockerfile*`/
-   compose (`container`/`deployment_manifest`), `.github/workflows/*` (`ci`), `*.sh`/bin
-   scripts, `*.md` (`documentation`), data files, `other` catch-all. A file is never dropped
-   for lack of a rule.
-6. **Capture policy:** `--artifact-text-max-bytes` (default 256 KiB, python's flag + default);
-   over-cap → `text_truncated: true`, hash/size still present; undecodable bytes → no `text`,
-   no `text_encoding`.
-
-## Pipeline and projection
-
-- New `src/artifacts/` (`index.ts` walk + rules, `deps.ts`, `config.ts`); reuses the discovery
-  `SKIP_DIRS` and sorted order; runs in `analyze()` after the symbol table, ungated by level;
-  **not cached** (trivial cost, python's call).
-- `assignIds` stamps artifact/dependency/config-key ids per run (they embed `--app-name`, same
-  rule as every durable id); builders leave them `""`.
-- Wire: the three families are wire fields (nothing stripped — `content_hash` here is payload,
-  unlike the module cache trio; the strip list is keyed on module/callable fields only, but the
-  implementation must verify no INTERNAL_KEYS collision — `content_hash` collides! The strip
-  filter moves from key-name matching to structural stripping of module/callable internals, or
-  artifacts are serialized outside the replacer's reach; decided at implementation, gate:
-  artifact `content_hash` must appear on the wire).
-- Neo4j (contract 2.2.0, org language-prefix rule): `:TSArtifact` / `:TSDependency` /
-  `:TSConfigKey` nodes; `TS_HAS_ARTIFACT` (application→artifact), `TS_DECLARES_DEPENDENCY`
-  (artifact→dependency), `TS_DEFINES_CONFIG` (artifact→config_key); id-unique constraints;
-  full-depth-always unchanged.
+1. **config_keys dropped** — python's unit 4 owns config extraction; config-role artifacts get
+   node + roles + source only. The earlier TS config-key parser is parked (this file is its record).
+2. **`peer` kind coined** (additive). npm mapping: `dependencies→runtime`,
+   `devDependencies→dev`, `optionalDependencies→optional`, `peerDependencies→peer`.
+3. **Capture is rules-matched only** (python's posture): the shipped table in
+   `src/artifacts/rules.ts` (glob → format/roles, roles union across matches; basename patterns
+   match at any depth, `/`-patterns anchor at root) + extensionless shebang files as `script`.
+   An unmatched file is NOT an artifact. `source` is verbatim and unbounded (python's decision;
+   revisit only with measured payload numbers); binary probe failures carry `source: ""`.
+4. **Dependencies are declared-only and flat**: every `package.json` (workspace members included)
+   emits records with `declared_in` = its artifact id; the JSON lock family
+   (`package-lock.json`/`npm-shrinkwrap.json`/`bun.lock` JSONC) backfills `locked_version` on the
+   OWNING (sibling) manifest's records and appends `"lockfile"` to `prov`; locks never create
+   records; `yarn.lock`/`pnpm-lock.yaml` are inventory-only artifacts.
+5. **provides_imports**: the package name itself; `@types/x` also provides `x`
+   (DefinitelyTyped `scope__pkg` unmangled to `@scope/pkg`).
+6. **Import binding / unresolved_imports**: every non-relative, non-builtin specifier ROOT from
+   the symbol table's imports. A VALUE import needs the runtime package; an `import type` is
+   satisfiable by `@types/x` alone. Only-@types-for-a-value-import → partially bound
+   (`bound_to: "@types/x"`, `prov: ["heuristic"]`). `--resolve-installed` (opt-in, default off)
+   probes `node_modules/<name>/package.json` (`prov: ["installed-metadata"]`); default runs read
+   only repo files and stay byte-identical.
+7. **Neo4j (contract 2.2.0)**: language-NEUTRAL `:Artifact` and `:Package` (purl ids,
+   `pkg:npm/<name>`, scoped `pkg:npm/%40scope/<name>`) — the deliberate, sanctioned exception to
+   TS-prefixing so sibling analyzers MERGE onto the same nodes (the conformance gate allowlists
+   exactly these). Edges: `HAS_ARTIFACT`, `DECLARES_DEPENDENCY` (props spec/kind/extras/prov,
+   `_k` = kind), `LOCKS` (version; fans from every lock artifact present — python's documented
+   coarse fan), and the analyzer's own claims `TS_PROVIDES` (Package→minted module-level
+   `:TSExternal` ghost) and `TS_UNRESOLVED_IMPORT` (application→ghost, prov). `source` stays off
+   the graph.
+8. **Pipeline**: `src/artifacts/` (rules, deps, binding, index) runs in `analyze()` after the
+   symbol table (binding needs module imports), level-ungated, not cached; `assignIds` stamps
+   artifact ids and re-stamps `declared_in` per run (`--app-name` rule).
 
 ## Definition of done
 
-- `application.artifacts` with contained dependencies/config_keys emitted identically at
-  `-a 1|2|3|4`; monotonicity + conformance gates green.
-- Fixture app carrying: root+workspace `package.json`, `package-lock.json`, `bun.lock`,
-  `yarn.lock` (inventory-only), `.env`, `tsconfig.json`, a `Dockerfile`, a workflow file —
-  every scope token incl. `peer` asserted; artifact `content_hash` asserted ON the wire.
-- Neo4j rows for the three families + `schema.neo4j.json` regenerated at 2.2.0.
+- Three sections emitted identically at every `-a`; monotonicity + conformance + count-parity
+  gates green (parity gate counts neutral Artifact/Package rows + minted ghosts explicitly).
+- Fixture app: root+workspace manifests, both JSON locks, `yarn.lock` inventory-only, `.env`,
+  tsconfig, Dockerfile, CI workflow, LICENSE, an undeclared VALUE import, an `import type`
+  satisfied by `@types` — every kind token incl. `peer`, prov chains, purl ids (scoped included),
+  `--resolve-installed` exercised.
 - Determinism: two consecutive default runs byte-identical.
-- python-sdk: VERIFIED NOT tolerant — `cldk/models/typescript/models.py` is `extra="forbid"` by design, so the SDK must gain the three families (TSArtifact/TSDependency/TSConfigKey + `application.artifacts`) BEFORE its pinned analyzer version moves to a release carrying this layer. Release-ordering constraint, python's own 51ee29e has the same obligation.
-- CLAUDE.md + SCHEMA_DECISIONS.md updated; `--artifact-text-max-bytes` in `--help`/README.
+- `schema.neo4j.json` regenerated at 2.2.0; CLAUDE.md + SCHEMA_DECISIONS + README/--help updated.
 
 ## Release plan
 
-Ships in the minor AFTER the linker train (#97 → #99 → #100 → this), as an additive schema
-feature; schema_version unmoved, Neo4j 2.2.0 noted in release notes. SDK LOCKSTEP REQUIRED
-(discovered at implementation): the SDK's `extra="forbid"` models reject the new keys — the
-python-sdk model update must land before the SDK's analyzer pin moves.
+Ships in the minor after the linker train (#97 → #99 → #102 → #103); schema_version unmoved;
+Neo4j 2.2.0 in release notes. **SDK lockstep required** (`extra="forbid"`): python-sdk gains the
+three families before its pin moves. Cross-analyzer id joins additionally require pinned
+`--app-name` agreement between analyzers (spec §2 precondition).

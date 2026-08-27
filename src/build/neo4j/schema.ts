@@ -64,33 +64,23 @@ export const NODE_LABELS: NodeLabel[] = [
       analyzer_name: "string", analyzer_version: "string",
     },
   },
-  // Repository-artifact layer (#101, contract 2.2.0): non-source inventory + contained children.
+  // Repository-artifact layer (#101, contract 2.2.0, python PR #160 parity): language-NEUTRAL
+  // labels — the deliberate exception to TS-prefixing, so sibling analyzers MERGE onto the same
+  // :Artifact/:Package nodes. Edges that stay this analyzer's own claim keep the TS_ prefix.
   {
-    label: "TSArtifact",
-    mergeLabel: CAN,
+    label: "Artifact",
+    mergeLabel: "Artifact",
     key: "id",
     properties: {
-      id: "string", kind: "string", path: "string", artifact_kind: "string", format: "string",
-      source: "string", content_hash: "string", size_bytes: "integer", _module: "string",
+      id: "string", kind: "string", path: "string", format: "string", roles: "string[]",
+      size_bytes: "integer", sha256: "string", extraction: "string",
     },
   },
   {
-    label: "TSDependency",
-    mergeLabel: CAN,
+    label: "Package",
+    mergeLabel: "Package",
     key: "id",
-    properties: {
-      id: "string", kind: "string", name: "string", version_spec: "string", resolved_version: "string",
-      ecosystem: "string", scope: "string", direct: "boolean", _module: "string",
-    },
-  },
-  {
-    label: "TSConfigKey",
-    mergeLabel: CAN,
-    key: "id",
-    properties: {
-      id: "string", kind: "string", key: "string", namespace: "string", value: "string",
-      references: "string[]", _module: "string",
-    },
+    properties: { id: "string", ecosystem: "string", name: "string" },
   },
   {
     label: "TSModule",
@@ -172,10 +162,17 @@ export const NODE_LABELS: NodeLabel[] = [
 
 export const REL_TYPES: RelType[] = [
   { type: "TS_HAS_MODULE", from: ["TSApplication"], to: ["TSModule"], properties: {} },
-  // Repository-artifact layer (#101, contract 2.2.0)
-  { type: "TS_HAS_ARTIFACT", from: ["TSApplication"], to: ["TSArtifact"], properties: {} },
-  { type: "TS_DECLARES_DEPENDENCY", from: ["TSArtifact"], to: ["TSDependency"], properties: {} },
-  { type: "TS_DEFINES_CONFIG", from: ["TSArtifact"], to: ["TSConfigKey"], properties: {} },
+  // Repository-artifact layer (#101, contract 2.2.0, python PR #160 vocabulary)
+  { type: "HAS_ARTIFACT", from: ["TSApplication"], to: ["Artifact"], properties: {} },
+  {
+    type: "DECLARES_DEPENDENCY",
+    from: ["Artifact"],
+    to: ["Package"],
+    properties: { spec: "string", kind: "string", extras: "string[]", prov: "string[]" },
+  },
+  { type: "LOCKS", from: ["Artifact"], to: ["Package"], properties: { version: "string" } },
+  { type: "TS_PROVIDES", from: ["Package"], to: ["TSExternal"], properties: {} },
+  { type: "TS_UNRESOLVED_IMPORT", from: ["TSApplication"], to: ["TSExternal"], properties: { prov: "string[]" } },
   {
     type: "TS_DECLARES",
     from: ["TSModule", "TSNamespace", "TSCallable"],

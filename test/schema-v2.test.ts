@@ -87,7 +87,7 @@ describe("schema v2 — L1 envelope", () => {
     expect(v2.schema_version).toBe("2.1.0");
     expect(v2.language).toBe("typescript");
     expect(v2.max_level).toBe(1);
-    expect(Object.keys(root).sort()).toEqual(["artifacts", "call_graph", "id", "kind", "param_in", "param_out", "symbol_table"]);
+    expect(Object.keys(root).sort()).toEqual(["artifacts", "call_graph", "dependencies", "id", "kind", "param_in", "param_out", "symbol_table", "unresolved_imports"]);
     expect(root.id).toBe("can://typescript/sample-app");
     expect(root.kind).toBe("application");
   });
@@ -700,11 +700,14 @@ function canNodeIds(app: TSAnalysis): Set<string> {
   }
   for (const id of Object.keys(app.application.external_symbols ?? {})) ids.add(id);
   for (const id of Object.keys(app.application.synthesized_callables ?? {})) ids.add(id);
-  // Repository-artifact layer (#101): artifact nodes + contained dependency/config-key children.
-  for (const art of Object.values(app.application.artifacts ?? {})) {
-    ids.add(art.id);
-    for (const d of Object.values(art.dependencies)) ids.add(d.id);
-    for (const k of Object.values(art.config_keys)) ids.add(k.id);
+  // Repository-artifact layer (#101/PR-160 shape): artifacts/packages are NOT CanNodes (own
+  // neutral merge labels) — but TS_PROVIDES / TS_UNRESOLVED_IMPORT mint module-level
+  // :TSExternal ghosts in the CanNode id space.
+  for (const d of app.application.dependencies ?? []) {
+    for (const top of d.provides_imports) ids.add(`${app.application.id}/@external/${top}`);
+  }
+  for (const u of app.application.unresolved_imports ?? []) {
+    ids.add(`${app.application.id}/@external/${u.module}`);
   }
   return ids;
 }
@@ -719,8 +722,10 @@ function resolvesToCount(app: TSAnalysis): number {
 }
 
 describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
-  test("node count: 1 :Application row + every :CanNode id", () => {
-    expect(monoRows.nodes.length).toBe(1 + canNodeIds(monoApp4).size);
+  test("node count: 1 :Application row + every :CanNode id + neutral Artifact/Package rows", () => {
+    const artifactCount = Object.keys(monoApp4.application.artifacts ?? {}).length;
+    const packageCount = new Set((monoApp4.application.dependencies ?? []).map((d) => d.name)).size;
+    expect(monoRows.nodes.length).toBe(1 + canNodeIds(monoApp4).size + artifactCount + packageCount);
   });
 
   test("typed overlay relationships match their JSON edge-list length 1:1", () => {
@@ -743,15 +748,15 @@ describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
     // `extends_ids`/`implements_ids` props respectively — but they are not containment either, so
     // they're deliberately excluded from this invariant too; see the dedicated tests below and the
     // exhaustive edge-accounting test that folds every relationship family back into one total.)
-    const containment = [
-      "TS_HAS_MODULE", "TS_DECLARES", "TS_HAS_METHOD", "TS_HAS_FIELD", "TS_HAS_BODY_NODE",
-      // artifact-layer containment (#101): one incoming edge per artifact/dependency/config-key
-      "TS_HAS_ARTIFACT", "TS_DECLARES_DEPENDENCY", "TS_DEFINES_CONFIG",
-    ];
+    const containment = ["TS_HAS_MODULE", "TS_DECLARES", "TS_HAS_METHOD", "TS_HAS_FIELD", "TS_HAS_BODY_NODE"];
     const containmentEdges = containment.reduce((n, t) => n + relCount(monoRows, t), 0);
     const externalCount = Object.keys(monoApp4.application.external_symbols ?? {}).length;
     const synthCount = Object.keys(monoApp4.application.synthesized_callables ?? {}).length;
-    expect(containmentEdges).toBe(canNodeIds(monoApp4).size - externalCount - synthCount);
+    // minted provides/unresolved ghosts are off-tree CanNodes too (like externals)
+    const ghostIds = new Set<string>();
+    for (const d of monoApp4.application.dependencies ?? []) for (const t of d.provides_imports) ghostIds.add(t);
+    for (const u of monoApp4.application.unresolved_imports ?? []) ghostIds.add(u.module);
+    expect(containmentEdges).toBe(canNodeIds(monoApp4).size - externalCount - synthCount - ghostIds.size);
   });
 
   test("EXTENDS/IMPLEMENTS have no JSON edge-list (extends_ids/implements_ids node props are the source of truth); counts still match 1:1", () => {
@@ -779,17 +784,18 @@ describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
       relCount(monoRows, "TS_CDG") +
       relCount(monoRows, "TS_DDG") +
       relCount(monoRows, "TS_SUMMARY");
-    const containment = [
-      "TS_HAS_MODULE", "TS_DECLARES", "TS_HAS_METHOD", "TS_HAS_FIELD", "TS_HAS_BODY_NODE",
-      "TS_HAS_ARTIFACT", "TS_DECLARES_DEPENDENCY", "TS_DEFINES_CONFIG",
-    ].reduce(
+    const containment = ["TS_HAS_MODULE", "TS_DECLARES", "TS_HAS_METHOD", "TS_HAS_FIELD", "TS_HAS_BODY_NODE"].reduce(
+      (n, t) => n + relCount(monoRows, t),
+      0,
+    );
+    const artifactLayer = ["HAS_ARTIFACT", "DECLARES_DEPENDENCY", "LOCKS", "TS_PROVIDES", "TS_UNRESOLVED_IMPORT"].reduce(
       (n, t) => n + relCount(monoRows, t),
       0,
     );
     const resolvesTo = relCount(monoRows, "TS_RESOLVES_TO");
     const heritage = relCount(monoRows, "TS_EXTENDS") + relCount(monoRows, "TS_IMPLEMENTS");
     expect(resolvesTo).toBe(resolvesToCount(monoApp4));
-    expect(typedOverlay + containment + resolvesTo + heritage).toBe(monoRows.edges.length);
+    expect(typedOverlay + containment + artifactLayer + resolvesTo + heritage).toBe(monoRows.edges.length);
   });
 
   test("DDG/CFG_NEXT parity survives the writers: every row keyed, keys fully discriminate (issue #70)", () => {

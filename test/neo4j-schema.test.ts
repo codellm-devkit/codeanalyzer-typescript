@@ -100,14 +100,21 @@ describe("neo4j schema conformance", () => {
     }
   });
 
-  test("2.0.0 emits only TS-prefixed specific labels and TS_ rel types (#66)", () => {
+  test("TS-prefixed labels/rels, with the artifact layer's sanctioned NEUTRAL exception (#66, #101)", () => {
+    // :Artifact/:Package (+ HAS_ARTIFACT/DECLARES_DEPENDENCY/LOCKS) are deliberately
+    // language-neutral so sibling analyzers MERGE onto the same nodes (python PR #160's rule);
+    // edges that stay this analyzer's own claim (TS_PROVIDES, TS_UNRESOLVED_IMPORT) keep TS_.
+    const NEUTRAL_LABELS = new Set(["Artifact", "Package"]);
+    const NEUTRAL_RELS = new Set(["HAS_ARTIFACT", "DECLARES_DEPENDENCY", "LOCKS"]);
     for (const node of rows.nodes) {
       for (const l of node.labels) {
-        const ok = l === "CanNode" || l === "Application" || l.startsWith("TS");
+        const ok = l === "CanNode" || l === "Application" || l.startsWith("TS") || NEUTRAL_LABELS.has(l);
         expect(ok, `bare label leaked: ${l}`).toBe(true);
       }
     }
-    for (const edge of rows.edges) expect(edge.type.startsWith("TS_"), `bare rel leaked: ${edge.type}`).toBe(true);
+    for (const edge of rows.edges) {
+      expect(edge.type.startsWith("TS_") || NEUTRAL_RELS.has(edge.type), `bare rel leaked: ${edge.type}`).toBe(true);
+    }
   });
 });
 

@@ -182,11 +182,8 @@ Options:
                                  node_modules)
   --no-phantoms                  disable phantom (external) nodes for
                                  imported/required library calls
-  --no-artifact-text             keep the artifact inventory but drop captured
-                                 raw text (secrets posture)
-  --artifact-text-max-bytes <n>  per-file byte cap for captured artifact text;
-                                 larger files are truncated and flagged
-                                 (default: "262144")
+  --resolve-installed            probe node_modules metadata for import→package
+                                 binding (default: repo files only)
   -c, --cache-dir <dir>          cache/intermediate directory
   -v, --verbose                  increase verbosity (repeatable)
   -h, --help                     display help for command

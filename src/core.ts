@@ -77,16 +77,21 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   }
   const call_graph = cg.edges;
 
-  // Repository-artifact layer (#101): level-free non-source inventory, identical at every -a.
-  const artifacts = inventoryArtifacts(opts.input, opts);
-  log.info(`artifacts: ${Object.keys(artifacts).length} files inventoried`);
+  // Repository-artifact layer (#101, python PR #160 parity): level-free, identical at every -a.
+  const layer = inventoryArtifacts(opts.input, opts, symbol_table);
+  log.info(
+    `artifacts: ${Object.keys(layer.artifacts).length} files, ${layer.dependencies.length} dependency records, ` +
+      `${layer.unresolved_imports.length} unresolved imports`,
+  );
 
   const app: AnalysisInternal = {
     symbol_table,
     call_graph,
     external_symbols: cg.external_symbols,
     synthesized_callables: cg.synthesized_callables,
-    artifacts,
+    artifacts: layer.artifacts,
+    dependencies: layer.dependencies,
+    unresolved_imports: layer.unresolved_imports,
   };
 
   // Level 3 join: stages 5–7 (summary wavefront + SDG) consume the extraction AND the

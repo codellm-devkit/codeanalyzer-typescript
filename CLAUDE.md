@@ -105,11 +105,13 @@ test — treat both as contracts, keep in lockstep with JSON.
 | `src/utils` | fs, caching, logging, serialization (`serialize.ts` writes the envelope), version |
 | `test` | Bun tests + `fixtures/sample-app` + `fixtures/dataflow-app`; `schema-v2.test.ts` = the L1–L4 gates |
 
-**Repository-artifact layer** (#101): `application.artifacts{}` — non-source files as
-nodes (`@artifact/` ids) with contained `dependencies{}` (npm scopes incl. coined
-`peer`) + `config_keys{}`; level-free, python 51ee29e parity; `src/artifacts/`;
-capture policy `--no-artifact-text` / `--artifact-text-max-bytes`. Neo4j contract
-2.2.0 (:TSArtifact/:TSDependency/:TSConfigKey).
+**Repository-artifact layer** (#101, python PR #160 parity): `application.artifacts{}`
+(rules-matched non-code files, LANGUAGE-NEUTRAL `can://artifact/<app>/<path>` ids,
+roles[], verbatim unbounded `source`) + flat `dependencies[]` (npm kinds incl.
+coined `peer`, prov-tagged, lock backfill) + `unresolved_imports[]` (@types
+type-only rule; `--resolve-installed` opt-in probe). `src/artifacts/`. Neo4j
+contract 2.2.0: NEUTRAL :Artifact/:Package (purl) — sanctioned prefix exception —
+plus TS_PROVIDES/TS_UNRESOLVED_IMPORT into :TSExternal ghosts.
 
 ## Commands
 

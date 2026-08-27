@@ -1,57 +1,63 @@
 /**
- * Dependency extraction for the artifact layer (#101): `package.json` manifests → declared
- * `TSDependency` records, and the JSON lockfile family → `resolved_version` backfill on the
- * OWNING manifest's records only. Declared-only this unit: lockfiles never create records, and
- * transitive-only packages are skipped (`direct: false` stays reserved).
- *
- * Every parser is defensive — a malformed file yields `{}`, never an exception, so the artifact
- * node it hangs off is emitted regardless (python's overlay rule).
+ * Dependency extraction (#101, python PR #160 parity): `package.json` manifests → FLAT
+ * evidence-tagged `TSDependency` records on the application; the JSON lockfile family backfills
+ * `locked_version` on the OWNING manifest's records (`prov` gains "lockfile"); lockfiles never
+ * create records. Defensive throughout — a malformed file yields no records, never an exception.
  */
-import type { TSDependency, TSDependencyScope } from "../schema";
+import type { TSDependency } from "../schema";
 
-/** npm manifest section → shared scope vocabulary (`peer` is the spec'd additive token). */
-const SCOPE_BY_SECTION: ReadonlyArray<[string, TSDependencyScope]> = [
+const SECTION_KIND: ReadonlyArray<[string, TSDependency["kind"]]> = [
   ["dependencies", "runtime"],
-  ["devDependencies", "development"],
+  ["devDependencies", "dev"],
   ["optionalDependencies", "optional"],
-  ["peerDependencies", "peer"],
+  ["peerDependencies", "peer"], // the spec'd additive npm token
 ];
 
-export function parsePackageJson(text: string): Record<string, TSDependency> {
+/** Import specifiers this distribution provides: itself; `@types/x` also provides types-for-x. */
+function providesOf(name: string): string[] {
+  if (name.startsWith("@types/")) {
+    const base = name.slice("@types/".length);
+    // DefinitelyTyped mangles scoped names: @types/scope__pkg types @scope/pkg.
+    const real = base.includes("__") ? `@${base.replace("__", "/")}` : base;
+    return [name, real];
+  }
+  return [name];
+}
+
+export function parsePackageJson(text: string, declaredIn: string): TSDependency[] {
   let doc: unknown;
   try {
     doc = JSON.parse(text);
   } catch {
-    return {};
+    return [];
   }
-  if (typeof doc !== "object" || doc === null) return {};
-  const out: Record<string, TSDependency> = {};
-  for (const [section, scope] of SCOPE_BY_SECTION) {
+  if (typeof doc !== "object" || doc === null) return [];
+  const out: TSDependency[] = [];
+  const seen = new Set<string>();
+  for (const [section, kind] of SECTION_KIND) {
     const block = (doc as Record<string, unknown>)[section];
     if (typeof block !== "object" || block === null) continue;
     for (const [name, spec] of Object.entries(block as Record<string, unknown>)) {
-      // First section wins on a duplicate name (runtime > dev > optional > peer, the npm merge
-      // order above); later sections never downgrade an existing record's scope.
-      if (name in out) continue;
-      out[name] = {
-        id: "",
-        kind: "dependency",
+      if (seen.has(name)) continue; // first section wins (npm merge order above)
+      seen.add(name);
+      out.push({
         name,
-        ...(typeof spec === "string" ? { version_spec: spec } : {}),
-        ecosystem: "npm",
-        scope,
-        direct: true,
-      };
+        spec: typeof spec === "string" ? spec : "",
+        kind,
+        extras: [],
+        declared_in: declaredIn,
+        provides_imports: providesOf(name),
+        prov: ["declared"],
+      });
     }
   }
   return out;
 }
 
 /**
- * `name → resolved version` from a JSON-family lockfile. `package-lock.json` /
- * `npm-shrinkwrap.json`: v2/v3 `packages["node_modules/<name>"].version` (top-level entries
- * only — nested `node_modules/a/node_modules/b` are transitive shadows), falling back to v1
- * `dependencies{}`. `bun.lock` (JSONC): `packages{ "<name>": ["<name>@<version>", ...] }`.
+ * `name → locked version` from a JSON-family lockfile. package-lock/npm-shrinkwrap: v2/v3
+ * top-level `packages["node_modules/<name>"].version` (nested entries are transitive shadows),
+ * v1 `dependencies{}` fallback. bun.lock (JSONC): `packages{ "<name>": ["<name>@<ver>", ...] }`.
  */
 export function readLock(fileName: string, text: string): Record<string, string> {
   if (fileName === "bun.lock") return readBunLock(text);
@@ -84,10 +90,9 @@ export function readLock(fileName: string, text: string): Record<string, string>
 }
 
 function readBunLock(text: string): Record<string, string> {
-  // bun.lock is JSONC-ish: tolerate trailing commas (the one deviation bun actually emits).
   let doc: unknown;
   try {
-    doc = JSON.parse(text.replace(/,\s*([}\]])/g, "$1"));
+    doc = JSON.parse(text.replace(/,\s*([}\]])/g, "$1")); // tolerate bun's trailing commas
   } catch {
     return {};
   }
@@ -103,10 +108,12 @@ function readBunLock(text: string): Record<string, string> {
   return out;
 }
 
-/** Backfill `resolved_version` on DECLARED records — lockfiles never create records. */
-export function applyLockVersions(deps: Record<string, TSDependency>, lock: Record<string, string>): void {
-  for (const [name, dep] of Object.entries(deps)) {
-    const v = lock[name];
-    if (v !== undefined) dep.resolved_version = v;
+/** Backfill locked_version on DECLARED records; their `prov` gains "lockfile". */
+export function applyLockVersions(deps: TSDependency[], lock: Record<string, string>): void {
+  for (const dep of deps) {
+    const v = lock[dep.name];
+    if (v === undefined) continue;
+    dep.locked_version = v;
+    if (!dep.prov.includes("lockfile")) dep.prov.push("lockfile");
   }
 }

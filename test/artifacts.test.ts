@@ -1,8 +1,9 @@
 /**
- * Repository-artifact layer gates (#101, docs/design/specs/artifacts-and-dependencies.md):
- * level-invariance, npm scope mapping incl. the coined `peer` token, JSON-lock backfill
- * (declared-only), config keys, capture policy, wire content_hash, id grammar, determinism,
- * and the Neo4j projection of the three families.
+ * Repository-artifact layer gates (#101, recalibrated to python PR #160 / the ratified
+ * 2026-08-27 spec): neutral artifact ids, rules-matched capture, flat evidence-tagged
+ * dependencies (npm kinds incl. the coined `peer`), lock backfill with `lockfile` prov,
+ * unresolved imports with the @types type-only rule, level-invariance, determinism, and the
+ * neutral :Artifact/:Package Neo4j projection.
  */
 import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
@@ -25,122 +26,103 @@ function options(over: Partial<AnalysisOptions> = {}): AnalysisOptions {
 }
 
 const r1 = await analyze(options());
-const arts = r1.application.application.artifacts;
-const APP = "can://typescript/artifacts-app";
+const root = r1.application.application;
+const arts = root.artifacts;
+const deps = root.dependencies;
+const byName = new Map(deps.map((d) => [d.name, d]));
 
-describe("artifact inventory (#101)", () => {
-  test("non-source files are inventoried; source files are not", () => {
+describe("artifact inventory — rules-matched, neutral ids (#101/PR-160)", () => {
+  test("rules-matched files are inventoried; unmatched and source files are not", () => {
     for (const key of [
       "package.json", "package-lock.json", "packages/web/package.json", "packages/web/bun.lock",
-      "yarn.lock", ".env", "tsconfig.json", "Dockerfile", ".github/workflows/ci.yml", "README.md", "logo.bin",
+      "yarn.lock", ".env", "tsconfig.json", "Dockerfile", ".github/workflows/ci.yml", "README.md", "LICENSE",
     ]) {
       expect(arts[key], key).toBeDefined();
     }
     expect(Object.keys(arts).some((k) => k.endsWith(".ts"))).toBe(false);
   });
 
-  test("ids use the @artifact marker, dotfiles keep their dot; children chain off the artifact id", () => {
-    expect(arts[".env"]?.id).toBe(`${APP}/@artifact/.env`);
-    expect(arts["package.json"]?.dependencies["express"]?.id).toBe(`${APP}/@artifact/package.json/express`);
-    expect(arts[".env"]?.config_keys["PAYMENT_HOST"]?.id).toBe(`${APP}/@artifact/.env/PAYMENT_HOST`);
+  test("ids are LANGUAGE-NEUTRAL (can://artifact/<app>/<path>); dotfiles keep the dot", () => {
+    expect(arts[".env"]?.id).toBe("can://artifact/artifacts-app/.env");
+    expect(arts["packages/web/package.json"]?.id).toBe("can://artifact/artifacts-app/packages/web/package.json");
   });
 
-  test("classification: kinds and formats from the rules table", () => {
-    expect(arts["package.json"]?.artifact_kind).toBe("build_manifest");
-    expect(arts["package-lock.json"]?.artifact_kind).toBe("dependency_lockfile");
-    expect(arts["yarn.lock"]?.artifact_kind).toBe("dependency_lockfile");
-    expect(arts[".env"]?.artifact_kind).toBe("configuration");
-    expect(arts["tsconfig.json"]?.artifact_kind).toBe("configuration");
-    expect(arts["Dockerfile"]?.artifact_kind).toBe("container");
-    expect(arts[".github/workflows/ci.yml"]?.artifact_kind).toBe("ci");
-    expect(arts["README.md"]?.artifact_kind).toBe("documentation");
-    expect(arts["logo.bin"]?.artifact_kind).toBe("other");
-    expect(arts[".env"]?.format).toBe("env");
+  test("roles and formats from the rules table; roles union across matches", () => {
+    expect(arts["package.json"]?.roles).toEqual(["dependency-manifest", "tool-config"]);
+    expect(arts["package-lock.json"]?.roles).toEqual(["dependency-manifest"]);
+    expect(arts[".env"]?.roles).toEqual(["env"]);
+    expect(arts["tsconfig.json"]?.roles).toEqual(["tool-config"]);
+    expect(arts["Dockerfile"]?.roles).toEqual(["container-image"]);
+    expect(arts[".github/workflows/ci.yml"]?.roles).toEqual(["ci"]);
+    expect(arts["README.md"]?.roles).toEqual(["docs"]);
+    expect(arts["LICENSE"]?.roles).toEqual(["legal"]);
     expect(arts["packages/web/bun.lock"]?.format).toBe("jsonc");
   });
 
-  test("binary files carry hash+size but no text; wire keeps content_hash (strip-collision gate)", () => {
-    const bin = arts["logo.bin"];
-    expect(bin?.text).toBeUndefined();
-    expect(bin?.content_hash?.length).toBe(64);
-    expect(bin?.size_bytes).toBe(6);
-    // the module cache trio stays stripped while artifact content_hash survives on the SAME wire
-    const mod = r1.application.application.symbol_table["src/index.ts"] as unknown as Record<string, unknown>;
-    expect(mod["content_hash"]).toBeUndefined();
+  test("verbatim source + sha256 + extraction status", () => {
+    expect(arts["package.json"]?.source).toContain('"express"');
+    expect(arts["package.json"]?.sha256?.length).toBe(64);
+    expect(arts["package.json"]?.extraction).toBe("full");
+    expect(arts["yarn.lock"]?.extraction).toBe("none"); // inventory-only lock format
+    expect(arts["README.md"]?.extraction).toBe("none");
   });
 });
 
-describe("dependencies: scopes, workspace manifests, lock backfill (#101)", () => {
-  const deps = arts["package.json"]?.dependencies ?? {};
-
-  test("every npm section maps to the shared scope vocabulary, peer included", () => {
-    expect(deps["express"]?.scope).toBe("runtime");
-    expect(deps["typescript"]?.scope).toBe("development");
-    expect(deps["fsevents"]?.scope).toBe("optional");
-    expect(deps["react"]?.scope).toBe("peer");
-    expect(deps["@scope/util"]?.name).toBe("@scope/util");
-    for (const d of Object.values(deps)) {
-      expect(d.ecosystem).toBe("npm");
-      expect(d.direct).toBe(true);
+describe("dependencies — flat, evidence-tagged (#101/PR-160)", () => {
+  test("npm sections map to the shared kind vocabulary, `peer` included; prov declared", () => {
+    expect(byName.get("express")?.kind).toBe("runtime");
+    expect(byName.get("typescript")?.kind).toBe("dev");
+    expect(byName.get("fsevents")?.kind).toBe("optional");
+    expect(byName.get("react")?.kind).toBe("peer");
+    for (const d of deps) {
+      expect(d.prov).toContain("declared");
+      expect(d.extras).toEqual([]);
     }
   });
 
-  test("package-lock backfills resolved_version on DECLARED records only", () => {
-    expect(deps["express"]?.resolved_version).toBe("4.19.2");
-    expect(deps["@scope/util"]?.resolved_version).toBe("2.1.5");
-    expect(deps["typescript"]?.resolved_version).toBe("5.5.4");
-    expect(deps["react"]?.resolved_version).toBeUndefined(); // declared, not locked
-    expect(Object.keys(deps)).not.toContain("lockonly-transitive"); // lock never creates records
-    expect(Object.keys(deps)).not.toContain("transitive-shadow"); // nested lock entries ignored
+  test("declared_in is the manifest's neutral artifact id (workspace member keeps its own)", () => {
+    expect(byName.get("express")?.declared_in).toBe("can://artifact/artifacts-app/package.json");
+    expect(byName.get("lodash")?.declared_in).toBe("can://artifact/artifacts-app/packages/web/package.json");
   });
 
-  test("a workspace member's manifest is its own artifact with its OWN lock (bun.lock JSONC)", () => {
-    const web = arts["packages/web/package.json"]?.dependencies ?? {};
-    expect(web["lodash"]?.scope).toBe("runtime");
-    expect(web["lodash"]?.resolved_version).toBe("4.17.21");
+  test("locks backfill locked_version on declared records only, prov gains lockfile", () => {
+    expect(byName.get("express")?.locked_version).toBe("4.19.2");
+    expect(byName.get("express")?.prov).toEqual(["declared", "lockfile"]);
+    expect(byName.get("lodash")?.locked_version).toBe("4.17.21"); // sibling bun.lock (JSONC)
+    expect(byName.get("react")?.locked_version).toBeUndefined();
+    expect(byName.has("lockonly-transitive")).toBe(false); // locks never create records
+    expect(byName.has("transitive-shadow")).toBe(false); // nested lock entries ignored
   });
 
-  test("yarn.lock is inventory-only: an artifact node, no extraction", () => {
-    expect(Object.keys(arts["yarn.lock"]?.dependencies ?? {})).toEqual([]);
-  });
-});
-
-describe("config keys (#101)", () => {
-  test(".env flat keys under namespace env, quotes stripped, placeholder refs recorded", () => {
-    const keys = arts[".env"]?.config_keys ?? {};
-    expect(keys["PAYMENT_HOST"]?.value).toBe("https://pay.example.com");
-    expect(keys["PAYMENT_HOST"]?.namespace).toBe("env");
-    expect(keys["DB_URL"]?.references).toEqual(["env:PAYMENT_HOST"]);
-    expect(keys["NODE_OPTIONS"]?.value).toBe("--max-old-space-size=4096");
-  });
-
-  test("JSON configs flatten to dotted keys", () => {
-    const keys = arts["tsconfig.json"]?.config_keys ?? {};
-    expect(keys["compilerOptions.strict"]?.value).toBe(true);
-    expect(keys["compilerOptions.target"]?.value).toBe("ES2022");
+  test("provides_imports: the name itself; @types/x also provides x", () => {
+    expect(byName.get("express")?.provides_imports).toEqual(["express"]);
+    expect(byName.get("@types/typed-only-pkg")?.provides_imports).toEqual(["@types/typed-only-pkg", "typed-only-pkg"]);
   });
 });
 
-describe("level-invariance, capture policy, determinism (#101)", () => {
-  test("artifacts are identical at -a 1 and -a 4 (level-free)", async () => {
+describe("unresolved imports — the hygiene signal (#101/PR-160)", () => {
+  test("an undeclared VALUE import surfaces; declared and type-only-via-@types do not", () => {
+    const mods = root.unresolved_imports.map((u) => u.module);
+    expect(mods).toContain("left-pad"); // imported, never declared
+    expect(mods).not.toContain("express"); // declared runtime
+    expect(mods).not.toContain("typed-only-pkg"); // import type + @types declared → satisfied
+    expect(mods).not.toContain("node:fs"); // builtin
+  });
+
+  test("--resolve-installed binds via node_modules metadata (prov installed-metadata)", async () => {
+    const r = await analyze(options({ resolveInstalled: true }));
+    const u = r.application.application.unresolved_imports.find((x) => x.module === "left-pad");
+    expect(u?.bound_to).toBe("left-pad");
+    expect(u?.prov).toEqual(["installed-metadata"]);
+  });
+});
+
+describe("level-invariance + determinism (#101)", () => {
+  test("the three sections are identical at -a 1 and -a 4", async () => {
     const r4 = await analyze(options({ analysisLevel: 4, graphs: ["cfg", "dfg", "pdg", "sdg"] }));
     expect(r4.application.application.artifacts).toEqual(arts);
-  });
-
-  test("--no-artifact-text drops text but keeps the inventory AND extraction", async () => {
-    const r = await analyze(options({ artifactText: false }));
-    const a = r.application.application.artifacts;
-    expect(a[".env"]?.text).toBeUndefined();
-    expect(a[".env"]?.config_keys["PAYMENT_HOST"]?.value).toBe("https://pay.example.com");
-    expect(a["package.json"]?.dependencies["express"]?.resolved_version).toBe("4.19.2");
-  });
-
-  test("the byte cap truncates and flags", async () => {
-    const r = await analyze(options({ artifactTextMaxBytes: 8 }));
-    const a = r.application.application.artifacts["README.md"];
-    expect(a?.text_truncated).toBe(true);
-    expect((a?.text ?? "").length).toBeLessThanOrEqual(8);
-    expect(a?.content_hash).toBe(arts["README.md"]?.content_hash as string); // hash is of the FULL bytes
+    expect(r4.application.application.dependencies).toEqual(deps);
+    expect(r4.application.application.unresolved_imports).toEqual(root.unresolved_imports);
   });
 
   test("two consecutive default runs are byte-identical", async () => {
@@ -150,21 +132,29 @@ describe("level-invariance, capture policy, determinism (#101)", () => {
   });
 });
 
-describe("Neo4j projection (#101, contract 2.2.0)", () => {
+describe("Neo4j projection — neutral :Artifact/:Package (#101, contract 2.2.0)", () => {
   const rows = project(r1.application);
 
-  test("the three families project with containment edges", () => {
-    const artNode = rows.nodes.find((n) => n.value === `${APP}/@artifact/package.json`);
-    expect(artNode?.labels).toContain("TSArtifact");
-    expect(artNode?.props["content_hash"]).toBeDefined();
-    expect(artNode?.props["text"]).toBeUndefined(); // text stays off the graph
-    const depNode = rows.nodes.find((n) => n.value === `${APP}/@artifact/package.json/react`);
-    expect(depNode?.labels).toContain("TSDependency");
-    expect(depNode?.props["scope"]).toBe("peer");
-    const ckNode = rows.nodes.find((n) => n.value === `${APP}/@artifact/.env/DB_URL`);
-    expect(ckNode?.labels).toContain("TSConfigKey");
-    expect(rows.edges.some((e) => e.type === "TS_HAS_ARTIFACT" && e.to.value === artNode?.value)).toBe(true);
-    expect(rows.edges.some((e) => e.type === "TS_DECLARES_DEPENDENCY" && e.to.value === depNode?.value)).toBe(true);
-    expect(rows.edges.some((e) => e.type === "TS_DEFINES_CONFIG" && e.to.value === ckNode?.value)).toBe(true);
+  test("neutral nodes with purl ids; TS-prefixed claims into the ghost space", () => {
+    const art = rows.nodes.find((n) => n.value === "can://artifact/artifacts-app/package.json");
+    expect(art?.labels).toEqual(["Artifact"]);
+    expect(art?.props["roles"]).toEqual(["dependency-manifest", "tool-config"]);
+    expect(art?.props["source"]).toBeUndefined(); // text stays off the graph
+    const pkg = rows.nodes.find((n) => n.value === "pkg:npm/react");
+    expect(pkg?.labels).toEqual(["Package"]);
+    const scoped = rows.nodes.find((n) => n.value === "pkg:npm/%40scope/util");
+    expect(scoped, "scoped purl").toBeDefined();
+    expect(rows.edges.some((e) => e.type === "HAS_ARTIFACT" && e.to.value === art?.value)).toBe(true);
+    const decl = rows.edges.find((e) => e.type === "DECLARES_DEPENDENCY" && e.to.value === "pkg:npm/react");
+    expect(decl?.props["kind"]).toBe("peer");
+    expect(rows.edges.some((e) => e.type === "LOCKS" && e.to.value === "pkg:npm/express")).toBe(true);
+    expect(
+      rows.edges.some(
+        (e) => e.type === "TS_PROVIDES" && e.from.value === "pkg:npm/express" && String(e.to.value).endsWith("/@external/express"),
+      ),
+    ).toBe(true);
+    expect(
+      rows.edges.some((e) => e.type === "TS_UNRESOLVED_IMPORT" && String(e.to.value).endsWith("/@external/left-pad")),
+    ).toBe(true);
   });
 });

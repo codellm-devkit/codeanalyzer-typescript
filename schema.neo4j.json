@@ -18,49 +18,28 @@
       }
     },
     {
-      "label": "TSArtifact",
-      "mergeLabel": "CanNode",
+      "label": "Artifact",
+      "mergeLabel": "Artifact",
       "key": "id",
       "properties": {
         "id": "string",
         "kind": "string",
         "path": "string",
-        "artifact_kind": "string",
         "format": "string",
-        "source": "string",
-        "content_hash": "string",
+        "roles": "string[]",
         "size_bytes": "integer",
-        "_module": "string"
+        "sha256": "string",
+        "extraction": "string"
       }
     },
     {
-      "label": "TSDependency",
-      "mergeLabel": "CanNode",
+      "label": "Package",
+      "mergeLabel": "Package",
       "key": "id",
       "properties": {
         "id": "string",
-        "kind": "string",
-        "name": "string",
-        "version_spec": "string",
-        "resolved_version": "string",
         "ecosystem": "string",
-        "scope": "string",
-        "direct": "boolean",
-        "_module": "string"
-      }
-    },
-    {
-      "label": "TSConfigKey",
-      "mergeLabel": "CanNode",
-      "key": "id",
-      "properties": {
-        "id": "string",
-        "kind": "string",
-        "key": "string",
-        "namespace": "string",
-        "value": "string",
-        "references": "string[]",
-        "_module": "string"
+        "name": "string"
       }
     },
     {
@@ -271,34 +250,63 @@
       "properties": {}
     },
     {
-      "type": "TS_HAS_ARTIFACT",
+      "type": "HAS_ARTIFACT",
       "from": [
         "TSApplication"
       ],
       "to": [
-        "TSArtifact"
+        "Artifact"
       ],
       "properties": {}
     },
     {
-      "type": "TS_DECLARES_DEPENDENCY",
+      "type": "DECLARES_DEPENDENCY",
       "from": [
-        "TSArtifact"
+        "Artifact"
       ],
       "to": [
-        "TSDependency"
+        "Package"
+      ],
+      "properties": {
+        "spec": "string",
+        "kind": "string",
+        "extras": "string[]",
+        "prov": "string[]"
+      }
+    },
+    {
+      "type": "LOCKS",
+      "from": [
+        "Artifact"
+      ],
+      "to": [
+        "Package"
+      ],
+      "properties": {
+        "version": "string"
+      }
+    },
+    {
+      "type": "TS_PROVIDES",
+      "from": [
+        "Package"
+      ],
+      "to": [
+        "TSExternal"
       ],
       "properties": {}
     },
     {
-      "type": "TS_DEFINES_CONFIG",
+      "type": "TS_UNRESOLVED_IMPORT",
       "from": [
-        "TSArtifact"
+        "TSApplication"
       ],
       "to": [
-        "TSConfigKey"
+        "TSExternal"
       ],
-      "properties": {}
+      "properties": {
+        "prov": "string[]"
+      }
     },
     {
       "type": "TS_DECLARES",
@@ -480,6 +488,8 @@
   ],
   "constraints": [
     "CREATE CONSTRAINT application_id IF NOT EXISTS FOR (x:Application) REQUIRE x.id IS UNIQUE",
+    "CREATE CONSTRAINT artifact_id IF NOT EXISTS FOR (x:Artifact) REQUIRE x.id IS UNIQUE",
+    "CREATE CONSTRAINT package_id IF NOT EXISTS FOR (x:Package) REQUIRE x.id IS UNIQUE",
     "CREATE CONSTRAINT cannode_id IF NOT EXISTS FOR (x:CanNode) REQUIRE x.id IS UNIQUE"
   ],
   "indexes": [

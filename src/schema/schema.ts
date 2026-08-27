@@ -325,65 +325,44 @@ export interface TSModule {
 }
 
 // ----------------------------------------------------------------------------------------------
-// Repository-artifact layer (#101; python-parity with codeanalyzer-python 51ee29e): non-source
-// files inventoried as first-class nodes contained under the application, with dependency and
-// config-key children. Application-anchored and level-free — identical at every -a level.
+// Repository-artifact layer (#101; parity with codeanalyzer-python PR #160 / spec
+// 2026-08-27-artifacts-and-dependencies-design.md): recognized non-code files as nodes with
+// LANGUAGE-NEUTRAL ids, plus evidence-tagged dependency records and the unresolved-import
+// hygiene signal. Application-anchored, level-free — identical at every -a level. Capture is
+// broad (every rules-matched file becomes a node, verbatim source, unbounded by decision);
+// extraction is narrow (only dependency-manifest roles feed `dependencies` this unit).
 // ----------------------------------------------------------------------------------------------
 
-export type TSArtifactKind =
-  | "build_manifest"
-  | "dependency_lockfile"
-  | "configuration"
-  | "deployment_manifest"
-  | "container"
-  | "infrastructure"
-  | "ci"
-  | "script"
-  | "documentation"
-  | "data"
-  | "other";
-
-/** Shared cross-language dependency scope vocabulary + the additive npm token `peer` (spec'd). */
-export type TSDependencyScope = "runtime" | "development" | "test" | "build" | "optional" | "peer" | "unknown";
-
-/** One declared dependency, parsed from a manifest artifact — contained under it. */
-export interface TSDependency {
-  id: string; // <artifactId>/<name> — stamped per-run by assignIds
-  kind: "dependency";
-  name: string; // npm-native, @scope kept
-  version_spec?: string; // as declared ("^4.17.21")
-  resolved_version?: string; // when the manifest's OWN lockfile pins it
-  ecosystem: "npm";
-  scope: TSDependencyScope;
-  direct: boolean; // false reserved for lockfile-only transitives (not emitted this unit)
-}
-
-/** One configuration key defined in a structured config artifact — contained under it. */
-export interface TSConfigKey {
-  id: string; // <artifactId>/<dotted-key> — stamped per-run by assignIds
-  kind: "config_key";
-  key: string; // canonical dotted key
-  namespace?: string; // shared key-space namespace ("env", …)
-  value?: string | number | boolean;
-  references: string[]; // e.g. ["env:PAYMENT_HOST"]
-  span?: TSSpan;
-}
-
-/** A non-source repository file, inventoried into the analysis. */
+/** A recognized non-code file (config, manifest, CI, container spec). */
 export interface TSArtifact {
-  id: string; // can://typescript/<app>/@artifact/<path> — stamped per-run by assignIds
+  id: string; // can://artifact/<app>/<path> — language-NEUTRAL namespace, stamped per-run
   kind: "artifact";
-  artifact_kind: TSArtifactKind; // closed enum; catch-all `other` — a file is never dropped
-  path: string; // repo-relative POSIX path (map key repeated for node self-containment)
-  format?: string; // "json" | "yaml" | "toml" | "ini" | "properties" | …
-  source?: string; // producing SUBSYSTEM (python's field; NOT file text — that is `text`)
-  content_hash: string; // sha256 hexdigest — always present, and always on the wire
+  path: string; // repo-relative POSIX path (also the map key)
+  format: string; // json | jsonc | yaml | toml | ini | requirements? | dockerfile | yarnlock | text | env
+  roles: string[]; // dependency-manifest | tool-config | container-image | service-topology | ci | env | packaging | legal | docs | script | unknown
   size_bytes: number;
-  text?: string; // verbatim, per the capture policy (--artifact-text / --artifact-text-max-bytes)
-  text_encoding?: string; // "utf-8"; absent when the bytes don't decode
-  text_truncated: boolean;
-  dependencies: Record<string, TSDependency>; // contained children
-  config_keys: Record<string, TSConfigKey>;
+  sha256: string;
+  source: string; // verbatim, unbounded by decision (spec §3)
+  extraction: "none" | "partial" | "full";
+}
+
+/** One declared third-party dependency, evidence-tagged via `prov`. */
+export interface TSDependency {
+  name: string; // npm-native, @scope kept
+  spec: string; // as declared ("^4.17.21"); "" when the section value is not a string
+  kind: "runtime" | "dev" | "optional" | "peer" | "build"; // `peer` is the spec'd additive npm token
+  extras: string[]; // npm has none — always [] (shared shape parity)
+  declared_in: string; // TSArtifact id
+  locked_version?: string;
+  provides_imports: string[]; // import specifiers this distribution provides (npm: the name; @types/x: x)
+  prov: string[]; // declared | lockfile | installed-metadata | heuristic
+}
+
+/** A non-relative import no declared dependency accounts for (the dependency-hygiene signal). */
+export interface TSImportBinding {
+  module: string; // the specifier root ("express", "@scope/pkg")
+  bound_to?: string; // best-effort distribution name when partially bound
+  prov: string[];
 }
 
 // ----------------------------------------------------------------------------------------------
@@ -437,8 +416,10 @@ export interface AnalysisInternal {
   call_graph: TSCallEdge[];
   external_symbols: Record<string, TSExternalSymbol>;
   synthesized_callables: Record<string, TSSynthesizedCallable>;
-  /** Repository-artifact layer (level-free; keyed by repo-relative path). */
+  /** Repository-artifact layer (level-free). */
   artifacts?: Record<string, TSArtifact>;
+  dependencies?: TSDependency[];
+  unresolved_imports?: TSImportBinding[];
 }
 
 // ----------------------------------------------------------------------------------------------
@@ -469,8 +450,10 @@ export interface TSApplication {
   call_graph: TSCallGraphEdge[]; // L2 — callable → callable (empty at L1)
   param_in: TSParamEdge[]; // L4 (empty until L4)
   param_out: TSParamEdge[]; // L4
-  /** Repository-artifact layer — identical at every level (#101). */
+  /** Repository-artifact layer — identical at every level (#101, python PR #160 parity). */
   artifacts: Record<string, TSArtifact>;
+  dependencies: TSDependency[];
+  unresolved_imports: TSImportBinding[];
   // TS-additive (parity): edge endpoints outside the containment tree need an id home.
   external_symbols?: Record<string, import("./homing").TSExternalNode>; // L2 — library call targets, keyed by id
   // L2 — 2.1.0 compatibility index: pre-2.1.0 anonymous-callable id → the tree id that replaced

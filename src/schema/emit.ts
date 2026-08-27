@@ -96,6 +96,8 @@ export function finalizeAnalysis(
     param_in: [],
     param_out: [],
     artifacts: app.artifacts ?? {},
+    dependencies: app.dependencies ?? [],
+    unresolved_imports: app.unresolved_imports ?? [],
   };
 
   // L2 — home the off-tree edge endpoints, backfill `callee`, re-identify the call graph.

@@ -63,12 +63,15 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
     for (const t of Object.values(mod.types ?? {})) doType(moduleId, modulePrefix, t);
   }
 
-  // Repository-artifact layer: same per-run rule (ids embed --app-name; the scan is not cached,
-  // but the invariant is uniform — builders/scanners leave ids "" and this pass stamps them).
+  // Repository-artifact layer: same per-run rule (ids embed --app-name). Artifact ids are
+  // language-NEUTRAL (`can://artifact/...`); dependency/import records are flat evidence rows
+  // with no node id of their own (the graph's :Package node is purl-keyed).
   for (const [relPath, art] of Object.entries(app.artifacts ?? {})) {
-    art.id = artifactIdOf(appId, relPath);
-    for (const [name, dep] of Object.entries(art.dependencies)) dep.id = `${art.id}/${name}`;
-    for (const [key, ck] of Object.entries(art.config_keys)) ck.id = `${art.id}/${key}`;
+    art.id = artifactIdOf(appName, relPath);
+  }
+  for (const dep of app.dependencies ?? []) {
+    const artPath = dep.declared_in; // scanners record the REL PATH; re-stamp onto the id
+    dep.declared_in = artifactIdOf(appName, artPath.startsWith("can://") ? artPath.split("/").slice(4).join("/") : artPath);
   }
 
   return { appId, idBySig, callableBySig, collisions };
