@@ -4,8 +4,11 @@ import { relPosix } from "../utils";
 
 const SOURCE_EXTS = new Set([".ts", ".tsx", ".mts", ".cts"]);
 // JS sources are first-class too (the analyzer is a TS/JS analyzer; vendored .js like vscode's
-// marked.js was invisible, #98) — but a .js with a same-prefix TS sibling is compiled output and
-// is skipped, mirroring the compiler's own allowJs duplicate rule.
+// marked.js was invisible, #98). Sibling rules keep one module per prefix:
+//  - a .js beside a same-prefix REAL .ts source is compiled output → the .js is skipped
+//    (the compiler's own allowJs duplicate rule);
+//  - a .d.ts beside a same-prefix .js is hand-written declarations FOR that source → the .d.ts
+//    is skipped as a module (the checker still reads it from disk for importers' types).
 const JS_EXTS = new Set([".js", ".jsx", ".mjs", ".cjs"]);
 
 export const SKIP_DIRS = new Set([
@@ -38,9 +41,9 @@ export interface DiscoveredFile {
 
 /** Recursively discover TS/JS sources under root, skipping vendored and (optionally) test trees. */
 export function discoverSourceFiles(root: string, skipTests: boolean): DiscoveredFile[] {
-  const out: DiscoveredFile[] = [];
+  const tsFiles: DiscoveredFile[] = [];
   const jsCandidates: DiscoveredFile[] = [];
-  const tsPrefixes = new Set<string>();
+  const realTsPrefixes = new Set<string>(); // non-.d.ts TS sources only
   const walk = (dir: string): void => {
     let entries: fs.Dirent[];
     try {
@@ -62,8 +65,8 @@ export function discoverSourceFiles(root: string, skipTests: boolean): Discovere
         const fileKey = relPosix(root, abs);
         if (skipTests && isTestFile(fileKey)) continue;
         if (isTs) {
-          tsPrefixes.add(fileKey.replace(/\.d\.ts$/, "").replace(/\.(tsx|ts|mts|cts)$/, ""));
-          out.push({ absPath: abs, fileKey });
+          if (!fileKey.endsWith(".d.ts")) realTsPrefixes.add(fileKey.replace(/\.(tsx|ts|mts|cts)$/, ""));
+          tsFiles.push({ absPath: abs, fileKey });
         } else {
           jsCandidates.push({ absPath: abs, fileKey });
         }
@@ -71,9 +74,17 @@ export function discoverSourceFiles(root: string, skipTests: boolean): Discovere
     }
   };
   walk(root);
+  const out: DiscoveredFile[] = [];
+  const jsPrefixes = new Set<string>();
   for (const j of jsCandidates) {
     const prefix = j.fileKey.replace(/\.(jsx|js|mjs|cjs)$/, "");
-    if (!tsPrefixes.has(prefix)) out.push(j); // compiled sibling of a TS source → skip
+    if (realTsPrefixes.has(prefix)) continue; // compiled sibling of a TS source → skip
+    jsPrefixes.add(prefix);
+    out.push(j);
+  }
+  for (const t of tsFiles) {
+    if (t.fileKey.endsWith(".d.ts") && jsPrefixes.has(t.fileKey.replace(/\.d\.ts$/, ""))) continue; // decls FOR an analyzed .js
+    out.push(t);
   }
   out.sort((a, b) => a.fileKey.localeCompare(b.fileKey));
   return out;
