@@ -33,9 +33,12 @@ Joern on all 10 cores at `-Xmx48g`.
 | cants L2 | **5m52s** | 24.4GB | **1,024,232 edges** — tsc 970,334 (324,525 resolved + 778,070 RTA + 89,344 phantom), defuse 54,170 (430 decorator / 26,466 callback / 1,797 votes / 31,581 CHA / rest chase) |
 | Joern jssrc2cpg parse | **9m06s** | 30.3GB | CPG; 941,132 call rows dumped |
 
-Superset audit against Joern's single-candidate real pairs, after seven ledger-driven fix
-rounds: **54,885 / 55,074 covered (99.66%), residual 189** — past python's odoo bar (99.0%,
-final residual 243). Reference: the engines this architecture replaced DNF'd at this scale
+Superset audit against Joern's single-candidate real pairs, after nine ledger-driven fix
+rounds: **54,918 / 55,074 covered (99.72%), residual 135** — past python's odoo bar (99.0%,
+final residual 243). Round 9/10 (#100): property-initializer attribution closed the whole
+Registry-as-field family; the T4a property votes, T4b chained returns, and T4c ctor-field chain
+landed; and Joern's parameter tables now PROVE the Promise-executor shadows (21 classified
+`joern-param-shadow` by their own dump). Reference: the engines this architecture replaced DNF'd at this scale
 class (PyCG 3h19m without convergence; Fraunhofer CPG OOM at 44GB).
 
 ### Analyzer fixes the ledger forced (python's reference-validation experience, repeated)
@@ -80,11 +83,10 @@ class (PyCG 3h19m without convergence; Fraunhofer CPG OOM at 44GB).
 
 | Family | ≈count | Nature |
 | --- | --- | --- |
-| Registry-pattern generics | ~16 | `Registry.as<T>(Extensions.X)` through re-exported const + type args — the shape resolves in isolation; the vscode instantiation defeats the checker without deps materialized |
-| Promise-executor params named like real functions | ~14 | `new Promise(resolve => … resolve())` where the file also declares a real `resolve` — Joern name-links the free function; the true target is the parameter (their parameters-as-callees family wearing a real name) |
+| Residual Promise-executor shadows | ~13 | Deeper lambda callers whose parameter tables Joern itself under-reports — same fabrication family as the 21 their tables DO prove |
 | **Static/instance same-name collision** | 11 | `Range.isEmpty` (instance) calls `Range.isEmpty` (static): the signature grammar cannot mark static, both collapse to ONE signature — the pair is unrepresentable and the collision gate flags it. A REAL schema-grammar limitation surfaced by this audit → design-mode follow-up |
-| Closure-local callables through deep value flow | ~60 | Functions escaping via event emitters/registries beyond T4/T4c's bounded hops (settingsTree `onChange`, event utilities) — python zeroed its analog only with whole-program propagation (#150), the staged next step |
-| Accessor/duck-typed and misc tails | ~88 | Getter-vs-method naming (`EventMultiplexer.event`), interface duck-typing (`ISearchTreeFolderMatch.id`), terminalTaskSystem dynamic patterns |
+| Closure-local callables through deep value flow | ~55 | Functions escaping via event emitters/registries beyond T4/T4a/T4b/T4c's bounded hops (settingsTree `onChange`, event utilities, `registerAction` registries) — python zeroed its analog only with whole-program propagation (#150), the staged next step |
+| Accessor/duck-typed and misc tails | ~56 | Getter-vs-method naming (`EventMultiplexer.event`), interface duck-typing (`ISearchTreeFolderMatch.id`), terminalTaskSystem/resources dynamic patterns |
 
 ## Known non-goals (recorded, deliberate)
 
