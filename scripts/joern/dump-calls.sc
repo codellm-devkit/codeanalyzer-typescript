@@ -11,6 +11,7 @@
   }
   cpg.method.foreach { m =>
     sb.append(s"M\t${m.fullName}\t${m.lineNumber.getOrElse(-1)}\t${m.columnNumber.getOrElse(-1)}\n")
+    m.parameter.foreach { p => sb.append(s"P\t${m.fullName}\t${p.name}\n") }
   }
   val pw = new java.io.PrintWriter(outFile); pw.write(sb.toString); pw.close()
 }

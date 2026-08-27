@@ -15,6 +15,7 @@ JUNK_NAMES = {"__decorate", "__param", "__metadata", "__runInitializers", "__esD
 
 def load_joern(tsv):
     calls, methods = [], {}
+    params = {}
     malformed = 0
     for line in open(tsv, errors="replace"):
         parts = line.rstrip("\n").split("\t")
@@ -25,13 +26,15 @@ def load_joern(tsv):
             elif parts[0] == "M" and len(parts) == 4:
                 _, fn, ln, col = parts
                 methods[fn] = (int(ln), int(col))
+            elif parts[0] == "P" and len(parts) == 3:
+                params.setdefault(parts[1], set()).add(parts[2])
             else:
                 malformed += 1  # identifiers containing tabs/newlines (template literals etc.)
         except ValueError:
             malformed += 1
     if malformed:
         print(f"   [note] {malformed} malformed dump rows skipped (control chars in identifiers)")
-    return calls, methods
+    return calls, methods, params
 
 STRIP_EXT = re.compile(r"\.(d\.ts|tsx|ts|jsx|js|mts|cts|mjs|cjs)$")
 
@@ -95,7 +98,7 @@ def our_edges(fixture, dump=None):
     return set(map(tuple, d["edges"])), set(d["sigs"])
 
 def main(fixture, tsv, dump=None):
-    calls, methods = load_joern(tsv)
+    calls, methods, jparams = load_joern(tsv)
     edges, sigs = our_edges(fixture, dump)
     anon_ix, edges_by_target, edges_by_src = build_indexes(sigs, edges)
     covered, residual = [], []
@@ -155,6 +158,11 @@ def main(fixture, tsv, dump=None):
             if variant:
                 classes["joern-this-misresolution (typed edge held)"] += 1
                 covered.append(pair)
+            elif dname in jparams.get(caller, ()):
+                # The target's leaf name is a PARAMETER of the Joern caller: `new Promise(resolve
+                # => … resolve())` name-linked to a real free `resolve` — their parameters-as-
+                # callees family wearing a real name. Proven by their own parameter table.
+                classes["joern-param-shadow (fabricated target)"] += 1
             elif any(t.rsplit(".", 1)[-1] == dname for t in edges_by_src.get(src, ())):
                 # Weaker tier: from the same caller we hold a typed edge to a target of the SAME
                 # LEAF NAME in another file (e.g. the imported free `dispose` from lifecycle.ts,

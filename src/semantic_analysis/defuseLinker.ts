@@ -31,7 +31,7 @@ import { computeSignatureForDecl, externalHomeOf, fileKeyOf, isCallableDecl, res
 import { callBodyKeys } from "../schema/l1Body";
 import type { CallGraphContext } from "./provider";
 import type { CallGraphResult } from "./callGraph";
-import { indexCallExpressions } from "./callGraph";
+import { inInstancePropInit, indexCallExpressions } from "./callGraph";
 
 /** Per-call-site resolutions for the sanctioned `callee: null→id` refinement: callerSig → bodyKey → calleeSig. */
 export type LinkerResolutions = Map<string, Map<string, string>>;
@@ -158,6 +158,7 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
     enclosing: TSCallable;
     bodyKey: string;
     paramIndex: number;
+    propertyName?: string; // `template.onChange(...)` where `template` is the parameter
   }
   interface FactorySite {
     enclosing: TSCallable;
@@ -219,7 +220,12 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
               }
             }
           } else if (Node.isPropertyAccessExpression(expr) && cs.receiver_expr != null && !cs.is_constructor_call) {
-            if (cs.receiver_expr === "this") {
+            const recvIdx = paramIndexOf(expr.getExpression(), c);
+            if (recvIdx !== null) {
+              // T4a property form: the receiver IS a parameter — candidates are the matching
+              // object-literal property values passed at that position by resolved callers.
+              paramSites.push({ enclosing: c, bodyKey, paramIndex: recvIdx, propertyName: expr.getName() });
+            } else if (cs.receiver_expr === "this") {
               // T4c — `this.field(...)`: the field's value flows from the constructor (a
               // parameter property or a `this.field = …` assignment); resolved below, feeding
               // the T4 vote rounds. Falls back to T5 if the chain yields nothing.
@@ -254,7 +260,7 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
     return undefined;
   };
   for (const [, node] of [...callExprIndex.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    if (enclosingCallable(node)) continue;
+    if (enclosingCallable(node) || inInstancePropInit(node)) continue;
     const fk = fileKeyOf(node.getSourceFile().getFilePath(), root);
     if (ctx.only && !ctx.only.has(fk.fileKey)) continue;
     const source = fk.modulePrefix;
@@ -443,8 +449,22 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
       for (const args of argsByTarget.get(site.enclosing.signature) ?? []) {
         const arg = args[site.paramIndex];
         if (!arg) continue;
-        const fn = functionValueSig(arg);
-        if (fn) candidates.add(fn);
+        if (site.propertyName !== undefined) {
+          // object-literal property flow: `render({ onChange: fn })` → `template.onChange()`
+          if (Node.isObjectLiteralExpression(arg)) {
+            const prop = arg.getProperty(site.propertyName);
+            const init = prop && Node.isPropertyAssignment(prop) ? prop.getInitializer() : undefined;
+            const fn = init ? functionValueSig(init) : null;
+            if (fn) candidates.add(fn);
+            else if (prop && Node.isMethodDeclaration(prop)) {
+              const s2 = computeSignatureForDecl(prop, root);
+              if (s2 && allSignatures.has(s2)) candidates.add(s2);
+            }
+          }
+        } else {
+          const fn = functionValueSig(arg);
+          if (fn) candidates.add(fn);
+        }
       }
       if (!candidates.size) {
         unresolvedNext.push(site);
@@ -480,14 +500,29 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
       const declNode = sf?.getDescendantAtPos(fc.span.bytes[0]);
       const fnNode = declNode ? [declNode, ...declNode.getAncestors()].find((a) => computeSignatureForDecl(a, root) === factorySig) : undefined;
       if (fnNode) {
+        returnSummary.set(factorySig, null); // cycle guard before descending
         const returned = new Set<string>();
         fnNode.forEachDescendant((d) => {
           if (!Node.isReturnStatement(d)) return;
           const e = d.getExpression();
           if (!e) return;
           const fn = functionValueSig(e);
-          if (fn) returned.add(fn);
-          else returned.add("<opaque>");
+          if (fn) {
+            returned.add(fn);
+            return;
+          }
+          // chained: `return makeInner()` — follow ONE resolved-internal level, memoized
+          if (Node.isCallExpression(e)) {
+            const r = resolveCalleeSignature(e, root, allSignatures);
+            if (r && !r.external && allSignatures.has(r.signature)) {
+              const inner = uniqueReturnedFn(r.signature);
+              if (inner) {
+                returned.add(inner);
+                return;
+              }
+            }
+          }
+          returned.add("<opaque>");
         });
         if (returned.size === 1 && !returned.has("<opaque>")) out = [...returned][0] as string;
       }

@@ -649,6 +649,29 @@ export function buildClass(cls: Node, root: string): { sig: string; cls: TSType 
     }
   }
 
+  // Instance property INITIALIZERS execute in the constructor (`private readonly registry =
+  // Registry.as(...)`): their call sites belong to the ctor (explicit or the synthesized
+  // implicit one), and an initializer ARROW is a class-scoped positional anon callable —
+  // `contributorName` signs it `Class.<anon@l:c>`, so it lives in the class's callables{},
+  // keeping signature ↔ containment aligned. Static initializers run at class-definition time
+  // and stay with the module-scope sweep (callGraph.ts).
+  {
+    const ctorCallable = callables[memberKey(constructorSignatureOf(sig))];
+    for (const p of c.getProperties()) {
+      if (boolOf(p, "isStatic")) continue;
+      const init = (p as unknown as { getInitializer?: () => Node | undefined }).getInitializer?.();
+      if (!init || !ctorCallable) continue;
+      walkBody(init, {
+        onCall: (n) => ctorCallable.call_sites.push(buildCallsite(n)),
+        onNestedCallable: (n) => {
+          const r = buildNestedCallable(n, root);
+          if (r) callables[memberKey(r.sig, r.callable.accessor_kind)] = r.callable;
+        },
+        onNestedClass: () => {}, // class expression inside a property initializer — out of scope
+      });
+    }
+  }
+
   const base_classes: string[] = [];
   const implements_types: string[] = [];
   const ext = c.getExtends?.();

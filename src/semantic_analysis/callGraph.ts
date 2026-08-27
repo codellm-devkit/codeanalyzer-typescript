@@ -35,6 +35,15 @@ function enclosingCallable(node: Node): Node | undefined {
   return undefined;
 }
 
+/** Inside a NON-static class property initializer — owned by the constructor, not module scope. */
+export function inInstancePropInit(node: Node): boolean {
+  for (const a of node.getAncestors()) {
+    if (isCallableDecl(a)) return false;
+    if (Node.isPropertyDeclaration(a)) return !(a as unknown as { isStatic?: () => boolean }).isStatic?.();
+  }
+  return false;
+}
+
 function fileKeyOfNode(node: Node, root: string): { fileKey: string; modulePrefix: string } {
   return fileKeyOf(node.getSourceFile().getFilePath(), root);
 }
@@ -153,7 +162,7 @@ export function buildCallGraph(
   // (source = the module prefix, re-identified onto the module node at L2). These sites are
   // never recorded in call_sites (modules have no body{}), so resolve them straight off the AST.
   for (const node of callExprIndex.values()) {
-    if (enclosingCallable(node)) continue;
+    if (enclosingCallable(node) || inInstancePropInit(node)) continue;
     const fileKey = fileKeyOfNode(node, root);
     if (only && !only.has(fileKey.fileKey)) continue;
     const source = fileKey.modulePrefix;
