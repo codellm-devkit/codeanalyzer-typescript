@@ -308,7 +308,7 @@ function buildCallsite(call: Node): TSCallsite {
     receiver_type = inferredType(expr.getExpression());
     is_optional_chain = boolOf(expr, "hasQuestionDotToken");
   }
-  const args = (call as unknown as { getArguments: () => Node[] }).getArguments();
+  const args = (call as unknown as { getArguments?: () => Node[] }).getArguments?.() ?? []; // tagged templates have none
   const argument_types = args.map((a) => inferredType(a) ?? "unknown");
   const typeArgs = (call as unknown as { getTypeArguments?: () => Node[] }).getTypeArguments?.() ?? [];
   const type_arguments = typeArgs.map((t) => t.getText());
