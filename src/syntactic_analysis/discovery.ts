@@ -3,6 +3,10 @@ import * as path from "node:path";
 import { relPosix } from "../utils";
 
 const SOURCE_EXTS = new Set([".ts", ".tsx", ".mts", ".cts"]);
+// JS sources are first-class too (the analyzer is a TS/JS analyzer; vendored .js like vscode's
+// marked.js was invisible, #98) — but a .js with a same-prefix TS sibling is compiled output and
+// is skipped, mirroring the compiler's own allowJs duplicate rule.
+const JS_EXTS = new Set([".js", ".jsx", ".mjs", ".cjs"]);
 
 export const SKIP_DIRS = new Set([
   "node_modules",
@@ -23,7 +27,7 @@ const TEST_DIRS = new Set(["__tests__", "__test__", "test", "tests", "spec", "__
 /** Test-ness is judged on the path RELATIVE TO the project root, never the absolute path. */
 function isTestFile(relKey: string): boolean {
   const base = path.basename(relKey);
-  if (/\.(test|spec)\.(ts|tsx|mts|cts)$/.test(base)) return true;
+  if (/\.(test|spec)\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(base)) return true;
   return relKey.split("/").some((p) => TEST_DIRS.has(p));
 }
 
@@ -32,9 +36,11 @@ export interface DiscoveredFile {
   fileKey: string; // project-relative POSIX path with extension
 }
 
-/** Recursively discover .ts/.tsx sources under root, skipping vendored and (optionally) test trees. */
+/** Recursively discover TS/JS sources under root, skipping vendored and (optionally) test trees. */
 export function discoverSourceFiles(root: string, skipTests: boolean): DiscoveredFile[] {
   const out: DiscoveredFile[] = [];
+  const jsCandidates: DiscoveredFile[] = [];
+  const tsPrefixes = new Set<string>();
   const walk = (dir: string): void => {
     let entries: fs.Dirent[];
     try {
@@ -50,14 +56,25 @@ export function discoverSourceFiles(root: string, skipTests: boolean): Discovere
         walk(abs);
       } else if (e.isFile()) {
         const ext = path.extname(e.name);
-        if (!SOURCE_EXTS.has(ext)) continue;
+        const isTs = SOURCE_EXTS.has(ext);
+        const isJs = JS_EXTS.has(ext);
+        if (!isTs && !isJs) continue;
         const fileKey = relPosix(root, abs);
         if (skipTests && isTestFile(fileKey)) continue;
-        out.push({ absPath: abs, fileKey });
+        if (isTs) {
+          tsPrefixes.add(fileKey.replace(/\.d\.ts$/, "").replace(/\.(tsx|ts|mts|cts)$/, ""));
+          out.push({ absPath: abs, fileKey });
+        } else {
+          jsCandidates.push({ absPath: abs, fileKey });
+        }
       }
     }
   };
   walk(root);
+  for (const j of jsCandidates) {
+    const prefix = j.fileKey.replace(/\.(jsx|js|mjs|cjs)$/, "");
+    if (!tsPrefixes.has(prefix)) out.push(j); // compiled sibling of a TS source → skip
+  }
   out.sort((a, b) => a.fileKey.localeCompare(b.fileKey));
   return out;
 }

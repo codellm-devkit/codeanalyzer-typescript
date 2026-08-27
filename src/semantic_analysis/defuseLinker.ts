@@ -25,7 +25,7 @@
  * `backfillCallees` — NEVER written into `callee_signature` (the symbol table round-trips the
  * analysis cache; a persisted resolution would resurface on a warm run with tsc provenance).
  */
-import { Node } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
 import { CALL_DEP, type TSCallEdge, type TSCallable, type TSCallsite, type TSExternalSymbol, forEachCallable } from "../schema";
 import { computeSignatureForDecl, externalHomeOf, fileKeyOf, isCallableDecl, resolveCalleeSignature } from "../schema";
 import { callBodyKeys } from "../schema/l1Body";
@@ -168,9 +168,16 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
     enclosing: TSCallable;
     cs: TSCallsite;
   }
+  interface ThisFieldSite {
+    enclosing: TSCallable;
+    bodyKey: string;
+    node: Node;
+    fieldName: string;
+  }
   const paramSites: ParamSite[] = [];
   const factorySites: FactorySite[] = [];
   const receiverSites: ReceiverSite[] = [];
+  const thisFieldSites: ThisFieldSite[] = [];
   // Reverse index for T4 voting: internal target sig → the AST argument lists of its call sites.
   const argsByTarget = new Map<string, Node[][]>();
   const recordCallArgs = (targetSig: string, node: Node | undefined): void => {
@@ -212,7 +219,14 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
               }
             }
           } else if (Node.isPropertyAccessExpression(expr) && cs.receiver_expr != null && !cs.is_constructor_call) {
-            receiverSites.push({ enclosing: c, cs });
+            if (cs.receiver_expr === "this") {
+              // T4c — `this.field(...)`: the field's value flows from the constructor (a
+              // parameter property or a `this.field = …` assignment); resolved below, feeding
+              // the T4 vote rounds. Falls back to T5 if the chain yields nothing.
+              thisFieldSites.push({ enclosing: c, bodyKey, node, fieldName: cs.method_name });
+            } else {
+              receiverSites.push({ enclosing: c, cs });
+            }
           }
         }
       }
@@ -245,6 +259,7 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
     if (ctx.only && !ctx.only.has(fk.fileKey)) continue;
     const source = fk.modulePrefix;
     const r = resolveCalleeSignature(node, root, allSignatures);
+    if (r && !r.external) recordCallArgs(r.signature, node); // top-level `register("a", cb)` feeds the vote rounds
     if (!r) {
       // T1 at module scope: `const f = handler; f()` in top-level code.
       const expr = calleeExprOf(node);
@@ -323,6 +338,98 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
       addEdge(ownerSig, targetSig);
       t2++;
     });
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // T4c — `this.field(...)` through the constructor: a field assigned from a ctor parameter
+  // (parameter property or `this.f = param`) calls whatever function values the class's `new`
+  // sites passed at that position; a field assigned a function value in the ctor calls it
+  // directly. Candidates feed argsByTarget so the T4 rounds resolve the callbacks' OWN
+  // param-invoking sites (`write()` inside a registered migration callback). Bounded: direct
+  // ctor args only, no transitive flow.
+  // ---------------------------------------------------------------------------------------------
+  const classFieldSources = new Map<Node, Map<string, { paramIndex?: number; direct?: string }>>();
+  const fieldSourcesOf = (cls: Node): Map<string, { paramIndex?: number; direct?: string }> => {
+    let m = classFieldSources.get(cls);
+    if (m) return m;
+    m = new Map();
+    const ctor = (cls as unknown as { getConstructors?: () => Node[] }).getConstructors?.()?.[0];
+    if (ctor) {
+      const params = (ctor as unknown as { getParameters: () => Node[] }).getParameters();
+      params.forEach((p, i) => {
+        const pp = p as unknown as { getName: () => string; getModifiers?: () => Node[] };
+        if ((pp.getModifiers?.() ?? []).length) m?.set(pp.getName(), { paramIndex: i });
+      });
+      const paramNames = new Map(params.map((p, i) => [(p as unknown as { getName: () => string }).getName(), i]));
+      ctor.forEachDescendant((d) => {
+        if (!Node.isBinaryExpression(d) || d.getOperatorToken().getKind() !== SyntaxKind.EqualsToken) return;
+        const lhs = d.getLeft();
+        if (!Node.isPropertyAccessExpression(lhs) || lhs.getExpression().getKind() !== SyntaxKind.ThisKeyword) return;
+        const rhs = d.getRight();
+        const idx = Node.isIdentifier(rhs) ? paramNames.get(rhs.getText()) : undefined;
+        if (idx !== undefined) m?.set(lhs.getName(), { paramIndex: idx });
+        else {
+          const direct = functionValueSig(rhs);
+          if (direct) m?.set(lhs.getName(), { direct });
+        }
+      });
+    }
+    classFieldSources.set(cls, m);
+    return m;
+  };
+  /** Function values an ARGUMENT node denotes — directly, or through one bounded parameter hop:
+   * when the arg is a parameter of the function containing the call, the values passed for that
+   * parameter at ITS resolved call sites are the candidates (`register(key, migrate)` →
+   * `new Migration(key, migrate)`). One hop, no fixpoint. */
+  const argFlowCandidates = (arg: Node): string[] => {
+    const direct = functionValueSig(arg);
+    if (direct) return [direct];
+    if (!Node.isIdentifier(arg)) return [];
+    const decl = arg.getSymbol()?.getDeclarations()?.[0];
+    if (!decl || !Node.isParameterDeclaration(decl)) return [];
+    const owner = decl.getParent();
+    if (!owner) return [];
+    const ownerSig = computeSignatureForDecl(owner, root);
+    if (!ownerSig) return [];
+    const idx = ((owner as unknown as { getParameters?: () => Node[] }).getParameters?.() ?? []).findIndex((p) => p === decl);
+    if (idx < 0) return [];
+    const out = new Set<string>();
+    for (const args of argsByTarget.get(ownerSig) ?? []) {
+      const a = args[idx];
+      const fn = a ? functionValueSig(a) : null;
+      if (fn) out.add(fn);
+    }
+    return [...out].sort();
+  };
+  let t4c = 0;
+  for (const site of thisFieldSites.sort((a, b) => a.enclosing.signature.localeCompare(b.enclosing.signature) || a.bodyKey.localeCompare(b.bodyKey))) {
+    const cls = site.node.getAncestors().find((a) => Node.isClassDeclaration(a) || Node.isClassExpression(a));
+    const src = cls ? fieldSourcesOf(cls).get(site.fieldName) : undefined;
+    const candidates = new Set<string>();
+    if (src?.direct) candidates.add(src.direct);
+    if (src?.paramIndex !== undefined && cls) {
+      const clsSig = computeSignatureForDecl(cls, root);
+      for (const args of argsByTarget.get(`${clsSig}.constructor`) ?? []) {
+        const arg = args[src.paramIndex];
+        for (const fn of arg ? argFlowCandidates(arg) : []) candidates.add(fn);
+      }
+    }
+    if (!candidates.size) {
+      const cs = site.enclosing.call_sites.find((c2) => `${c2.start_line}:${c2.start_column}` === site.bodyKey.split("/")[0]);
+      if (cs) receiverSites.push({ enclosing: site.enclosing, cs }); // fall back to T5
+      continue;
+    }
+    const sorted = [...candidates].sort();
+    for (const target of sorted) {
+      addEdge(site.enclosing.signature, target);
+      recordCallArgs(target, site.node); // the callbacks' own param sites resolve in the T4 rounds
+      t4c++;
+    }
+    if (sorted.length === 1) {
+      let m = resolutions.get(site.enclosing.signature);
+      if (!m) resolutions.set(site.enclosing.signature, (m = new Map()));
+      m.set(site.bodyKey, sorted[0] as string);
+    }
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -413,7 +520,7 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
   }
 
   const sortedEdges = [...edges.values()].sort((a, b) => a.source.localeCompare(b.source) || a.target.localeCompare(b.target));
-  log.info(`call graph (defuse): ${sortedEdges.length} edges — t1=${t1} chase, t2=${t2} decorator, t3=${t3} callback, t4=${t4} votes, t5=${t5} cha`);
+  log.info(`call graph (defuse): ${sortedEdges.length} edges — t1=${t1} chase, t2=${t2} decorator, t3=${t3} callback, t4=${t4} votes, t4c=${t4c} ctor-field, t5=${t5} cha`);
   return {
     result: { edges: sortedEdges, external_symbols, synthesized_callables: {} },
     resolutions,
