@@ -33,8 +33,8 @@ Joern on all 10 cores at `-Xmx48g`.
 | cants L2 | **5m52s** | 24.4GB | **1,024,232 edges** — tsc 970,334 (324,525 resolved + 778,070 RTA + 89,344 phantom), defuse 54,170 (430 decorator / 26,466 callback / 1,797 votes / 31,581 CHA / rest chase) |
 | Joern jssrc2cpg parse | **9m06s** | 30.3GB | CPG; 941,132 call rows dumped |
 
-Superset audit against Joern's single-candidate real pairs, after four ledger-driven fix
-rounds: **54,703 / 54,947 covered (99.56%), residual 244** — past python's odoo bar (99.0%,
+Superset audit against Joern's single-candidate real pairs, after seven ledger-driven fix
+rounds: **54,885 / 55,074 covered (99.66%), residual 189** — past python's odoo bar (99.0%,
 final residual 243). Reference: the engines this architecture replaced DNF'd at this scale
 class (PyCG 3h19m without convergence; Fraunhofer CPG OOM at 44GB).
 
@@ -51,6 +51,17 @@ class (PyCG 3h19m without convergence; Fraunhofer CPG OOM at 44GB).
 4. **Parameter-default initializer calls** — `f(sel, style = getSharedStyleSheet())` executes in
    the callee's activation but lived outside `getBody()`. vscode's domStylesheets family found
    it; regression-tested.
+5. **JS sources were never discovered** — `SOURCE_EXTS` was ts-only, so vscode's vendored
+   `marked.js` was "analyzed" through its bodiless `marked.d.ts` (zero edges from every body).
+   `.js`/`.jsx`/`.mjs`/`.cjs` are first-class now, with two-way sibling rules: a `.js` beside a
+   real `.ts` source is build output (skipped); a `.d.ts` beside an analyzed `.js` is its
+   declaration file (skipped as a module — the checker still reads it from disk).
+6. **T4c — the ctor-field callback chain** — `this.migrate(...)` where the field arrives through
+   the constructor (parameter property / `this.f = param`) resolves to the function values passed
+   at the class's `new` sites, with ONE bounded parameter hop (`register(key, cb)` →
+   `new Migration(key, cb)`), and module-scope resolved calls feed the vote rounds — so the
+   registered callbacks' own `write()` sites resolve too. vscode's migrateOptions family
+   (22 pairs) closed end-to-end, no fixpoint anywhere.
 
 ## Exception classes (audited)
 
@@ -69,10 +80,11 @@ class (PyCG 3h19m without convergence; Fraunhofer CPG OOM at 44GB).
 
 | Family | ≈count | Nature |
 | --- | --- | --- |
-| Closure-local callables through deep value flow | ~120 | A function declared inside a method, escaping via closures/registries, invoked elsewhere (`EditorSettingMigration.apply.write`, settingsTree `onChange`) — beyond T4's bounded votes; python zeroed its analog only with whole-program propagation (#150), the staged next step |
-| Vendored `marked` internals | 47 | `this.lexer.inline(...)` chains in the vendored markdown lib — checker under-types the vendored patterns without deps materialized |
-| **Static/instance same-name collision** | 11 | `Range.isEmpty` (instance) calls `Range.isEmpty` (static): the signature grammar cannot mark static, both collapse to ONE signature — the pair is unrepresentable and the collision gate flags it. A REAL schema-grammar limitation surfaced by this audit; fixing it moves the id grammar → design-mode follow-up |
-| Accessor/duck-typed tails | ~66 | Getter-vs-method naming (`EventMultiplexer.event`), interface duck-typing (`ISearchTreeFolderMatch.id`), misc deep-dynamic |
+| Registry-pattern generics | ~16 | `Registry.as<T>(Extensions.X)` through re-exported const + type args — the shape resolves in isolation; the vscode instantiation defeats the checker without deps materialized |
+| Promise-executor params named like real functions | ~14 | `new Promise(resolve => … resolve())` where the file also declares a real `resolve` — Joern name-links the free function; the true target is the parameter (their parameters-as-callees family wearing a real name) |
+| **Static/instance same-name collision** | 11 | `Range.isEmpty` (instance) calls `Range.isEmpty` (static): the signature grammar cannot mark static, both collapse to ONE signature — the pair is unrepresentable and the collision gate flags it. A REAL schema-grammar limitation surfaced by this audit → design-mode follow-up |
+| Closure-local callables through deep value flow | ~60 | Functions escaping via event emitters/registries beyond T4/T4c's bounded hops (settingsTree `onChange`, event utilities) — python zeroed its analog only with whole-program propagation (#150), the staged next step |
+| Accessor/duck-typed and misc tails | ~88 | Getter-vs-method naming (`EventMultiplexer.event`), interface duck-typing (`ISearchTreeFolderMatch.id`), terminalTaskSystem dynamic patterns |
 
 ## Known non-goals (recorded, deliberate)
 
