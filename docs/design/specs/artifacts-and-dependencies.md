@@ -1,6 +1,6 @@
 # Artifacts and dependencies — the repository-artifact layer for TypeScript
 
-- **Status:** accepted, not yet implemented
+- **Status:** implemented (branch feat/issue-101-artifacts)
 - **Scope:** `codeanalyzer-typescript`; schema v2 **additive** (no level, id-tier, or existing-field movement)
 - **Parity anchor:** codeanalyzer-python's SHIPPED layer (`51ee29e`, "repository-artifact layer
   (artifact/dependency/config_key)") — the implementation, which supersedes the draft
