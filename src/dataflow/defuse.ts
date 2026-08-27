@@ -18,7 +18,7 @@
  *
  * Aliasing (MVP substrate, per issue #2 / SCHEMA_DECISIONS.md): flow-insensitive union-find over
  * bases connected by direct copies (`const q = p`); a write through one name weakly updates the
- * other. Points-to-backed aliasing via Jelly's solved state is the staged upgrade (PR F).
+ * other. Points-to-backed aliasing is the staged upgrade (PR F).
  *
  * Def-use: classic forward may reaching-definitions. Strong (killing) defs are whole-base writes
  * to locals/params; every field write is weak. Captured/module/this bases get a synthetic def at

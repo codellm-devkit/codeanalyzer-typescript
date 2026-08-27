@@ -38,7 +38,6 @@ function options(): AnalysisOptions {
     eager: true,
     noBuild: true,
     phantoms: true,
-    callGraphProvider: "tsc",
     cacheDir: null,
     verbosity: 0,
   };
@@ -246,7 +245,7 @@ describe("schema v2 — L1 skips the call-graph solve (issue #31)", () => {
     const spy = spyOn(tscProvider, "build");
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-v2-l1-guard-"));
     try {
-      const v1L1 = (await analyze({ ...options(), analysisLevel: 1, callGraphProvider: "tsc", cacheDir })).internal;
+      const v1L1 = (await analyze({ ...options(), analysisLevel: 1, cacheDir })).internal;
       expect(spy).not.toHaveBeenCalled();
       expect(v1L1.call_graph).toEqual([]);
       expect(Object.keys(v1L1.external_symbols)).toEqual([]);
@@ -261,7 +260,7 @@ describe("schema v2 — L1 skips the call-graph solve (issue #31)", () => {
     const spy = spyOn(tscProvider, "build");
     const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-v2-l1-guard-l2-"));
     try {
-      const v1L2guard = (await analyze({ ...options(), analysisLevel: 2, callGraphProvider: "tsc", cacheDir })).internal;
+      const v1L2guard = (await analyze({ ...options(), analysisLevel: 2, cacheDir })).internal;
       expect(spy).toHaveBeenCalledTimes(1);
       expect(v1L2guard.call_graph.length).toBeGreaterThan(0);
     } finally {

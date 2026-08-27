@@ -354,10 +354,10 @@ export interface TSExternalSymbol {
   module: string; // the import/require specifier, e.g. "node:fs", "express", "@scope/pkg"
 }
 
-// A first-party anonymous callback that Jelly resolves as a call-graph endpoint but the symbol
-// table never names (the canonicalizer returns null for anonymous functions). The map key IS the
-// synthesized signature `<nearest-named-enclosing-signature>:<line:col>`, so an edge `source`/
-// `target` byte-matches it just like a real `Callable.signature` or `TSExternalSymbol.signature`.
+// A first-party anonymous callback a call-graph builder resolved as an edge endpoint but could
+// not name against the symbol table (a residual-fallback safety net; since 2.1.0 the tree names
+// anonymous callables positionally, so this map is normally empty). The map key IS the
+// synthesized signature, so an edge `source`/`target` byte-matches it like a real signature.
 export interface TSSynthesizedCallable {
   name: string; // display name — always "<anonymous>"; the signature carries the precise identity
   path: string; // owning module key (project-relative POSIX path WITH extension)
@@ -417,7 +417,7 @@ export interface TSApplication {
 export interface TSCallGraphEdge {
   src: string;
   dst: string;
-  prov: string[]; // provenance, e.g. ["tsc"], ["jelly"]
+  prov: string[]; // provenance, e.g. ["tsc"], ["defuse"], ["import"]
   weight: number;
 }
 

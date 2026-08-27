@@ -33,7 +33,7 @@ export interface CallGraphResult {
   edges: TSCallEdge[];
   external_symbols: Record<string, TSExternalSymbol>;
   // Anonymous callbacks resolved as edge endpoints that the symbol table doesn't name. Empty for
-  // the tsc resolver (its edges are gated to real symbol-table signatures); populated by Jelly.
+  // the tsc resolver (its edges are gated to real symbol-table signatures); a residual-fallback net.
   synthesized_callables: Record<string, TSSynthesizedCallable>;
 }
 

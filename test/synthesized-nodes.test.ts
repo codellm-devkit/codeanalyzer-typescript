@@ -23,7 +23,7 @@ const app: AnalysisInternal = {
       classes: {}, interfaces: {}, enums: {}, type_aliases: {}, namespaces: {}, variables: [],
     } as unknown as TSModule,
   },
-  call_graph: [{ source: "src/x.foo", target: ANON, type: CALL_DEP, weight: 1, provenance: ["jelly"], tags: {} }],
+  call_graph: [{ source: "src/x.foo", target: ANON, type: CALL_DEP, weight: 1, provenance: ["defuse"], tags: {} }],
   external_symbols: {},
   synthesized_callables: { [ANON]: { name: "<anonymous>", path: "src/x.ts", start_line: 3, start_column: 10 } },
 };

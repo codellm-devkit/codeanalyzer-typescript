@@ -29,7 +29,7 @@ export function contributorName(node: Node): string | null {
 
 /**
  * The segment an unnamed function-like node contributes. Position is the only discriminant a
- * nameless callable has, and it is the one both the resolver and Jelly can compute independently
+ * nameless callable has, and it is the one every call-graph builder can compute independently
  * — which is what keeps caller-side and callee-side ids byte-identical. Angle brackets mark the
  * segment synthetic (the `<init>`/`<clinit>` convention). It joins the dotted chain, so an
  * anonymous callable lives in the durable id tier and never collides with the `@line:col`

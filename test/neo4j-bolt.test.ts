@@ -48,7 +48,6 @@ function optsFor(overrides: Partial<AnalysisOptions> = {}): AnalysisOptions {
     eager: true,
     noBuild: true,
     phantoms: true,
-    callGraphProvider: "tsc",
     cacheDir: path.join(TMP, "cache"),
     verbosity: 0,
     ...overrides,

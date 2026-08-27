@@ -30,7 +30,7 @@ async function fixtureRows() {
     neo4jUri: null, neo4jUser: "neo4j", neo4jPassword: "", neo4jDatabase: null,
     analysisLevel: 4, graphs: ["cfg", "dfg", "pdg", "sdg"], graphFieldDepth: 3, jobs: 1,
     targetFiles: null, skipTests: true, eager: true,
-    noBuild: true, phantoms: true, callGraphProvider: "union", cacheDir, verbosity: 0,
+    noBuild: true, phantoms: true, cacheDir, verbosity: 0,
   };
   try {
     return project((await analyze(opts)).application);

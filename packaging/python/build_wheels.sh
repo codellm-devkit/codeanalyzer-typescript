@@ -77,12 +77,8 @@ for entry in "${TARGETS[@]}"; do
 
   clean_bin
 
-  # Entry is src/main.ts (the multi-call dispatcher that also embeds the Jelly CLI), NOT src/index.ts.
-  # --external @babel/preset-typescript: Jelly's Babel core dynamically require()s that preset; it is
-  # never loaded at runtime (Jelly sets babelrc/configFile false), so excluding it is safe and avoids
-  # a bundle-time resolution error.
-  ( cd "$REPO_ROOT" && bun build ./src/main.ts --compile --target="$target" \
-      --external @babel/preset-typescript --outfile "$BIN_DIR/cants$ext" )
+  # Entry is src/main.ts — NOT src/index.ts.
+  ( cd "$REPO_ROOT" && bun build ./src/main.ts --compile --target="$target" --outfile "$BIN_DIR/cants$ext" )
 
   # Ship the Neo4j schema contract (platform-independent) next to the binary, so consumers can
   # read the version-locked schema.json without invoking the binary. See codeanalyzer_typescript.schema_path().

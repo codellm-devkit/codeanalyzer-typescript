@@ -114,7 +114,7 @@ function emitL3(li: LocalIds, nodes: GraphNode[], cfgEdges: CfgEdge[] | undefine
         // prov = the def-use METHOD: `solveDefUse` computes forward may-reaching-definitions over
         // k-limited access paths with a flow-insensitive copy/field-alias substrate (defuse.ts). It
         // is NOT SSA and NOT points-to-oracle-backed — so we tag it "reaching-defs", not "ssa".
-        // A real points-to layer (Jelly, PR F) would emit additional edges tagged "points-to".
+        // A real points-to layer (PR F) would emit additional edges tagged "points-to".
         // "reaching-defs" is a SANCTIONED ADDITIVE prov token — a deliberate, documented deviation
         // from the shared cross-analyzer vocabulary's canonical "ssa" tag for the L3 syntactic DDG.
         // Recorded in `.claude/SCHEMA_DECISIONS.md` (issue #32); JSON, Neo4j (`ddg.prov: string[]`,

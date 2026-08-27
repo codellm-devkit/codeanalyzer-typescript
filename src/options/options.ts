@@ -1,8 +1,6 @@
 import type { GraphSelector } from "../schema";
 
 export type EmitTarget = "json" | "neo4j" | "schema";
-export type CallGraphProviderName = "union" | "tsc" | "jelly";
-
 /** Normalized analysis options (produced by the CLI layer, consumed by core). */
 export interface AnalysisOptions {
   /** Project root to analyze (absolute). */
@@ -46,8 +44,6 @@ export interface AnalysisOptions {
   noBuild: boolean;
   /** Emit phantom (external) nodes/edges for imported/required library call targets. Default on. */
   phantoms: boolean;
-  /** Call-graph backend: union of tsc+jelly (default), tsc resolver only (--tsc-only), or jelly. */
-  callGraphProvider: CallGraphProviderName;
   /** Where caches/intermediate state live; null ⇒ <input>/.codeanalyzer. */
   cacheDir: string | null;
   /** Verbosity (repeatable -v). */

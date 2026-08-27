@@ -34,7 +34,6 @@ function options(level: 1 | 2 | 3, cacheDir: string, jobs: number): AnalysisOpti
     eager: true,
     noBuild: true,
     phantoms: true,
-    callGraphProvider: "tsc",
     cacheDir,
     verbosity: 0,
   };

@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import { buildProgramGraphs, startExtraction } from "./dataflow";
-import { mergeCallGraphs, selectProvider } from "./semantic_analysis";
+import { mergeCallGraphs, tscProvider } from "./semantic_analysis";
 import { loadCache, saveCache } from "./utils";
 import { materialize } from "./build";
 import type { AnalysisOptions } from "./options";
@@ -42,23 +42,17 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   }
   const extraction = opts.analysisLevel >= 3 ? startExtraction(project, symbol_table, mat.tsConfigFilePath, opts, log) : null;
 
-  // Call graph via the selected provider (union of tsc+jelly by default; --tsc-only / jelly opt-in).
-  // Only worth running at level >= 2: finalizeAnalysis discards call_graph/external_symbols/
-  // synthesized_callables at -a 1 (homeExternals/homeSynthesized in src/schema/emit.ts are
-  // gated to `level >= 2`), so running the solve — including the heavier Jelly leg — at -a 1
-  // would compute a result that's thrown away. Levels 3/4 need the provider for callee
-  // resolution and are always >= 2, so this gate is safe.
-  //
-  // Run the provider PER PROGRAM (each with its own Project + its slice of callables via `only`),
-  // then merge the results the same way the union provider merges tsc∪jelly. Signature gating uses
-  // the full merged symbol_table (passed to every program), so a cross-program in-project call
-  // resolves. Single-program projects run the loop once — behavior is unchanged.
-  const provider = selectProvider(opts.callGraphProvider);
-  log.info(`call graph provider: ${provider.name}`);
-  let cg: ReturnType<typeof provider.build> = { edges: [], external_symbols: {}, synthesized_callables: {} };
+  // Call graph: the tsc resolver, per program (each with its own Project + its slice of callables
+  // via `only`), merged across programs. Only worth running at level >= 2: finalizeAnalysis
+  // discards call_graph/external_symbols/synthesized_callables at -a 1 (homeExternals/
+  // homeSynthesized in src/schema/emit.ts are gated to `level >= 2`), so running the solve at
+  // -a 1 would compute a result that's thrown away. Levels 3/4 need it for callee resolution and
+  // are always >= 2, so this gate is safe. Signature gating uses the full merged symbol_table
+  // (passed to every program), so a cross-program in-project call resolves.
+  let cg: ReturnType<typeof tscProvider.build> = { edges: [], external_symbols: {}, synthesized_callables: {} };
   if (opts.analysisLevel >= 2) {
     for (const prog of programs) {
-      const pcg = provider.build({
+      const pcg = tscProvider.build({
         project: prog.project,
         symbol_table,
         root: opts.input,

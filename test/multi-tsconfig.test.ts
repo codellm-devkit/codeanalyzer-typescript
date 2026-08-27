@@ -42,7 +42,6 @@ function options(): AnalysisOptions {
     eager: true,
     noBuild: true,
     phantoms: true,
-    callGraphProvider: "tsc",
     cacheDir: null,
     verbosity: 0,
   };

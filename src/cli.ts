@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import { Command, Option } from "commander";
-import type { AnalysisOptions, CallGraphProviderName, EmitTarget } from "./options";
+import type { AnalysisOptions, EmitTarget } from "./options";
 import { ALL_GRAPHS, type GraphSelector } from "./schema";
 
 /**
@@ -57,12 +57,6 @@ export function buildProgram(): Command {
     .option("--lazy", "reuse the cache (default)")
     .option("--no-build", "skip dependency materialization (use a prepared node_modules)")
     .option("--no-phantoms", "disable phantom (external) nodes for imported/required library calls")
-    .option(
-      "--call-graph-provider <name>",
-      "call-graph backend: union (default, tsc ∪ jelly) | tsc | jelly | both (deprecated alias of union)",
-      "union",
-    )
-    .option("--tsc-only", "use the tsc resolver only — opt out of Jelly edges (overrides --call-graph-provider)")
     .option("-c, --cache-dir <dir>", "cache/intermediate directory")
     .option("-v, --verbose", "increase verbosity (repeatable)", (_v: string, prev: number) => prev + 1, 0)
     .allowExcessArguments(true);
@@ -137,23 +131,6 @@ export function parseArgs(argv: string[]): AnalysisOptions {
   if (emit !== "schema" && !o.input) program.error("required option '-i, --input <path>' not specified");
   const targets: string[] | null =
     Array.isArray(o.targetFiles) && o.targetFiles.length ? o.targetFiles.map(String) : null;
-  // --tsc-only is the forced opt-out: it wins over --call-graph-provider. Otherwise `both` is a
-  // deprecated alias of `union` (warn, but honor it); unknown values fall back to the union default.
-  let cgProvider: CallGraphProviderName;
-  if (o.tscOnly) {
-    cgProvider = "tsc";
-  } else if (o.callGraphProvider === "tsc") {
-    cgProvider = "tsc";
-  } else if (o.callGraphProvider === "jelly") {
-    cgProvider = "jelly";
-  } else {
-    if (o.callGraphProvider === "both") {
-      // stderr only — stdout may carry compact JSON when -o is omitted.
-      console.error("warning: --call-graph-provider both is deprecated; it now behaves as 'union' (tsc ∪ jelly).");
-    }
-    cgProvider = "union";
-  }
-
   return {
     input: o.input ? path.resolve(String(o.input)) : "",
     output: o.output ? path.resolve(String(o.output)) : null,
@@ -173,7 +150,6 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     // commander maps --no-build / --no-phantoms to opts.build/phantoms === false
     noBuild: o.build === false,
     phantoms: o.phantoms !== false,
-    callGraphProvider: cgProvider,
     cacheDir: o.cacheDir ? path.resolve(String(o.cacheDir)) : null,
     verbosity: typeof o.verbose === "number" ? o.verbose : 0,
   };

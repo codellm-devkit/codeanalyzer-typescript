@@ -38,7 +38,6 @@ function options(level: number): AnalysisOptions {
     eager: true,
     noBuild: true,
     phantoms: true,
-    callGraphProvider: "tsc",
     cacheDir: null,
     verbosity: 0,
   } as unknown as AnalysisOptions;
