@@ -31,7 +31,8 @@ Joern on all 10 cores at `-Xmx48g`.
 | --- | --- | --- | --- |
 | cants L1 | **4m15s** | 18.9GB | 136,973 callables |
 | cants L2 | **5m52s** | 24.4GB | **1,024,232 edges** — tsc 970,334 (324,525 resolved + 778,070 RTA + 89,344 phantom), defuse 54,170 (430 decorator / 26,466 callback / 1,797 votes / 31,581 CHA / rest chase) |
-| Joern jssrc2cpg parse | **9m06s** | 30.3GB | CPG; 941,132 call rows dumped |
+| cants **L4** (full SDG + artifact layer) | **10m42s** | 28.6GB | 1,028,736 call edges; CFG/CDG/DDG attached for 123,221 callables; **param_in 722,820 / param_out 200,775**; finalize survives via the structural (structuredClone) strip — the prior stringify-roundtrip clone OOM'd at exactly this scale, measured |
+| Joern jssrc2cpg parse | **9m06s** | 30.3GB | CPG; 941,132 call rows + 768,350 parameter rows dumped (streamed writer — the single-StringBuilder dump crossed the JVM's 2GB array cap) |
 
 Superset audit against Joern's single-candidate real pairs, after nine ledger-driven fix
 rounds: **54,918 / 55,074 covered (99.72%), residual 135** — past python's odoo bar (99.0%,
