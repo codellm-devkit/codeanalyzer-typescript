@@ -76,7 +76,7 @@ class (PyCG 3h19m without convergence; Fraunhofer CPG OOM at 44GB).
 | `joern-name-misresolution` (covered, listed) | 338 | Same shape across files — they name-linked `ActionBar.dispose` where the call is the imported free `dispose` from lifecycle.ts; we hold the typed import edge |
 | `joern-unresolved` | 72 | `<unknownFullName>`, no linked callee — their unresolved set |
 
-## The audited residual (244, classified)
+## The audited residual (189, classified)
 
 | Family | ≈count | Nature |
 | --- | --- | --- |
