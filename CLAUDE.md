@@ -50,11 +50,12 @@ while cache round-trips tree), `l1Body` (`call_sites` → `body{}`), `heritage`,
 (`src/schema/emit.ts`) runs them + assembles envelope + strips INTERNAL fields
 (`call_sites`, `abs_path`, cache trio).
 
-Call graph defaults to **union** of two backends: TS compiler resolver
-and embedded [Jelly](https://github.com/cs-au-dk/jelly) flow analyzer (recovers
-higher-order/callback edges resolver misses). Merged edges keep
-`provenance` tag (`tsc` / `jelly`); `--tsc-only` or `--call-graph-provider jelly`
-picks one alone.
+Call graph = tsc resolver + **defuse linker** (#98): deterministic per-callable
+pass over resolver leftovers — alias chains, decorator edges, library-callback
+edges, bounded interprocedural votes, CHA-by-name fallback. No whole-program
+fixpoint, no backend flag, one code path. Module-scope calls attributed to
+MODULE (python #131 parity). prov tags: `tsc` / `defuse` / `import`. Joern
+superset ledger: `docs/design/specs/defuse-linker-joern-ledger.md`.
 
 ## Architecture — follow the pipeline
 
@@ -65,8 +66,9 @@ it first; everything else is stage it calls, in order:
 2. **buildSymbolTable** (`src/syntactic_analysis`) — modules, classes, interfaces,
    enums, type aliases, namespaces, functions, methods, variables, decorators,
    JSDoc, with precise source spans.
-3. **call graph** (`src/semantic_analysis`) — `selectProvider()` picks tsc / jelly /
-   union; each provider returns edges + external (phantom) symbols.
+3. **call graph** (`src/semantic_analysis`) — tsc resolver (`callGraph.ts`, incl.
+   module-scope sweep + RTA + phantoms) then `defuseLinker.ts` tiers T1–T5;
+   merged with provenance union.
 4. **program graphs** (`src/dataflow`) — levels 3–4 (`-a 3`/`-a 4`): CFG → post-dominance/CDG →
    access-path def-use → PDG → SCC-condensed bottom-up summaries → SDG. This is *compute*
    (IR in `src/schema/graphs.ts`); `src/dataflow/attach.ts` writes it **onto tree**
@@ -96,7 +98,7 @@ test — treat both as contracts, keep in lockstep with JSON.
 | `src/core.ts` | `analyze()` orchestrator — the spine |
 | `src/options` | Parsed CLI options / `AnalysisOptions` |
 | `src/syntactic_analysis` | Symbol table (ts-morph traversal) |
-| `src/semantic_analysis` | Call-graph providers (tsc, jelly, union), phantoms |
+| `src/semantic_analysis` | Call graph: tsc resolver + defuse linker (T1–T5), phantoms |
 | `src/dataflow` | L3/L4 program-graph **compute** (CFG, dominance/CDG, def-use, summaries, SDG) + `attach.ts` (IR → tree) |
 | `src/schema` | **the native v2 model** (`schema.ts`) + per-run passes (`assignIds`/`l1Body`/`heritage`/`homing`/`l2Callees`) + `emit.ts` (`finalizeAnalysis`) + `signatureOf` + graphs IR |
 | `src/build` | Dep materialization; `build/neo4j` = the v2 graph projection (project/rows/cypher/bolt/schema) |

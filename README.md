@@ -24,11 +24,11 @@ structure into a **Neo4j property graph**. It is the TypeScript backend behind
 [Python](https://github.com/codellm-devkit/codeanalyzer-python) and
 [Java](https://github.com/codellm-devkit/codeanalyzer-java) siblings.
 
-By default the call graph is the **union** of two backends: the TypeScript compiler's resolver and
-[Jelly](https://github.com/cs-au-dk/jelly) — a flow-based analyzer that resolves higher-order and
-callback edges the resolver misses, embedded in the `cants` binary (no extra install). Merged edges
-keep a `provenance` tag (`tsc` / `jelly`), so you can still tell the two apart. Pass `--tsc-only` to
-drop Jelly and run the resolver alone, or `--call-graph-provider jelly` for Jelly alone.
+The call graph is the TypeScript compiler's resolver plus a **defuse linker** — a deterministic,
+per-callable pass that backfills the edges the resolver misses (alias chains, decorator
+invocations, callbacks handed to library calls, parameter-flow calls) with no whole-program
+fixpoint. Edges keep a `provenance` tag (`tsc` / `defuse` / `import`), so you can tell the layers
+apart, and the output is byte-identical across runs.
 
 ## Table of Contents
 
@@ -55,9 +55,9 @@ drop Jelly and run the resolver alone, or `--call-graph-provider jelly` for Jell
   methods, variables, decorators, and JSDoc, with precise source spans.
 - **Call graph** — the TypeScript compiler's resolver plus Rapid Type Analysis (RTA), with
   **phantom (external) nodes** for calls into imported libraries and Node builtins.
-- **Pluggable call-graph backend** — the `union` of the `tsc` resolver and the embedded
-  [Jelly](https://github.com/cs-au-dk/jelly) flow analyzer by default (`--tsc-only` for the resolver
-  alone, `--call-graph-provider jelly` for Jelly alone).
+- **Defuse linker** — a deterministic per-callable pass over the resolver's leftovers: alias
+  chains, decorator invocations, library-callback edges, and bounded interprocedural votes —
+  validated as a strict superset of Joern's real call pairs on the reference corpus.
 - **Neo4j output** — project the analysis into a labeled property graph: a self-contained
   `graph.cypher` snapshot, or an **incremental** push to a live database over Bolt.
 - **Versioned schema** — a machine-readable, version-stamped Neo4j schema contract
@@ -182,11 +182,6 @@ Options:
                                  node_modules)
   --no-phantoms                  disable phantom (external) nodes for
                                  imported/required library calls
-  --call-graph-provider <name>   call-graph backend: union (default, tsc ∪
-                                 jelly) | tsc | jelly | both (deprecated alias
-                                 of union) (default: "union")
-  --tsc-only                     use the tsc resolver only — opt out of Jelly
-                                 edges (overrides --call-graph-provider)
   -c, --cache-dir <dir>          cache/intermediate directory
   -v, --verbose                  increase verbosity (repeatable)
   -h, --help                     display help for command
@@ -214,17 +209,12 @@ Options:
    cants --input ./my-ts-project --target-files src/a.ts src/b.ts
    ```
 
-4. **Resolver-only call graph (opt out of Jelly):**
-   ```sh
-   cants --input ./my-ts-project --tsc-only
-   ```
-
-5. **Force a clean rebuild with a custom cache directory:**
+4. **Force a clean rebuild with a custom cache directory:**
    ```sh
    cants --input ./my-ts-project --eager --cache-dir /path/to/custom-cache
    ```
 
-6. **Program graphs (level 3): CFG/PDG/SDG in `analysis.json`:**
+5. **Program graphs (level 3): CFG/PDG/SDG in `analysis.json`:**
    ```sh
    cants --input ./my-ts-project -a 3                    # full program_graphs section
    cants --input ./my-ts-project -a 3 --graphs cfg,pdg   # scope the emitted graphs
@@ -282,8 +272,8 @@ nodes all join.
 
 **Substrate (locked in [issue #2](https://github.com/codellm-devkit/codeanalyzer-typescript/issues/2)):**
 the CFG and reaching-definitions are hand-built from the ts-morph AST; the call-graph oracle is
-the existing provenance-merged tsc ∪ Jelly graph; aliasing is a flow-insensitive copy-alias MVP
-(Jelly points-to-backed propagation is a staged upgrade). Function summaries are composed
+the provenance-merged tsc + defuse graph; aliasing is a flow-insensitive copy-alias MVP
+(points-to-backed propagation is a staged upgrade). Function summaries are composed
 bottom-up over the SCC condensation of the call graph, with k-limited access paths; module
 globals ride the SDG as extra parameters. The analysis is deliberately sound-leaning and
 over-approximate; known unsoundness (dynamic `eval`, reflection/monkey-patching, npm-internal
