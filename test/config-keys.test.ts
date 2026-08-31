@@ -119,4 +119,33 @@ describe("config keys — YAML (#101 unit B)", () => {
     expect(k["services.web.image"]?.namespace).toBe("yaml");
     expect(k["services.web.image"]?.span?.start[0]).toBeGreaterThan(0);
   });
+
+  // Fix round 1: a parse error is a different fact from "nothing to extract" — parseYamlKeys now
+  // throws when the document has errors, so the caller's existing catch (src/artifacts/index.ts)
+  // records "partial" the same way it already does for malformed JSONC. Mirrors the
+  // "tsconfig.broken.json" test above, one namespace over.
+  test("a genuinely malformed YAML file falls back to partial — node survives intact", () => {
+    const art = arts["docker-compose.broken.yml"];
+    expect(art?.extraction).toBe("partial");
+    expect(art?.config_keys).toEqual([]); // nothing salvaged, but no throw escaped past the caller
+    expect(art?.sha256.length).toBe(64); // inventory fields untouched by the failed extraction
+    expect(art?.source).toBe("services:\n  web:\n    ports: [1, 2\n"); // full on-disk text, verbatim
+  });
+
+  // Fix round 1: `---`-separated multi-document streams (the standard shape of a Kubernetes
+  // manifest) now parse via parseAllDocuments instead of being silently truncated to the first
+  // document. Each document's keys get a zero-based index prefix; a single document (the fixture
+  // above) stays unprefixed — already re-confirmed by the untouched test above still passing
+  // unmodified (services.web.image, not 0.services.web.image).
+  test("a multi-document stream (Kubernetes-style) prefixes keys by document index, with real spans in the SECOND document", () => {
+    const k = keysOf("k8s/multi.yaml");
+    expect(k["0.services.web.image"]?.value).toBe("node:22");
+    expect(k["1.spec.containers.0.env.0.name"]?.value).toBe("PAYMENT_HOST");
+    expect(k["1.spec.containers.0.env.0.value"]?.value).toBe("https://pay.example.com");
+    // Line 11 of the COMBINED file is where the second document's env name actually sits. One
+    // LineCounter spans the whole parse; a counter reset per document would report a smaller,
+    // wrong line here instead.
+    expect(k["1.spec.containers.0.env.0.name"]?.span?.start).toEqual([11, 17]);
+    expect(arts["k8s/multi.yaml"]?.extraction).toBe("full");
+  });
 });

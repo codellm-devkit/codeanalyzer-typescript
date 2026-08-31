@@ -1,0 +1,12 @@
+services:
+  web:
+    image: node:22
+---
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  containers:
+    - name: app
+      env:
+        - name: PAYMENT_HOST
+          value: https://pay.example.com
