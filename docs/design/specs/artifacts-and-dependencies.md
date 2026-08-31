@@ -1,5 +1,7 @@
 # Artifacts and dependencies — the repository-artifact layer for TypeScript
 
+> Superseded by 2026-08-30-artifact-layer-v130-parity.md
+
 - **Status:** implemented (branch `feat/issue-101-artifacts`); **recalibrated 2026-08-27** to the
   ratified python contract after the first cut anchored on an orphaned branch
 - **Scope:** `codeanalyzer-typescript`; schema v2 **additive** (no level, id-tier, or existing-field movement)

@@ -58,6 +58,10 @@ apart, and the output is byte-identical across runs.
 - **Defuse linker** — a deterministic per-callable pass over the resolver's leftovers: alias
   chains, decorator invocations, library-callback edges, and bounded interprocedural votes —
   validated as a strict superset of Joern's real call pairs on the reference corpus.
+- **Repository-artifact layer** — every non-code file (manifests, lockfiles, CI, containers, env)
+  inventoried with flat, evidence-tagged dependencies (direct and transitive) and a `ConfigKey`
+  family joined to the code that reads it via a level-graded `config_use` edge; see
+  `docs/skills/analyzing-cants-graphs/`.
 - **Neo4j output** — project the analysis into a labeled property graph: a self-contained
   `graph.cypher` snapshot, or an **incremental** push to a live database over Bolt.
 - **Versioned schema** — a machine-readable, version-stamped Neo4j schema contract
@@ -184,6 +188,11 @@ Options:
                                  imported/required library calls
   --resolve-installed            probe node_modules metadata for import→package
                                  binding (default: repo files only)
+  --no-artifact-text             keep the artifact inventory but drop captured
+                                 raw text
+  --artifact-text-max-bytes <n>  per-file byte cap for captured artifact text;
+                                 larger files are truncated and flagged
+                                 (default: "262144")
   -c, --cache-dir <dir>          cache/intermediate directory
   -v, --verbose                  increase verbosity (repeatable)
   -h, --help                     display help for command

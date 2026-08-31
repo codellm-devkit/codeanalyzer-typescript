@@ -105,13 +105,21 @@ test — treat both as contracts, keep in lockstep with JSON.
 | `src/utils` | fs, caching, logging, serialization (`serialize.ts` writes the envelope), version |
 | `test` | Bun tests + `fixtures/sample-app` + `fixtures/dataflow-app`; `schema-v2.test.ts` = the L1–L4 gates |
 
-**Repository-artifact layer** (#101, python PR #160 parity): `application.artifacts{}`
-(rules-matched non-code files, LANGUAGE-NEUTRAL `can://artifact/<app>/<path>` ids,
-roles[], verbatim unbounded `source`) + flat `dependencies[]` (npm kinds incl.
-coined `peer`, prov-tagged, lock backfill) + `unresolved_imports[]` (@types
-type-only rule; `--resolve-installed` opt-in probe). `src/artifacts/`. Neo4j
-contract 2.2.0: NEUTRAL :Artifact/:Package (purl) — sanctioned prefix exception —
-plus TS_PROVIDES/TS_UNRESOLVED_IMPORT into :TSExternal ghosts.
+**Repository-artifact layer** (#101, python v1.3.0 parity): three level-free sections —
+`application.artifacts{}` (never-drop inventory, LANGUAGE-NEUTRAL `can://artifact/<app>/<path>`
+ids, roles[], text-capture policy: `--no-artifact-text`/`--artifact-text-max-bytes`, `sha256`/
+`size_bytes` always full-file even when `source` is a truncated prefix), `dependencies[]` (npm
+kinds incl. coined `peer`, `direct:false` lockfile-only transitives), `unresolved_imports[]`
+(@types type-only rule; `--resolve-installed` opt-in probe). Each artifact also carries
+`config_keys[]` (env/JSONC/YAML/TOML/INI/dockerfile namespaces, `@key/`-suffixed ids,
+`arg.`/`env.` internal id disambiguation). `config_uses`/`config_reads` join a `config_access` L1
+body-node read (or a detector-table call) to a declared key through a level-graded
+literal→dataflow-intra→dataflow-interproc tier (`src/semantic_analysis/configUse.ts`,
+`src/dataflow/configUse.ts`); `config_reads` deliberately SHRINKS as `-a` rises — the layer's one
+non-monotonic section. `src/artifacts/`. Neo4j contract 2.1.0 (SCHEMA_VERSION unmoved — every
+analyzer re-baselines together later): NEUTRAL :Artifact/:Package/:ConfigKey (purl) — sanctioned
+prefix exception — plus TS_PROVIDES/TS_UNRESOLVED_IMPORT into :TSExternal ghosts and
+TS_USES_CONFIG into :ConfigKey. Consumer query skill: `docs/skills/analyzing-cants-graphs/`.
 
 ## Commands
 
