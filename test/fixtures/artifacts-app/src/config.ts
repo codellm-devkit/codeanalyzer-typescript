@@ -37,3 +37,6 @@ export function readTemplateInterpolated(x: string): string | undefined {
 export function readTemplateLiteral(): string | undefined {
   return nconf.get(`PAYMENT_HOST`);
 }
+export function readBuildId(): string | undefined {
+  return process.env.BUILD_ID;
+}

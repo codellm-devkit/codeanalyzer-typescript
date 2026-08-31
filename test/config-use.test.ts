@@ -89,13 +89,19 @@ describe("config_use literal tier (#101 unit C3)", () => {
   test("Dockerfile ARG is never bindable", () => {
     // Assert the real invariant (namespace, resolved from the TSConfigKey) rather than sniffing
     // the id's "arg." prefix — a dockerfile-namespace key's id is ALWAYS "arg.<name>" (assignIds),
-    // so `dst.endsWith("@key/BUILD_ID")` can never be true regardless of what the rule tables do;
-    // that made the old assertion pass even if an access/call rule started resolving "dockerfile".
+    // so `dst.endsWith("@key/BUILD_ID")` can never be true regardless of what the rule tables do.
+    // `readBuildId` reads BUILD_ID, which ONLY Dockerfile ARG declares — a real read exercises
+    // this invariant instead of leaving it vacuously true on a fixture with nothing to bind.
     const namespaceOf = new Map<string, string>();
     for (const art of Object.values(app2.artifacts)) {
       for (const ck of art.config_keys) namespaceOf.set(ck.id, ck.namespace);
     }
     expect(app2.config_uses.some((u) => namespaceOf.get(u.dst) === "dockerfile")).toBe(false);
+
+    // Positive half: the read was SEEN and deliberately left unbound, not silently dropped.
+    const read = app2.config_reads.find((r) => r.site.includes("readBuildId"));
+    expect(read?.reason).toBe("undefined-key");
+    expect(read?.key).toBe("BUILD_ID");
   });
 
   test("a CALL rule resolves through the resolved external callee", () => {
