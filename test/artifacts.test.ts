@@ -32,7 +32,7 @@ const deps = root.dependencies;
 const byName = new Map(deps.map((d) => [d.name, d]));
 
 describe("artifact inventory — rules-matched, neutral ids (#101/PR-160)", () => {
-  test("rules-matched files are inventoried; unmatched and source files are not", () => {
+  test("rules-matched files are present; source files (ts/js/tsx/jsx) are absent", () => {
     for (const key of [
       "package.json", "package-lock.json", "packages/web/package.json", "packages/web/bun.lock",
       "yarn.lock", ".env", "tsconfig.json", "Dockerfile", ".github/workflows/ci.yml", "README.md", "LICENSE",

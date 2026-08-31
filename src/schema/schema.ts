@@ -338,7 +338,7 @@ export interface TSArtifact {
   id: string; // can://artifact/<app>/<path> — language-NEUTRAL namespace, stamped per-run
   kind: "artifact";
   path: string; // repo-relative POSIX path (also the map key)
-  format: string; // json | jsonc | yaml | toml | ini | requirements? | dockerfile | yarnlock | text | env
+  format: string; // json | jsonc | yaml | toml | ini | requirements? | dockerfile | yarnlock | text | env | binary
   roles: string[]; // dependency-manifest | tool-config | container-image | service-topology | ci | env | packaging | legal | docs | script | unknown
   size_bytes: number;
   sha256: string;

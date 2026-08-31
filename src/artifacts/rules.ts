@@ -1,7 +1,8 @@
 /**
  * The shipped discovery rules table (#101, python PR #160's mechanism): glob pattern against the
- * repo-relative POSIX path → (format, roles). Capture is rules-matched ONLY — an unmatched file
- * is not an artifact (python's posture; `unknown` rows exist for config-shaped extensions).
+ * repo-relative POSIX path → (format, roles). Rules decide `format` and `roles` for matched
+ * files; unmatched files are still inventoried by the walk in index.ts with `roles: ["unknown"]`
+ * or `format: "binary"` when undecodable; extensionless shebangs are captured as `script` artifacts.
  */
 
 export interface ArtifactRule {
