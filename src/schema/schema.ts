@@ -339,7 +339,11 @@ export interface TSConfigKey {
   key: string; // dotted path; numeric segments for arrays ("services.web.ports.0")
   namespace: string; // env|json|yaml|toml|ini|properties|dockerfile
   value?: string | number | boolean; // present by default; absent under --no-artifact-text
-  span?: TSSpan; // best-effort: exact for json/yaml, line-based elsewhere
+  span?: TSSpan; // best-effort: exact for yaml (the parser retains node positions);
+  // line-based for env/ini/dockerfile; ABSENT for json/jsonc — JSON.parse discards
+  // source positions, and re-deriving one by searching the text for the key token would
+  // point at the wrong occurrence whenever a key name repeats under different parents
+  // (routine in tsconfig/compose). Absent is honest; a wrong span is a lie a consumer would act on.
   references: string[]; // recognized ${VAR}/$VAR tokens, deduped, in order
 }
 

@@ -31,11 +31,17 @@ export function keyNode(key: string, namespace: string, value: unknown, span?: T
   };
 }
 
-/** Strip `//` and block comments and trailing commas — tsconfig/rc files are JSONC. */
+/**
+ * Strip `//` and block comments and trailing commas — tsconfig/rc files are JSONC. ONE
+ * string-aware pass: the string alternative is tried first, so it always wins for anything
+ * that opens with `"` — a value containing `, }`, `,]`, `//`, or `/*` survives byte-for-byte
+ * instead of the trailing-comma/comment sub-patterns mistaking its contents for structure.
+ */
 export function parseJsonc(text: string): unknown {
-  const stripped = text
-    .replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (m) => (m.startsWith('"') ? m : ""))
-    .replace(/,\s*([}\]])/g, "$1");
+  const stripped = text.replace(
+    /"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/[^\n]*|,\s*([}\]])/g,
+    (m, bracket?: string) => (m.startsWith('"') ? m : (bracket ?? "")),
+  );
   return JSON.parse(stripped);
 }
 

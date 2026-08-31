@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { analyze } from "../src/core";
+import { parseJsonc } from "../src/artifacts/configKeys";
 import type { AnalysisOptions } from "../src/options";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/artifacts-app");
@@ -45,5 +46,54 @@ describe("config keys — flat and JSON (#101 unit B)", () => {
     // the gate is role-scoped, not blanket — plain config files in the same formats still extract
     expect(arts["tsconfig.json"]?.config_keys.length).toBeGreaterThan(0);
     expect(arts[".env"]?.config_keys.length).toBeGreaterThan(0);
+  });
+
+  test("a genuinely malformed config file falls back to partial — node survives intact", () => {
+    const art = arts["tsconfig.broken.json"];
+    expect(art?.extraction).toBe("partial");
+    expect(art?.config_keys).toEqual([]); // nothing salvaged, but no throw escaped
+    expect(art?.sha256.length).toBe(64); // inventory fields untouched by the failed extraction
+    expect(art?.size_bytes).toBeGreaterThan(0);
+  });
+});
+
+// Direct unit tests of the parser (fix round 2): faster and clearer than round-tripping
+// every case through a full analyze() run, since these are pure-function properties of
+// parseJsonc itself, not of the artifact pipeline around it.
+describe("parseJsonc — comments and trailing commas stripped in ONE string-aware pass", () => {
+  test("a string containing ', }' survives byte-for-byte (not mistaken for a trailing comma)", () => {
+    expect(parseJsonc(`{"note": "hi, }"}`)).toEqual({ note: "hi, }" });
+  });
+
+  test("a string containing ',]' survives byte-for-byte", () => {
+    expect(parseJsonc(`{"pattern": "a,]b"}`)).toEqual({ pattern: "a,]b" });
+  });
+
+  test("a string containing a trailing-comma-shaped glob token survives byte-for-byte", () => {
+    expect(parseJsonc(`{"files": "dist/{cjs,}"}`)).toEqual({ files: "dist/{cjs,}" });
+  });
+
+  test("a string containing '//' survives (not mistaken for a line comment)", () => {
+    expect(parseJsonc(`{"homepage": "https://example.com"}`)).toEqual({ homepage: "https://example.com" });
+  });
+
+  test("a string containing '/*' survives (not mistaken for a block comment)", () => {
+    expect(parseJsonc(`{"glob": "a/*b"}`)).toEqual({ glob: "a/*b" });
+  });
+
+  test("an escaped quote inside a string doesn't end it early, even with a real comment right after", () => {
+    // Built with a single-quoted JS string (not a template literal) so `\\"` in the SOURCE
+    // collapses to a literal `\"` (backslash + quote) at RUNTIME — i.e. an actual escaped
+    // quote inside the JSON text, the way it would read straight off disk.
+    const doc = '{"note": "he said \\"hi\\"", "x": 1} // trailing comment';
+    expect(parseJsonc(doc)).toEqual({ note: 'he said "hi"', x: 1 });
+  });
+
+  test("a genuine trailing comma is still stripped before both } and ]", () => {
+    expect(parseJsonc(`{ "a": 1, "b": [1, 2, 3,], }`)).toEqual({ a: 1, b: [1, 2, 3] });
+  });
+
+  test("a genuinely malformed document still throws (caller marks the artifact partial)", () => {
+    expect(() => parseJsonc(`{"a": "unterminated}`)).toThrow();
   });
 });
