@@ -152,9 +152,9 @@ OPTIONAL MATCH (:Artifact)-[l:LOCKS]->(p) RETURN p.name, d.direct, coalesce(l.ve
 ```
 
 Measured on this repo (codeanalyzer-typescript itself, `-a 1` — illustrative, not a universal
-constant): 715 records, 43 direct / 672 transitive (94% transitive). The first query alone would
-have missed 94% of the dependency records the second one returns. `dependencies[]` payload is
-~194 KB of a 6.96 MB total (~2.8%) — the transitive records are cheap to keep relative to total
+constant): 185 records, 16 direct / 169 transitive (91% transitive). The first query alone would
+have missed 91% of the dependency records the second one returns. `dependencies[]` payload is
+~41 KB of a 2.67 MB total (~1.5%) — the transitive records are cheap to keep relative to total
 payload.
 
 

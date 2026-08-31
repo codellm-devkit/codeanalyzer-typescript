@@ -65,10 +65,10 @@ Both recipes live side by side in `references/analyses.md` §6. Scoping note: ev
 record *why* a package is present, so this layer asserts the safe default instead of inferring one.
 
 **Measured, so the magnitude is concrete, not asserted** (this repo, codeanalyzer-typescript
-itself, `-a 1` — an illustrative sample, not a universal constant): 715 dependency records, 43
-`direct: true` / 672 `direct: false` — **94% of records are transitive**, invisible to the
+itself, `-a 1` — an illustrative sample, not a universal constant): 185 dependency records, 16
+`direct: true` / 169 `direct: false` — **91% of records are transitive**, invisible to the
 declared-surface query. That is why the two recipes above return wildly different answers on the
-same repo. Keeping them is cheap: `dependencies[]` is ~194 KB of a 6.96 MB payload (~2.8%), so the
+same repo. Keeping them is cheap: `dependencies[]` is ~41 KB of a 2.67 MB payload (~1.5%), so the
 transitive records are not what drives payload growth here — verbatim artifact `source` text is.
 
 **`config_reads` shrinks as `-a` rises — deliberately.** It is the layer's one non-monotonic
