@@ -9,13 +9,32 @@
  */
 
 const LANGUAGE = "typescript";
+const JS_EXTS = /\.(jsx|js|mjs|cjs)$/;
 
+/**
+ * A module's language namespace, from its file key (#114).
+ *
+ * The analyzer owns both languages (JS discovery, #98), so this is per MODULE rather than per run:
+ * a `.js` file is JavaScript and must not be labelled `typescript`. `.d.ts` falls through to the
+ * default rather than matching, so a declaration file stays TypeScript.
+ */
+export function languageOf(fileKey: string): string {
+  return JS_EXTS.test(fileKey) ? "javascript" : LANGUAGE;
+}
+
+/**
+ * The :Application anchor keeps the analyzer's own language even when it owns `javascript`
+ * children. A mixed repository has no single language, and the alternatives were a neutral anchor
+ * (moves every id in every projection) or two anchors (breaks the single-anchor invariant, #43).
+ * See docs/design/specs/js-language-namespace.md.
+ */
 export function applicationIdOf(appName: string): string {
   return `can://${LANGUAGE}/${appName}`;
 }
 
-export function moduleIdOf(appId: string, fileKey: string): string {
-  return `${appId}/${fileKey}`;
+/** Takes the app NAME, not the app id: a module's namespace is its own, not the application's. */
+export function moduleIdOf(appName: string, fileKey: string): string {
+  return `can://${languageOf(fileKey)}/${appName}/${fileKey}`;
 }
 
 /** The module/signature prefix: the file key without its TS/JS extension. */

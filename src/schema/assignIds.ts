@@ -51,7 +51,7 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
   };
 
   for (const [fileKey, mod] of Object.entries(app.symbol_table)) {
-    const moduleId = moduleIdOf(appId, fileKey);
+    const moduleId = moduleIdOf(appName, fileKey);
     const modulePrefix = modulePrefixOf(fileKey);
     mod.id = moduleId;
     // Module-scope execution is a call-graph SOURCE (python #131 parity: a call in module scope

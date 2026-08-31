@@ -23,7 +23,9 @@ import { checkerFailures, resetCheckerFailures, symbolAt } from "../src/schema/c
 import type { AnalysisOptions } from "../src/options";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/unresolvable-js-app");
-const ID = "can://typescript/unresolvable-js-app";
+// Two namespaces in one run (#114): a .js module is `javascript`, a .ts module is `typescript`.
+const TS = "can://typescript/unresolvable-js-app";
+const JS = "can://javascript/unresolvable-js-app";
 
 function options(over: Partial<AnalysisOptions> = {}): AnalysisOptions {
   return {
@@ -43,8 +45,8 @@ describe("a .js file outside tsconfig's include still resolves (#103)", () => {
     expect(js).toBeDefined();
     expect(Object.keys(js!.types ?? {})).toContain("defaultDpapi");
     const methods = Object.values((js!.types ?? {})["defaultDpapi"]?.callables ?? {}).map((c) => c.id);
-    expect(methods).toContain(`${ID}/mocks/dpapi.js/defaultDpapi/protectData`);
-    expect(methods).toContain(`${ID}/mocks/dpapi.js/defaultDpapi/unprotectData`);
+    expect(methods).toContain(`${JS}/mocks/dpapi.js/defaultDpapi/protectData`);
+    expect(methods).toContain(`${JS}/mocks/dpapi.js/defaultDpapi/unprotectData`);
   });
 
   test("its call edges resolve — with allowJs off, the checker threw before reaching them", async () => {
@@ -53,9 +55,9 @@ describe("a .js file outside tsconfig's include still resolves (#103)", () => {
 
     // Module-scope `new defaultDpapi()`, attributed to the MODULE. This edge does not merely go
     // missing without the fix — resolving it is what threw.
-    expect(edges).toContain(`${ID}/mocks/dpapi.js -> ${ID}/mocks/dpapi.js/defaultDpapi/constructor`);
+    expect(edges).toContain(`${JS}/mocks/dpapi.js -> ${JS}/mocks/dpapi.js/defaultDpapi/constructor`);
     // The healthy TypeScript file is unaffected either way.
-    expect(edges).toContain(`${ID}/src/index.ts/run -> ${ID}/src/index.ts/greet`);
+    expect(edges).toContain(`${TS}/src/index.ts/run -> ${TS}/src/index.ts/greet`);
   });
 
   test("nothing is skipped any more — the checker resolves the file cleanly", async () => {
