@@ -64,6 +64,13 @@ Both recipes live side by side in `references/analyses.md` §6. Scoping note: ev
 `direct: false` record is a top-level lock entry carrying `kind: "runtime"` — a lock file does not
 record *why* a package is present, so this layer asserts the safe default instead of inferring one.
 
+**Measured, so the magnitude is concrete, not asserted** (this repo, codeanalyzer-typescript
+itself, `-a 1` — an illustrative sample, not a universal constant): 715 dependency records, 43
+`direct: true` / 672 `direct: false` — **94% of records are transitive**, invisible to the
+declared-surface query. That is why the two recipes above return wildly different answers on the
+same repo. Keeping them is cheap: `dependencies[]` is ~194 KB of a 6.96 MB payload (~2.8%), so the
+transitive records are not what drives payload growth here — verbatim artifact `source` text is.
+
 **`config_reads` shrinks as `-a` rises — deliberately.** It is the layer's one non-monotonic
 section (`config_uses` is the opposite: asserted superset-monotonic, L2 ⊆ L3 ⊆ L4 — verified on
 this branch's fixture at 21/25/29 uses and 10/9/8 reads across L2/L3/L4). A read unresolved at the

@@ -151,6 +151,13 @@ MATCH (:Artifact)-[d:DECLARES_DEPENDENCY]->(p:Package)
 OPTIONAL MATCH (:Artifact)-[l:LOCKS]->(p) RETURN p.name, d.direct, coalesce(l.version, d.spec);
 ```
 
+Measured on this repo (codeanalyzer-typescript itself, `-a 1` — illustrative, not a universal
+constant): 715 records, 43 direct / 672 transitive (94% transitive). The first query alone would
+have missed 94% of the dependency records the second one returns. `dependencies[]` payload is
+~194 KB of a 6.96 MB total (~2.8%) — the transitive records are cheap to keep relative to total
+payload.
+
+
 More of the same layer:
 
 ```cypher
