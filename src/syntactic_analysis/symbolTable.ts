@@ -67,9 +67,7 @@ export function buildSymbolTable(
   const projectOf = new Map<ProgramSpec, Project>();
   const programs: BuiltProgram[] = [];
   for (const s of specs) {
-    const project = s.configPath
-      ? new Project({ tsConfigFilePath: s.configPath, skipAddingFilesFromTsConfig: true })
-      : new Project({ compilerOptions: defaultCompilerOptions() });
+    const project = createProject(s.configPath);
     const files = assignment.get(s)!;
     const fileKeys = new Set<string>();
     for (const f of files) {
@@ -112,6 +110,23 @@ export function buildSymbolTable(
 }
 
 /** The fallback compiler options when the target has no tsconfig (shared with graph workers). */
+/**
+ * THE ts-morph Project constructor — every program in the analyzer comes from here.
+ *
+ * `allowJs` is forced on over whatever the tsconfig says. Discovered `.js` files are added to the
+ * program that owns their PATH (JS source discovery, #98), regardless of that config's `include`,
+ * and a JS file sitting in a program whose options exclude it has no valid checker state: resolving
+ * any identifier inside it throws inside tsc instead of returning undefined. A TypeScript project's
+ * tsconfig normally leaves `allowJs` unset — which means false — so this is the ordinary case, not
+ * a corner one. It cost vscode its entire call graph (see schema/checker.ts). The override merges:
+ * `allowJs` is the only option it changes, every other tsconfig setting survives.
+ */
+export function createProject(configPath: string | null): Project {
+  return configPath
+    ? new Project({ tsConfigFilePath: configPath, skipAddingFilesFromTsConfig: true, compilerOptions: { allowJs: true } })
+    : new Project({ compilerOptions: defaultCompilerOptions() });
+}
+
 export function defaultCompilerOptions(): ts.CompilerOptions {
   return {
     target: ts.ScriptTarget.ES2022,

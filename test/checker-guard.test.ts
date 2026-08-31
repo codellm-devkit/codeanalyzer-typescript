@@ -1,22 +1,29 @@
 /**
- * A node the TypeScript checker cannot resolve must cost its own edges, never the run (#103).
+ * A `.js` file that no tsconfig `include` covers must still resolve — and a node the checker
+ * genuinely cannot resolve must cost its own edges, never the run (#103).
  *
- * ts-morph's symbol queries run tsc's checker, and the checker throws — rather than returning
- * undefined — on a global referenced from a `.js` file that no tsconfig `include` covers, because
- * that file lands in a program with no default lib. On vscode a single such mock
- * (`extensions/microsoft-authentication/packageMocks/dpapi/dpapi.js`, `throw new Error(...)`)
- * aborted the whole 9,351-module analysis at -a 2, -a 3 and -a 4; -a 1 was unaffected because it
+ * JS source discovery (#98) adds a discovered `.js` file to the program that owns its PATH, which
+ * is not the same thing as the program whose `include` names it. A TypeScript project's tsconfig
+ * normally leaves `allowJs` unset — false — so that file has no valid checker state, and resolving
+ * ANY identifier in it throws inside tsc rather than returning undefined. On vscode a single such
+ * mock (`extensions/microsoft-authentication/packageMocks/dpapi/dpapi.js`, `throw new Error(...)`)
+ * aborted the whole 9,351-module analysis at -a 2, -a 3 and -a 4; -a 1 survived only because it
  * never resolves callees. The fixture here is that file, minimized.
+ *
+ * Two independent guarantees, tested apart: `createProject` forces `allowJs` on so the file
+ * resolves properly, and `symbolAt` degrades a checker throw to undefined so any REMAINING
+ * unresolvable node cannot take the run down.
  */
 import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { analyze } from "../src/core";
-import { checkerFailures } from "../src/schema/checker";
+import { checkerFailures, resetCheckerFailures, symbolAt } from "../src/schema/checker";
 import type { AnalysisOptions } from "../src/options";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/unresolvable-js-app");
+const ID = "can://typescript/unresolvable-js-app";
 
 function options(over: Partial<AnalysisOptions> = {}): AnalysisOptions {
   return {
@@ -28,30 +35,45 @@ function options(over: Partial<AnalysisOptions> = {}): AnalysisOptions {
   } as AnalysisOptions;
 }
 
-describe("unresolvable nodes degrade, they do not abort (#103)", () => {
-  test("-a 2 completes and still resolves the edges it can", async () => {
-    const r = await analyze(options());
-    const app = r.application.application;
+describe("a .js file outside tsconfig's include still resolves (#103)", () => {
+  test("-a 2 completes, and the JS file's own declarations land in the symbol table", async () => {
+    const app = (await analyze(options())).application.application;
 
-    // The run produced a real symbol table rather than dying partway.
-    const modules = Object.keys(app.symbol_table);
-    expect(modules.some((m) => m.endsWith("src/index.ts"))).toBe(true);
-    expect(modules.some((m) => m.endsWith("mocks/dpapi.js"))).toBe(true);
+    const js = app.symbol_table["mocks/dpapi.js"];
+    expect(js).toBeDefined();
+    expect(Object.keys(js!.types ?? {})).toContain("defaultDpapi");
+    const methods = Object.values((js!.types ?? {})["defaultDpapi"]?.callables ?? {}).map((c) => c.id);
+    expect(methods).toContain(`${ID}/mocks/dpapi.js/defaultDpapi/protectData`);
+    expect(methods).toContain(`${ID}/mocks/dpapi.js/defaultDpapi/unprotectData`);
+  });
 
-    // The unresolvable node cost only itself: run() -> greet() still resolves in the healthy file.
+  test("its call edges resolve — with allowJs off, the checker threw before reaching them", async () => {
+    const app = (await analyze(options())).application.application;
     const edges = app.call_graph.map((e) => `${e.src} -> ${e.dst}`);
-    expect(edges).toContain("can://typescript/unresolvable-js-app/src/index.ts/run -> can://typescript/unresolvable-js-app/src/index.ts/greet");
+
+    // Module-scope `new defaultDpapi()`, attributed to the MODULE. This edge does not merely go
+    // missing without the fix — resolving it is what threw.
+    expect(edges).toContain(`${ID}/mocks/dpapi.js -> ${ID}/mocks/dpapi.js/defaultDpapi/constructor`);
+    // The healthy TypeScript file is unaffected either way.
+    expect(edges).toContain(`${ID}/src/index.ts/run -> ${ID}/src/index.ts/greet`);
   });
 
-  test("the skipped resolutions are counted, not silently swallowed", async () => {
+  test("nothing is skipped any more — the checker resolves the file cleanly", async () => {
     await analyze(options());
-    // Two `throw new Error(...)` sites in the fixture; the linker revisits them, so assert the
-    // signal exists rather than pinning an exact revisit count.
-    expect(checkerFailures()).toBeGreaterThan(0);
+    expect(checkerFailures()).toBe(0);
   });
+});
 
-  test("-a 1 is unaffected — it never resolves callees", async () => {
-    const r = await analyze(options({ analysisLevel: 1 }));
-    expect(Object.keys(r.application.application.symbol_table).length).toBeGreaterThan(0);
+describe("a checker throw degrades to unresolved, it does not abort (#103)", () => {
+  test("symbolAt returns undefined and counts the failure", () => {
+    resetCheckerFailures();
+    const exploding = {
+      getSymbol(): never {
+        throw new TypeError("undefined is not an object (evaluating 'getSymbolOfDeclaration(location).members')");
+      },
+    };
+
+    expect(symbolAt(exploding as never)).toBeUndefined();
+    expect(checkerFailures()).toBe(1);
   });
 });

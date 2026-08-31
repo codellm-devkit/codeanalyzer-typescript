@@ -13,7 +13,7 @@
  */
 import { Project } from "ts-morph";
 import type { PdgEdge } from "../schema";
-import { defaultCompilerOptions, discoverSourceFiles } from "../syntactic_analysis";
+import { createProject, discoverSourceFiles } from "../syntactic_analysis";
 import { extractCallableData, indexCallableDecls } from "./extract";
 import type { CallableGraphData } from "./model";
 import { sccFixpoint, type CallSiteRef, type FunctionSummary } from "./summaries";
@@ -49,9 +49,7 @@ function projectFor(root: string, tsConfigFilePath: string | null, skipTests: bo
   const key = `${root}|${tsConfigFilePath ?? ""}|${skipTests}`;
   let project = projects.get(key);
   if (project) return project;
-  project = tsConfigFilePath
-    ? new Project({ tsConfigFilePath, skipAddingFilesFromTsConfig: true })
-    : new Project({ compilerOptions: defaultCompilerOptions() });
+  project = createProject(tsConfigFilePath);
   for (const f of discoverSourceFiles(root, skipTests)) {
     try {
       project.addSourceFileAtPath(f.absPath);
