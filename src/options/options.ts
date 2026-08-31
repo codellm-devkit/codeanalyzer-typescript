@@ -1,6 +1,9 @@
 import type { GraphSelector } from "../schema";
 
 export type EmitTarget = "json" | "neo4j" | "schema";
+/** Default per-file byte cap for captured artifact text (256 KiB, python v1.3.0 parity). */
+export const DEFAULT_ARTIFACT_TEXT_MAX_BYTES = 256 * 1024;
+
 /** Normalized analysis options (produced by the CLI layer, consumed by core). */
 export interface AnalysisOptions {
   /** Project root to analyze (absolute). */
@@ -47,6 +50,10 @@ export interface AnalysisOptions {
   /** Where caches/intermediate state live; null ⇒ <input>/.codeanalyzer. */
   /** Opt-in: probe node_modules metadata for import→package binding (prov "installed-metadata"). */
   resolveInstalled?: boolean;
+  /** Capture verbatim artifact text into `source` (default true). */
+  artifactText?: boolean;
+  /** Per-file byte cap for captured text; larger files store a flagged prefix. */
+  artifactTextMaxBytes?: number;
   cacheDir: string | null;
   /** Verbosity (repeatable -v). */
   verbosity: number;

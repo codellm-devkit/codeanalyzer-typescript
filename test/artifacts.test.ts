@@ -130,6 +130,24 @@ describe("level-invariance + determinism (#101)", () => {
     const b = JSON.stringify((await analyze(options())).application);
     expect(a).toBe(b);
   });
+
+  test("text capture: on by default, truncates under the cap, hash stays full-file", async () => {
+    const full = (await analyze(options())).application.application.artifacts["README.md"];
+    expect(full?.source.length).toBeGreaterThan(0);
+    expect(full?.text_truncated).toBe(false);
+
+    const capped = (await analyze(options({ artifactTextMaxBytes: 8 }))).application.application.artifacts["README.md"];
+    expect(capped?.text_truncated).toBe(true);
+    expect(capped!.source.length).toBeLessThanOrEqual(8);
+    expect(capped?.sha256).toBe(full?.sha256); // hash is of the FULL file
+    expect(capped?.size_bytes).toBe(full?.size_bytes);
+  });
+
+  test("--no-artifact-text drops source but keeps inventory AND extraction", async () => {
+    const a = (await analyze(options({ artifactText: false }))).application.application;
+    expect(a.artifacts["package.json"]?.source).toBe("");
+    expect(a.dependencies.find((d) => d.name === "express")?.locked_version).toBe("4.19.2");
+  });
 });
 
 describe("Neo4j projection — neutral :Artifact/:Package (#101, contract 2.2.0)", () => {
