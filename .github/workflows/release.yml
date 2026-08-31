@@ -144,6 +144,14 @@ jobs:
       - name: Stage the install script (release asset)
         run: cp packaging/install/cants-installer.sh release-bins/cants-installer.sh
 
+      # The consumer query skill teaches an agent the Cypher recipes for the graph this binary
+      # produces. Ship it two ways, python v1.3.0 parity: a tarball (drop into a skills/
+      # directory) and the bare SKILL.md (read without unpacking).
+      - name: Stage the consumer query skill (release asset)
+        run: |
+          tar -czf release-bins/analyzing-cants-graphs-skill.tar.gz -C docs/skills analyzing-cants-graphs
+          cp docs/skills/analyzing-cants-graphs/SKILL.md release-bins/analyzing-cants-graphs-SKILL.md
+
       - name: Build changelog (auto-generated from commits/PRs)
         id: changelog
         if: startsWith(github.ref, 'refs/tags/')
@@ -191,6 +199,8 @@ jobs:
           | [cants-win_amd64.exe]($BASE/cants-win_amd64.exe) | x64 Windows |
           | [cants-installer.sh]($BASE/cants-installer.sh) | Shell installer |
           | [schema.json]($BASE/schema.json) | Neo4j schema contract |
+          | [analyzing-cants-graphs-skill.tar.gz]($BASE/analyzing-cants-graphs-skill.tar.gz) | Consumer query skill (tarball) |
+          | [analyzing-cants-graphs-SKILL.md]($BASE/analyzing-cants-graphs-SKILL.md) | Consumer query skill (SKILL.md only) |
 
           ## Changelog
 
