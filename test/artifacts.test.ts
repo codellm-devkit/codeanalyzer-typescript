@@ -137,6 +137,12 @@ describe("unresolved imports — the hygiene signal (#101/PR-160)", () => {
   });
 
   test("--resolve-installed binds via node_modules metadata (prov installed-metadata)", async () => {
+    // The probe reads a real path, so plant the install the fixture is meant to have.
+    // node_modules is gitignored everywhere, so it cannot ship with the fixture.
+    const pkgDir = path.join(FIXTURE, "node_modules", "left-pad");
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, "package.json"), JSON.stringify({ name: "left-pad", version: "1.3.0" }));
+
     const r = await analyze(options({ resolveInstalled: true }));
     const u = r.application.application.unresolved_imports.find((x) => x.module === "left-pad");
     expect(u?.bound_to).toBe("left-pad");
