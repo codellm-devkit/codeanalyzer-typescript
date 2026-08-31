@@ -31,3 +31,9 @@ import nconf from "nconf";
 export function readViaLibrary(): string | undefined {
   return nconf.get("PAYMENT_HOST");
 }
+export function readTemplateInterpolated(x: string): string | undefined {
+  return nconf.get(`PAYMENT_${x}`);
+}
+export function readTemplateLiteral(): string | undefined {
+  return nconf.get(`PAYMENT_HOST`);
+}

@@ -110,14 +110,20 @@ export function matchCallRule(callee: unknown, externals: Record<string, { modul
   return null;
 }
 
-/** The string literal at `argIndex` of the call site backing this body key, or undefined. */
+/** The string literal at `argIndex` of the call site backing this body key, or undefined. A
+ * backtick argument with an interpolation (`` `PAYMENT_${x}` ``) is NOT a literal — the source
+ * text is captured verbatim, so treating it as one would record a `${x}`-shaped fact as a real
+ * key. A backtick with no `${` is a genuine static string and still resolves. */
 export function literalArgumentAt(c: TSCallable, bodyKey: string, argIndex: number): string | undefined {
   for (const [key, cs] of callBodyKeys(c.call_sites)) {
     if (key !== bodyKey) continue;
     const raw = cs.arguments?.[argIndex];
     if (raw === undefined) return undefined;
-    const m = /^["'`](.*)["'`]$/.exec(raw.trim());
-    return m ? (m[1] as string) : undefined;
+    const trimmed = raw.trim();
+    const m = /^["'`](.*)["'`]$/.exec(trimmed);
+    if (!m) return undefined;
+    if (trimmed.startsWith("`") && m[1]?.includes("${")) return undefined; // interpolated — non-literal
+    return m[1] as string;
   }
   return undefined;
 }

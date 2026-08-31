@@ -87,7 +87,15 @@ describe("config_use literal tier (#101 unit C3)", () => {
   });
 
   test("Dockerfile ARG is never bindable", () => {
-    expect(app2.config_uses.some((u) => u.dst.endsWith("@key/BUILD_ID"))).toBe(false);
+    // Assert the real invariant (namespace, resolved from the TSConfigKey) rather than sniffing
+    // the id's "arg." prefix — a dockerfile-namespace key's id is ALWAYS "arg.<name>" (assignIds),
+    // so `dst.endsWith("@key/BUILD_ID")` can never be true regardless of what the rule tables do;
+    // that made the old assertion pass even if an access/call rule started resolving "dockerfile".
+    const namespaceOf = new Map<string, string>();
+    for (const art of Object.values(app2.artifacts)) {
+      for (const ck of art.config_keys) namespaceOf.set(ck.id, ck.namespace);
+    }
+    expect(app2.config_uses.some((u) => namespaceOf.get(u.dst) === "dockerfile")).toBe(false);
   });
 
   test("a CALL rule resolves through the resolved external callee", () => {
@@ -95,5 +103,17 @@ describe("config_use literal tier (#101 unit C3)", () => {
     expect(dsts.some((d) => d.endsWith("@key/PAYMENT_HOST"))).toBe(true);
     const u = app2.config_uses.find((x) => x.src.includes("readViaLibrary"));
     expect(u?.src).toMatch(/@\d+:\d+$/); // the CALL node's ordinal id
+  });
+
+  test("an interpolated template-literal key is a non-literal read (not a bogus undefined-key)", () => {
+    const read = app2.config_reads.find((r) => r.site.includes("readTemplateInterpolated"));
+    expect(read?.reason).toBe("non-literal");
+    expect(read?.key).toBeUndefined();
+    expect(app2.config_uses.some((u) => u.src.includes("readTemplateInterpolated"))).toBe(false);
+  });
+
+  test("a non-interpolated template literal still resolves like a quoted string", () => {
+    const dsts = useDsts("readTemplateLiteral");
+    expect(dsts.some((d) => d.endsWith("@key/PAYMENT_HOST"))).toBe(true);
   });
 });
