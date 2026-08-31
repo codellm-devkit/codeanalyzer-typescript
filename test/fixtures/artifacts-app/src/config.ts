@@ -18,3 +18,12 @@ export function readIndirect(): string | undefined {
 export function readUndeclared(): string | undefined {
   return process.env.NOT_DECLARED_ANYWHERE;
 }
+export function readList(): string[] {
+  return process.env.LIST.split(",");
+}
+export class Client {
+  private readonly host = process.env.PAYMENT_HOST;
+  url(): string | undefined {
+    return this.host;
+  }
+}
