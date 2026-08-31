@@ -32,14 +32,23 @@ export function keyNode(key: string, namespace: string, value: unknown, span?: T
 }
 
 /**
- * Strip `//` and block comments and trailing commas — tsconfig/rc files are JSONC. ONE
- * string-aware pass: the string alternative is tried first, so it always wins for anything
- * that opens with `"` — a value containing `, }`, `,]`, `//`, or `/*` survives byte-for-byte
- * instead of the trailing-comma/comment sub-patterns mistaking its contents for structure.
+ * Strip `//`/block comments, then trailing commas — tsconfig/rc files are JSONC. TWO
+ * passes, each independently string-aware (the string alternative is tried first in both,
+ * so it always wins for anything that opens with `"` and is returned verbatim):
+ *   1. remove comments — so a trailing comma separated from its `}`/`]` only by a comment
+ *      (`1, // note\n}`) is reachable by pass 2;
+ *   2. collapse `,\s*[}\]]`, but only outside strings — so `"hi, }"` and `"dist/{cjs,}"`
+ *      still survive byte-for-byte.
+ * One merged pass can't do both: by the time it would strip a trailing comma, a comment
+ * sitting between the comma and the bracket hasn't been removed yet.
  */
 export function parseJsonc(text: string): unknown {
-  const stripped = text.replace(
-    /"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/[^\n]*|,\s*([}\]])/g,
+  const noComments = text.replace(
+    /"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
+    (m) => (m.startsWith('"') ? m : ""),
+  );
+  const stripped = noComments.replace(
+    /"(?:[^"\\]|\\.)*"|,\s*([}\]])/g,
     (m, bracket?: string) => (m.startsWith('"') ? m : (bracket ?? "")),
   );
   return JSON.parse(stripped);

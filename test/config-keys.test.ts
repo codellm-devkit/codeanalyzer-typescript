@@ -60,7 +60,7 @@ describe("config keys — flat and JSON (#101 unit B)", () => {
 // Direct unit tests of the parser (fix round 2): faster and clearer than round-tripping
 // every case through a full analyze() run, since these are pure-function properties of
 // parseJsonc itself, not of the artifact pipeline around it.
-describe("parseJsonc — comments and trailing commas stripped in ONE string-aware pass", () => {
+describe("parseJsonc — comments then trailing commas, each pass string-aware", () => {
   test("a string containing ', }' survives byte-for-byte (not mistaken for a trailing comma)", () => {
     expect(parseJsonc(`{"note": "hi, }"}`)).toEqual({ note: "hi, }" });
   });
@@ -91,6 +91,19 @@ describe("parseJsonc — comments and trailing commas stripped in ONE string-awa
 
   test("a genuine trailing comma is still stripped before both } and ]", () => {
     expect(parseJsonc(`{ "a": 1, "b": [1, 2, 3,], }`)).toEqual({ a: 1, b: [1, 2, 3] });
+  });
+
+  // Fix round 3: a trailing comma separated from its closing bracket by a comment (not just
+  // whitespace) is an everyday tsconfig shape — comments removed in pass 1 make it reachable by
+  // pass 2. A non-empty result here is exactly what flips the caller's `extraction` to "full"
+  // (src/artifacts/index.ts: `if (keys.length) { ... extraction = "full" }`) — already pinned
+  // end-to-end by the "JSONC tsconfig parses..." test above.
+  test("a trailing comma followed by a line comment before the closing brace still parses", () => {
+    expect(parseJsonc(`{"a": 1, // note\n}`)).toEqual({ a: 1 });
+  });
+
+  test("a trailing comma followed by a block comment before the closing brace still parses", () => {
+    expect(parseJsonc(`{"a": 1, /* note */ }`)).toEqual({ a: 1 });
   });
 
   test("a genuinely malformed document still throws (caller marks the artifact partial)", () => {
