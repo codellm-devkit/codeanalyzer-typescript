@@ -206,7 +206,7 @@ describe("level-invariance + determinism (#101)", () => {
   });
 });
 
-describe("Neo4j projection — neutral :Artifact/:Package (#101, contract 2.2.0)", () => {
+describe("Neo4j projection — neutral :Artifact/:Package (#101)", () => {
   const rows = project(r1.application);
 
   test("neutral nodes with purl ids; TS-prefixed claims into the ghost space", () => {
@@ -221,6 +221,12 @@ describe("Neo4j projection — neutral :Artifact/:Package (#101, contract 2.2.0)
     expect(rows.edges.some((e) => e.type === "HAS_ARTIFACT" && e.to.value === art?.value)).toBe(true);
     const decl = rows.edges.find((e) => e.type === "DECLARES_DEPENDENCY" && e.to.value === "pkg:npm/react");
     expect(decl?.props["kind"]).toBe("peer");
+    // direct:true (declared in package.json) vs. direct:false (lock-only transitive) — the
+    // recipe `MATCH (:Artifact)-[d:DECLARES_DEPENDENCY {direct: true}]->(p:Package)` separates
+    // the declared SURFACE from the full lockfile-inclusive SUPPLY CHAIN.
+    expect(decl?.props["direct"]).toBe(true);
+    const transitive = rows.edges.find((e) => e.type === "DECLARES_DEPENDENCY" && e.to.value === "pkg:npm/lockonly-transitive");
+    expect(transitive?.props["direct"]).toBe(false);
     expect(rows.edges.some((e) => e.type === "LOCKS" && e.to.value === "pkg:npm/express")).toBe(true);
     expect(
       rows.edges.some(

@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.2.0",
+  "schema_version": "2.1.0",
   "generator": "codeanalyzer-typescript",
   "marker_labels": [],
   "node_labels": [
@@ -40,6 +40,18 @@
         "id": "string",
         "ecosystem": "string",
         "name": "string"
+      }
+    },
+    {
+      "label": "ConfigKey",
+      "mergeLabel": "ConfigKey",
+      "key": "id",
+      "properties": {
+        "id": "string",
+        "key": "string",
+        "namespace": "string",
+        "value": "string",
+        "references": "string[]"
       }
     },
     {
@@ -270,6 +282,7 @@
       "properties": {
         "spec": "string",
         "kind": "string",
+        "direct": "boolean",
         "extras": "string[]",
         "prov": "string[]"
       }
@@ -303,6 +316,28 @@
       ],
       "to": [
         "TSExternal"
+      ],
+      "properties": {
+        "prov": "string[]"
+      }
+    },
+    {
+      "type": "DEFINES_CONFIG",
+      "from": [
+        "Artifact"
+      ],
+      "to": [
+        "ConfigKey"
+      ],
+      "properties": {}
+    },
+    {
+      "type": "TS_USES_CONFIG",
+      "from": [
+        "TSBodyNode"
+      ],
+      "to": [
+        "ConfigKey"
       ],
       "properties": {
         "prov": "string[]"
@@ -490,6 +525,7 @@
     "CREATE CONSTRAINT application_id IF NOT EXISTS FOR (x:Application) REQUIRE x.id IS UNIQUE",
     "CREATE CONSTRAINT artifact_id IF NOT EXISTS FOR (x:Artifact) REQUIRE x.id IS UNIQUE",
     "CREATE CONSTRAINT package_id IF NOT EXISTS FOR (x:Package) REQUIRE x.id IS UNIQUE",
+    "CREATE CONSTRAINT configkey_id IF NOT EXISTS FOR (x:ConfigKey) REQUIRE x.id IS UNIQUE",
     "CREATE CONSTRAINT cannode_id IF NOT EXISTS FOR (x:CanNode) REQUIRE x.id IS UNIQUE"
   ],
   "indexes": [

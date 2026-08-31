@@ -104,8 +104,8 @@ describe("neo4j schema conformance", () => {
     // :Artifact/:Package (+ HAS_ARTIFACT/DECLARES_DEPENDENCY/LOCKS) are deliberately
     // language-neutral so sibling analyzers MERGE onto the same nodes (python PR #160's rule);
     // edges that stay this analyzer's own claim (TS_PROVIDES, TS_UNRESOLVED_IMPORT) keep TS_.
-    const NEUTRAL_LABELS = new Set(["Artifact", "Package"]);
-    const NEUTRAL_RELS = new Set(["HAS_ARTIFACT", "DECLARES_DEPENDENCY", "LOCKS"]);
+    const NEUTRAL_LABELS = new Set(["Artifact", "Package", "ConfigKey"]);
+    const NEUTRAL_RELS = new Set(["HAS_ARTIFACT", "DECLARES_DEPENDENCY", "LOCKS", "DEFINES_CONFIG"]);
     for (const node of rows.nodes) {
       for (const l of node.labels) {
         const ok = l === "CanNode" || l === "Application" || l.startsWith("TS") || NEUTRAL_LABELS.has(l);

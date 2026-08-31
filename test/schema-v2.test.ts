@@ -734,10 +734,13 @@ function resolvesToCount(app: TSAnalysis): number {
 }
 
 describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
-  test("node count: 1 :Application row + every :CanNode id + neutral Artifact/Package rows", () => {
+  test("node count: 1 :Application row + every :CanNode id + neutral Artifact/Package/ConfigKey rows", () => {
     const artifactCount = Object.keys(monoApp4.application.artifacts ?? {}).length;
     const packageCount = new Set((monoApp4.application.dependencies ?? []).map((d) => d.name)).size;
-    expect(monoRows.nodes.length).toBe(1 + canNodeIds(monoApp4).size + artifactCount + packageCount);
+    const configKeyCount = new Set(
+      Object.values(monoApp4.application.artifacts ?? {}).flatMap((a) => a.config_keys.map((ck) => ck.id)),
+    ).size;
+    expect(monoRows.nodes.length).toBe(1 + canNodeIds(monoApp4).size + artifactCount + packageCount + configKeyCount);
   });
 
   test("typed overlay relationships match their JSON edge-list length 1:1", () => {
@@ -800,10 +803,10 @@ describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
       (n, t) => n + relCount(monoRows, t),
       0,
     );
-    const artifactLayer = ["HAS_ARTIFACT", "DECLARES_DEPENDENCY", "LOCKS", "TS_PROVIDES", "TS_UNRESOLVED_IMPORT"].reduce(
-      (n, t) => n + relCount(monoRows, t),
-      0,
-    );
+    const artifactLayer = [
+      "HAS_ARTIFACT", "DECLARES_DEPENDENCY", "LOCKS", "TS_PROVIDES", "TS_UNRESOLVED_IMPORT",
+      "DEFINES_CONFIG", "TS_USES_CONFIG",
+    ].reduce((n, t) => n + relCount(monoRows, t), 0);
     const resolvesTo = relCount(monoRows, "TS_RESOLVES_TO");
     const heritage = relCount(monoRows, "TS_EXTENDS") + relCount(monoRows, "TS_IMPLEMENTS");
     expect(resolvesTo).toBe(resolvesToCount(monoApp4));

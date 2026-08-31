@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { project as neoProject } from "../src/build/neo4j";
 import { analyze } from "../src/core";
 import type { AnalysisOptions } from "../src/options";
 
@@ -191,5 +192,23 @@ describe("config_use interproc tier (#101 unit C3, -a 4)", () => {
     const key = (u: { src: string; dst: string }): string => `${u.src}|${u.dst}`;
     const l4 = new Set(app4.config_uses.map(key));
     for (const u of app3.config_uses) expect(l4.has(key(u))).toBe(true);
+  });
+});
+
+describe("Neo4j projection of the config layer (#101)", () => {
+  const rows = neoProject(r2.application);
+
+  test("ConfigKey nodes are neutral and hang off their artifact", () => {
+    const id = "can://artifact/artifacts-app/.env@key/PAYMENT_HOST";
+    const n = rows.nodes.find((x) => x.value === id);
+    expect(n?.labels).toContain("ConfigKey");
+    expect(n?.labels).not.toContain("TSConfigKey");
+    expect(rows.edges.some((e) => e.type === "DEFINES_CONFIG" && e.to.value === id)).toBe(true);
+  });
+
+  test("TS_USES_CONFIG carries prov and points at a ConfigKey", () => {
+    const e = rows.edges.find((x) => x.type === "TS_USES_CONFIG");
+    expect(e?.props["prov"]).toEqual(["literal"]);
+    expect(String(e?.to.value)).toContain("@key/");
   });
 });

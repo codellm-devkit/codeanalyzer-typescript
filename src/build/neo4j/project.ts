@@ -83,6 +83,14 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
       sha256: art.sha256, extraction: art.extraction,
     }));
     b.edge("HAS_ARTIFACT", appRef, aRef);
+    for (const ck of art.config_keys) {
+      const kRef = b.node(["ConfigKey"], "id", ck.id, prune({
+        id: ck.id, key: ck.key, namespace: ck.namespace,
+        value: ck.value !== undefined ? String(ck.value) : null,
+        references: ck.references.length ? ck.references : null,
+      }));
+      b.edge("DEFINES_CONFIG", aRef, kRef);
+    }
   }
   {
     const lockIds = Object.values(root.artifacts ?? {})
@@ -94,7 +102,7 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
       const pkgId = purlNpm(d.name);
       const pkgRef = b.node(["Package"], "id", pkgId, prune({ id: pkgId, ecosystem: "npm", name: d.name }));
       b.edge("DECLARES_DEPENDENCY", { label: "Artifact", keyProp: "id", value: d.declared_in }, pkgRef, prune({
-        spec: d.spec || null, kind: d.kind, extras: d.extras.length ? d.extras : null,
+        spec: d.spec || null, kind: d.kind, direct: d.direct, extras: d.extras.length ? d.extras : null,
         prov: d.prov.length ? d.prov : null,
       }), d.kind);
       if (d.locked_version) {
@@ -115,6 +123,12 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
     for (const u of root.unresolved_imports ?? []) {
       b.edge("TS_UNRESOLVED_IMPORT", appRef, importGhost(u.module), prune({ prov: u.prov.length ? u.prov : null }));
     }
+  }
+  // config_use literal/dataflow tier (#101 unit C2/C3): src is a body-node ordinal id already
+  // projected as a :CanNode above; dst is a :ConfigKey id, already projected in the artifact
+  // loop. config_reads stay JSON-only — they record absence, not an edge.
+  for (const u of root.config_uses ?? []) {
+    b.edge("TS_USES_CONFIG", ref(u.src), { label: "ConfigKey", keyProp: "id", value: u.dst }, prune({ prov: u.prov }));
   }
 
   // External library targets (shared nodes — no _module).
