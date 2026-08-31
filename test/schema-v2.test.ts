@@ -87,7 +87,19 @@ describe("schema v2 — L1 envelope", () => {
     expect(v2.schema_version).toBe("2.1.0");
     expect(v2.language).toBe("typescript");
     expect(v2.max_level).toBe(1);
-    expect(Object.keys(root).sort()).toEqual(["artifacts", "call_graph", "dependencies", "id", "kind", "param_in", "param_out", "symbol_table", "unresolved_imports"]);
+    expect(Object.keys(root).sort()).toEqual([
+      "artifacts",
+      "call_graph",
+      "config_reads",
+      "config_uses",
+      "dependencies",
+      "id",
+      "kind",
+      "param_in",
+      "param_out",
+      "symbol_table",
+      "unresolved_imports",
+    ]);
     expect(root.id).toBe("can://typescript/sample-app");
     expect(root.kind).toBe("application");
   });

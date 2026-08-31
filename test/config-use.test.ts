@@ -54,3 +54,46 @@ describe("config_access body nodes (#101 unit C1)", () => {
     expect(accessKey).toBe(`${callKey}/2`);
   });
 });
+
+const r2 = await analyze(options(2));
+const app2 = r2.application.application;
+const useDsts = (fnFragment: string): string[] =>
+  app2.config_uses.filter((u) => u.src.includes(fnFragment)).map((u) => u.dst).sort();
+
+describe("config_use literal tier (#101 unit C3)", () => {
+  test("a literal env read joins every declaring ConfigKey", () => {
+    const dsts = useDsts("readHost");
+    expect(dsts).toContain("can://artifact/artifacts-app/.env@key/PAYMENT_HOST");
+    expect(dsts).toContain("can://artifact/artifacts-app/Dockerfile@key/PAYMENT_HOST");
+    expect(app2.config_uses.every((u) => u.prov.includes("literal"))).toBe(true);
+  });
+
+  test("src is a global ordinal body-node id", () => {
+    const u = app2.config_uses.find((x) => x.src.includes("readHost"));
+    expect(u?.src).toMatch(/^can:\/\/typescript\/artifacts-app\/src\/config\.ts\/readHost@\d+:\d+$/);
+  });
+
+  test("a literal with no declared key is an undefined-key read, not an edge", () => {
+    const read = app2.config_reads.find((r) => r.key === "NOT_DECLARED_ANYWHERE");
+    expect(read?.reason).toBe("undefined-key");
+    expect(read?.prov).toEqual(["literal"]);
+    expect(app2.config_uses.some((u) => u.src.includes("readUndeclared"))).toBe(false);
+  });
+
+  test("a dynamic key is a non-literal read at L2", () => {
+    const read = app2.config_reads.find((r) => r.site.includes("readVia"));
+    expect(read?.reason).toBe("non-literal");
+    expect(read?.key).toBeUndefined();
+  });
+
+  test("Dockerfile ARG is never bindable", () => {
+    expect(app2.config_uses.some((u) => u.dst.endsWith("@key/BUILD_ID"))).toBe(false);
+  });
+
+  test("a CALL rule resolves through the resolved external callee", () => {
+    const dsts = useDsts("readViaLibrary");
+    expect(dsts.some((d) => d.endsWith("@key/PAYMENT_HOST"))).toBe(true);
+    const u = app2.config_uses.find((x) => x.src.includes("readViaLibrary"));
+    expect(u?.src).toMatch(/@\d+:\d+$/); // the CALL node's ordinal id
+  });
+});

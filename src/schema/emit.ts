@@ -27,6 +27,7 @@ import { resolveHeritageIds } from "./heritage";
 import { homeExternals, homeSynthesized } from "./homing";
 import { backfillCallees, reidentifyCallGraph } from "./l2Callees";
 import { applyDataflow } from "../dataflow/attach";
+import { resolveLiteralConfigUses } from "../semantic_analysis/configUse";
 
 const LANGUAGE = "typescript";
 const SCHEMA_VERSION = "2.1.0";
@@ -100,6 +101,8 @@ export function finalizeAnalysis(
     artifacts: app.artifacts ?? {},
     dependencies: app.dependencies ?? [],
     unresolved_imports: app.unresolved_imports ?? [],
+    config_uses: app.config_uses ?? [],
+    config_reads: app.config_reads ?? [],
   };
 
   // L2 — home the off-tree edge endpoints, backfill `callee`, re-identify the call graph.
@@ -108,6 +111,12 @@ export function finalizeAnalysis(
     root.external_symbols = homeExternals(app, appId, idBySig);
     root.synthesized_callables = homeSynthesized(app, appId, idBySig);
     backfillCallees(app, idBySig, resolutions);
+    // config_use literal tier (#101): needs the artifact layer's keys and, for CALL rules, the
+    // resolved call graph (`callee` ids only exist after backfillCallees) — so it runs here, not
+    // in core.ts. `src`/`dst` reference can:// ids assignIds already stamped above.
+    const literal = resolveLiteralConfigUses(app, root.external_symbols ?? {});
+    root.config_uses = literal.uses;
+    root.config_reads = literal.reads;
     root.call_graph = reidentifyCallGraph(app.call_graph ?? [], idBySig, dangling);
   }
 

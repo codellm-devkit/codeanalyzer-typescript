@@ -124,6 +124,7 @@ export interface TSCallsite {
   receiver_expr?: string;
   receiver_type?: string;
   argument_types: string[];
+  arguments: string[]; // raw source text per argument — INTERNAL, feeds the config-use key match
   type_arguments: string[]; // explicit call type args, foo<T>()
   return_type?: string;
   callee_signature?: string; // absent when recorded; backfilled by the resolver call graph
@@ -400,6 +401,32 @@ export interface TSImportBinding {
 }
 
 // ----------------------------------------------------------------------------------------------
+// config_use literal tier (#101 unit C2/C3): joins a recognized config READ (a `config_access` or
+// detector-table CALL body node) to the declared `TSConfigKey`(s) it names. Runs with the L2 stage
+// (src/semantic_analysis/configUse.ts) because CALL rules need the resolved call graph. `src`/
+// `site` are GLOBAL ordinal ids (`<callable-id>@<local>`); `dst` is a TSConfigKey id.
+// ----------------------------------------------------------------------------------------------
+
+/** One resolved config read: a recognized read whose key closed on exactly one literal that
+ * matches a declared ConfigKey. `src` is the read's GLOBAL ordinal id; `dst` the key's id. */
+export interface TSConfigUse {
+  src: string;
+  dst: string;
+  prov: Array<"literal" | "dataflow">;
+}
+
+/** A recognized read that resolved to no declared key — first class, so an untraceable read is
+ * as visible as a traced one. `config_reads` SHRINKS as levels rise (higher tiers resolve some);
+ * that is deliberate and is the layer's one non-monotonic section. */
+export interface TSConfigRead {
+  site: string; // GLOBAL ordinal id
+  callee: string; // the read root ("process.env") or the resolved callee id for call rules
+  key?: string; // set only for reason "undefined-key"
+  reason: "non-literal" | "undefined-key";
+  prov: Array<"literal" | "dataflow">;
+}
+
+// ----------------------------------------------------------------------------------------------
 // Call-graph edge (identity-only, provider output; endpoints are signature strings until the
 // call-graph-ids pass rewrites them onto can:// ids at L2)
 // ----------------------------------------------------------------------------------------------
@@ -454,6 +481,9 @@ export interface AnalysisInternal {
   artifacts?: Record<string, TSArtifact>;
   dependencies?: TSDependency[];
   unresolved_imports?: TSImportBinding[];
+  /** config_use literal tier (#101 unit C2/C3) — stamped by finalizeAnalysis, not by core.ts. */
+  config_uses?: TSConfigUse[];
+  config_reads?: TSConfigRead[];
 }
 
 // ----------------------------------------------------------------------------------------------
@@ -488,6 +518,9 @@ export interface TSApplication {
   artifacts: Record<string, TSArtifact>;
   dependencies: TSDependency[];
   unresolved_imports: TSImportBinding[];
+  /** config_use literal tier (#101 unit C2/C3) — empty until L2; CALL rules need the call graph. */
+  config_uses: TSConfigUse[];
+  config_reads: TSConfigRead[];
   // TS-additive (parity): edge endpoints outside the containment tree need an id home.
   external_symbols?: Record<string, import("./homing").TSExternalNode>; // L2 — library call targets, keyed by id
   // L2 — 2.1.0 compatibility index: pre-2.1.0 anonymous-callable id → the tree id that replaced

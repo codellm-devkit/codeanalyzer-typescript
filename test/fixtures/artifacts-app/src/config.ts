@@ -27,3 +27,7 @@ export class Client {
     return this.host;
   }
 }
+import nconf from "nconf";
+export function readViaLibrary(): string | undefined {
+  return nconf.get("PAYMENT_HOST");
+}

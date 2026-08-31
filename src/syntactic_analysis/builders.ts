@@ -311,6 +311,7 @@ function buildCallsite(call: Node): TSCallsite {
   }
   const args = (call as unknown as { getArguments?: () => Node[] }).getArguments?.() ?? []; // tagged templates have none
   const argument_types = args.map((a) => inferredType(a) ?? "unknown");
+  const argsText = args.map((a) => a.getText());
   const typeArgs = (call as unknown as { getTypeArguments?: () => Node[] }).getTypeArguments?.() ?? [];
   const type_arguments = typeArgs.map((t) => t.getText());
   const return_type = inferredType(call);
@@ -319,6 +320,7 @@ function buildCallsite(call: Node): TSCallsite {
     ...(receiver_expr != null ? { receiver_expr } : {}),
     ...(receiver_type != null ? { receiver_type } : {}),
     argument_types,
+    arguments: argsText,
     type_arguments,
     ...(return_type != null ? { return_type } : {}),
     is_constructor_call: isNew,
