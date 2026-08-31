@@ -2,7 +2,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .codeanalyzer/
-bun.lock
+# bun.lock is TRACKED (#107): CI runs `bun install --frozen-lockfile`, which is a silent
+# no-op without it. bun.lockb is the superseded binary format and stays out.
 bun.lockb
 .DS_Store
 # The PyPI long-description is the repo root README, copied in by build_wheels.sh at build time
