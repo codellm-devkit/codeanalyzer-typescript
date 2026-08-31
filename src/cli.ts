@@ -160,7 +160,12 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     phantoms: o.phantoms !== false,
     resolveInstalled: Boolean(o.resolveInstalled),
     artifactText: o.artifactText !== false,
-    artifactTextMaxBytes: Number(o.artifactTextMaxBytes ?? DEFAULT_ARTIFACT_TEXT_MAX_BYTES),
+    // Malformed input (e.g. "abc") must fall back, not silently disable truncation via NaN --
+    // every `> cap` comparison against NaN is false.
+    artifactTextMaxBytes: (() => {
+      const n = Number(o.artifactTextMaxBytes ?? DEFAULT_ARTIFACT_TEXT_MAX_BYTES);
+      return Number.isFinite(n) && n >= 0 ? n : DEFAULT_ARTIFACT_TEXT_MAX_BYTES;
+    })(),
     cacheDir: o.cacheDir ? path.resolve(String(o.cacheDir)) : null,
     verbosity: typeof o.verbose === "number" ? o.verbose : 0,
   };
