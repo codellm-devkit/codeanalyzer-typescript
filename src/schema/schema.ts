@@ -16,8 +16,8 @@
  *  - `id` fields are stamped per-run by `assignIds` (ids embed `--app-name`; the cached tree must
  *    stay app-name-free). Builders initialize them to "".
  *  - INTERNAL fields (never on the wire; serialize.ts strips them by key): `call_sites`,
- *    `abs_path`, `content_hash`, `last_modified`, `file_size`. They exist for the call-graph
- *    resolver, the dataflow join, and the analysis cache.
+ *    `config_accesses`, `abs_path`, `content_hash`, `last_modified`, `file_size`. They exist for
+ *    the call-graph resolver, the dataflow join, and the analysis cache.
  *
  * All field names are snake_case so `JSON.stringify` emits keys the SDK Pydantic models parse.
  */
@@ -136,13 +136,26 @@ export interface TSCallsite {
   bytes: [number, number]; // char offsets [start, end] into module.source
 }
 
+/** INTERNAL — a recognized configuration read (env root access). Never on the wire; the wire's
+ * view is the `config_access` node in the owning callable's `body{}` (built by the l1Body pass). */
+export interface TSConfigAccess {
+  root: string; // "process.env" | "import.meta.env" | "Bun.env"
+  key?: string; // present when statically known
+  start_line: number;
+  start_column: number;
+  end_line: number;
+  end_column: number;
+  bytes: [number, number];
+}
+
 // ----------------------------------------------------------------------------------------------
 // Body nodes — a callable's `body{}` map, keyed by local id (`line:col`, or `@tag` synthetic).
-// L1: `call` nodes; L3 adds statements + @entry/@exit; L4 adds formal/actual param vertices.
+// L1: `call` and `config_access` nodes; L3 adds statements + @entry/@exit; L4 adds formal/actual
+// param vertices.
 // ----------------------------------------------------------------------------------------------
 
 export interface TSBodyNode {
-  kind: string; // "call" | "statement" | "entry" | "exit" | "formal_in" | "actual_in" | …
+  kind: string; // "call" | "config_access" | "statement" | "entry" | "exit" | "formal_in" | "actual_in" | …
   span?: TSSpan;
   callee?: string | null; // `call` nodes: null at L1, refined to an id at L2 (the one sanctioned null)
   of?: string; // synthetic param vertices: the flowed name ("arg0", "$ret", a global path)
@@ -156,6 +169,9 @@ export interface TSBodyNode {
   return_type?: string;
   is_constructor_call?: boolean;
   is_optional_chain?: boolean;
+  // config_access attributes (copied from the recorded access by the l1Body pass)
+  root?: string;
+  key?: string;
 }
 
 // ----------------------------------------------------------------------------------------------
@@ -258,6 +274,7 @@ export interface TSCallable {
   // INTERNAL (stripped from the wire)
   abs_path: string; // ABSOLUTE file path of the declaration — the resolver's AST-index key
   call_sites: TSCallsite[];
+  config_accesses: TSConfigAccess[]; // INTERNAL (stripped from the wire)
 }
 
 // ----------------------------------------------------------------------------------------------

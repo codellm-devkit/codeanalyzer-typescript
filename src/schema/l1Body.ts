@@ -1,12 +1,15 @@
 /**
  * L1 body population — python's `l1_body.py`: materialize each callable's `body{}` `call` nodes
  * from the INTERNAL `call_sites`, `callee: null` (the sanctioned null→id refinement happens at
- * L2, l2Callees.ts).
+ * L2, l2Callees.ts). Also materializes `config_access` nodes from `config_accesses` (#101 unit
+ * C1) — a TS-native addition: the dominant env-read idiom (`process.env.FOO`) is a property
+ * access, not a call, so python's call-based detector table has nothing to mirror here.
  *
  * Rebuilds `body{}` WHOLESALE every run and deletes the derived edge lists — body, cfg/cdg/ddg/
  * summary, and callee resolution are per-run projections (they embed per-run ids and per-level
- * depth), while `call_sites` are the cached source of truth. That wholesale rebuild is what makes
- * the whole pass chain idempotent across repeated emissions at different levels.
+ * depth), while `call_sites`/`config_accesses` are the cached source of truth. That wholesale
+ * rebuild is what makes the whole pass chain idempotent across repeated emissions at different
+ * levels.
  */
 
 import type { AnalysisInternal, TSBodyNode, TSCallable, TSCallsite, TSModule } from "./schema";
@@ -51,6 +54,19 @@ function callNodeOf(cs: TSCallsite): TSBodyNode {
 function resetCallable(c: TSCallable): void {
   const body: Record<string, TSBodyNode> = {};
   for (const [key, cs] of callBodyKeys(c.call_sites)) body[key] = callNodeOf(cs);
+  // config_access nodes share the body key space with calls: allocate AFTER them, disambiguating
+  // against keys already present so a read and a call on one line never collide.
+  for (const ca of c.config_accesses) {
+    const base = `${ca.start_line}:${ca.start_column}`;
+    let key = base;
+    for (let k = 2; key in body; k++) key = `${base}/${k}`;
+    body[key] = {
+      kind: "config_access",
+      span: { start: [ca.start_line, ca.start_column], end: [ca.end_line, ca.end_column], bytes: ca.bytes },
+      root: ca.root,
+      ...(ca.key !== undefined ? { key: ca.key } : {}),
+    };
+  }
   c.body = body;
   delete c.cfg;
   delete c.cdg;

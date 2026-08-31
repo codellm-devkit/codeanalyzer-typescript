@@ -5,14 +5,15 @@
  * construct the wire shapes directly (src/syntactic_analysis/builders.ts):
  *
  *   assignIds       — can:// ids (per-run: ids embed --app-name; the cache stays id-free)
- *   populateL1Body  — call_sites → body{} `call` nodes, callee: null
+ *   populateL1Body  — call_sites/config_accesses → body{} `call`/`config_access` nodes, callee: null
  *   resolveHeritage — extends_ids / implements_ids (resolved-only)
  *   [L2] homeExternals / homeSynthesized / backfillCallees / reidentifyCallGraph
  *   [L3/4] applyDataflow — program_graphs → body{} + cfg/cdg/ddg/summary + param_in/param_out
  *
  * The returned application is a DEEP, INTERNAL-FIELD-STRIPPED copy: the live tree keeps
- * `call_sites`, `abs_path`, and the cache metadata for the resolver/dataflow/cache, while every
- * consumer of the emission (JSON writer, Neo4j projection, tests) sees exactly the wire.
+ * `call_sites`, `config_accesses`, `abs_path`, and the cache metadata for the resolver/dataflow/
+ * cache, while every consumer of the emission (JSON writer, Neo4j projection, tests) sees exactly
+ * the wire.
  */
 
 import * as path from "node:path";
@@ -43,6 +44,7 @@ const MAX_IMPLEMENTED = 4;
 function stripInternal(root: TSApplication): void {
   const stripCallable = (c: Record<string, unknown>): void => {
     delete c["call_sites"];
+    delete c["config_accesses"];
     delete c["abs_path"];
     for (const nested of Object.values((c["callables"] as Record<string, Record<string, unknown>>) ?? {})) stripCallable(nested);
     for (const t of Object.values((c["types"] as Record<string, Record<string, unknown>>) ?? {})) stripType(t);

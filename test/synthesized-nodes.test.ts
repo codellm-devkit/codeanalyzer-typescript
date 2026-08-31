@@ -13,7 +13,10 @@ const ANON = "src/x.foo:<3:10>";
 const SPAN: TSSpan = { start: [1, 1], end: [5, 1], bytes: [0, 10] };
 
 const callable = (signature: string, name: string): TSCallable =>
-  ({ signature, name, kind: "function", span: SPAN, parameters: [], call_sites: [], inner_callables: {}, inner_classes: {} }) as unknown as TSCallable;
+  ({
+    signature, name, kind: "function", span: SPAN, parameters: [],
+    call_sites: [], config_accesses: [], inner_callables: {}, inner_classes: {},
+  }) as unknown as TSCallable;
 
 const app: AnalysisInternal = {
   symbol_table: {

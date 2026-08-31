@@ -16,6 +16,7 @@ import {
   type TSCallableKind,
   type TSCallsite,
   type TSComment,
+  type TSConfigAccess,
   type TSDecorator,
   type TSExport,
   type TSField,
@@ -349,8 +350,40 @@ function namedBoundary(node: Node): Boundary {
 
 interface BodyHandlers {
   onCall: (n: Node) => void;
+  onConfigAccess: (n: Node, root: string, key?: string) => void;
   onNestedCallable: (n: Node) => void;
   onNestedClass: (n: Node) => void;
+}
+
+// Config-read recognition (#101 unit C1): the join target for the next task is a body-node
+// ordinal id, so every env-root read must mint a `config_access` node — even a dynamic-key one
+// (no `key`), which the dataflow tier resolves later. Missing one is a silently unjoinable read.
+const ENV_ROOTS = new Set(["process.env", "import.meta.env", "Bun.env"]);
+
+/** `process.env.X` / `process.env["X"]` / `import.meta.env.X` — a read, not a call. */
+function envRootAccess(node: Node): { root: string; key?: string } | null {
+  if (Node.isPropertyAccessExpression(node)) {
+    const root = node.getExpression().getText();
+    if (!ENV_ROOTS.has(root)) return null;
+    return { root, key: node.getName() };
+  }
+  if (Node.isElementAccessExpression(node)) {
+    const root = node.getExpression().getText();
+    if (!ENV_ROOTS.has(root)) return null;
+    const arg = node.getArgumentExpression();
+    return { root, ...(arg && Node.isStringLiteral(arg) ? { key: arg.getLiteralValue() } : {}) };
+  }
+  return null;
+}
+
+/** Shared by every `onConfigAccess` handler, mirroring `buildCallsite`'s role for `onCall`. */
+function buildConfigAccess(n: Node, root: string, key?: string): TSConfigAccess {
+  return {
+    root,
+    ...(key !== undefined ? { key } : {}),
+    ...span(n),
+    bytes: [n.getStart(), n.getEnd()],
+  };
 }
 
 function walkBody(body: Node, h: BodyHandlers): void {
@@ -365,6 +398,20 @@ function walkBody(body: Node, h: BodyHandlers): void {
       return;
     }
     if (b === "skip") return;
+    const access = envRootAccess(node);
+    if (access) h.onConfigAccess(node, access.root, access.key);
+    // Destructuring (`const { PORT, HOST } = process.env`) is a VariableDeclaration whose
+    // initializer is an env root: mint ONE access per bound element (renamed bindings read the
+    // PROPERTY name, not the local one — `const { PORT: p } = process.env` reads "PORT").
+    if (Node.isVariableDeclaration(node)) {
+      const init = node.getInitializer();
+      const name = node.getNameNode();
+      if (init && ENV_ROOTS.has(init.getText()) && Node.isObjectBindingPattern(name)) {
+        for (const el of name.getElements()) {
+          h.onConfigAccess(el, init.getText(), el.getPropertyNameNode()?.getText() ?? el.getName());
+        }
+      }
+    }
     if (Node.isCallExpression(node) || Node.isNewExpression(node) || Node.isTaggedTemplateExpression(node)) h.onCall(node);
     node.forEachChild(visit);
   };
@@ -454,11 +501,13 @@ export function buildCallable(
   if (!sig) return null;
 
   const call_sites: TSCallsite[] = [];
+  const config_accesses: TSConfigAccess[] = [];
   const callables: Record<string, TSCallable> = {};
   const types: Record<string, TSType> = {};
 
   const handlers = {
     onCall: (n: Node) => call_sites.push(buildCallsite(n)),
+    onConfigAccess: (n: Node, root: string, key?: string) => config_accesses.push(buildConfigAccess(n, root, key)),
     onNestedCallable: (n: Node) => {
       const r = buildNestedCallable(n, root);
       if (r) callables[memberKey(r.sig, r.callable.accessor_kind)] = r.callable;
@@ -510,6 +559,7 @@ export function buildCallable(
     body: {},
     abs_path: sigNode.getSourceFile().getFilePath(),
     call_sites,
+    config_accesses,
   };
   if (Object.keys(callables).length) callable.callables = callables;
   if (Object.keys(types).length) callable.types = types;
@@ -544,6 +594,7 @@ function implicitConstructor(classSig: string, filePath: string): { sig: string;
       body: {},
       abs_path: filePath,
       call_sites: [],
+      config_accesses: [],
     },
   };
 }
@@ -650,11 +701,12 @@ export function buildClass(cls: Node, root: string): { sig: string; cls: TSType 
   }
 
   // Instance property INITIALIZERS execute in the constructor (`private readonly registry =
-  // Registry.as(...)`): their call sites belong to the ctor (explicit or the synthesized
-  // implicit one), and an initializer ARROW is a class-scoped positional anon callable —
-  // `contributorName` signs it `Class.<anon@l:c>`, so it lives in the class's callables{},
-  // keeping signature ↔ containment aligned. Static initializers run at class-definition time
-  // and stay with the module-scope sweep (callGraph.ts).
+  // Registry.as(...)`): their call sites AND config reads belong to the ctor (explicit or the
+  // synthesized implicit one) — same activation record, so `private readonly host = process.env
+  // .HOST` mints its config_access on the ctor, not module scope — and an initializer ARROW is a
+  // class-scoped positional anon callable — `contributorName` signs it `Class.<anon@l:c>`, so it
+  // lives in the class's callables{}, keeping signature ↔ containment aligned. Static initializers
+  // run at class-definition time and stay with the module-scope sweep (callGraph.ts).
   {
     const ctorCallable = callables[memberKey(constructorSignatureOf(sig))];
     for (const p of c.getProperties()) {
@@ -663,6 +715,7 @@ export function buildClass(cls: Node, root: string): { sig: string; cls: TSType 
       if (!init || !ctorCallable) continue;
       walkBody(init, {
         onCall: (n) => ctorCallable.call_sites.push(buildCallsite(n)),
+        onConfigAccess: (n, envRoot, key) => ctorCallable.config_accesses.push(buildConfigAccess(n, envRoot, key)),
         onNestedCallable: (n) => {
           const r = buildNestedCallable(n, root);
           if (r) callables[memberKey(r.sig, r.callable.accessor_kind)] = r.callable;
@@ -874,6 +927,7 @@ function buildStatemented(container: Node, root: string, varScope: "module" | "n
   // loops above already claimed, so nothing is collected twice.
   walkBody(container, {
     onCall: () => {},
+    onConfigAccess: () => {}, // module/namespace scope — no callable to attribute the read to
     onNestedCallable: (n) => {
       if (!Node.isArrowFunction(n) && !Node.isFunctionExpression(n)) return; // already bucketed
       const r = buildCallable(n, n, Node.isArrowFunction(n) ? "arrow" : "function_expression", root);
