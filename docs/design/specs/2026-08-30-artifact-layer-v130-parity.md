@@ -200,6 +200,55 @@ every tier — literal, intra-dataflow, interprocedural, plus one `undefined-key
 - measured payload delta from `direct: false` transitives on a real repository, reported in the PR
 - full suite + typecheck green at every unit boundary
 
+## Consumer documentation — the query skill
+
+The layer ships with a consumer-facing skill, mirroring python's
+`docs/skills/analyzing-canpy-graphs/` (released as `analyzing-canpy-graphs-SKILL.md` +
+`…-skill.tar.gz` alongside `schema.json` / `schema.cypher`):
+
+```
+docs/skills/analyzing-cants-graphs/
+  SKILL.md                    # level table, identity, standing traps
+  references/vocabulary.md    # labels, edges, properties — never guess one
+  references/analyses.md      # recipe catalogue, each stating its minimum -a level
+```
+
+Python's version documents the *mechanics* of these fields. Ours must also carry the
+**decision guidance** — why a consumer picks one query over another — because every trap below is
+a place where a mechanically-correct query answers the wrong question. Required content:
+
+**`direct` — dependency surface vs. supply chain.** State it plainly, in these terms:
+
+> Your dependency *surface* and your dependency *supply chain* are different questions.
+> "What does this app declare?" filters `direct: true`. "What actually ships / where does
+> CVE-XXXX live?" needs the transitives — a vulnerable package four levels down is in your
+> bundle whether or not you named it.
+
+with both recipes side by side (declared-only, and the full pinned set), and the scoping note
+that transitives are top-level lock entries carrying `kind: "runtime"` because a lock does not
+record why a package is present.
+
+**The other traps, each with its "why":**
+
+- **`config_reads` shrinks as `-a` rises** — it is the one deliberately non-monotonic section. A
+  consumer diffing two levels must read a vanished record as *resolved at the higher tier*, not
+  as *fixed in the code*. Pair it with `config_uses`, which is superset-monotonic.
+- **`--app-name` is the cross-analyzer join precondition** — artifact ids are language-neutral so
+  a TS and a python analysis of one monorepo MERGE onto the same `:Artifact`; they only do so if
+  both runs pinned the same app name. Analyzers pointed at different subdirectories disagree.
+- **`sha256` is always the full file; `source` may not be.** Under `--artifact-text-max-bytes`,
+  `text_truncated: true` means the stored text is a prefix — hash-compare on `sha256`, never on
+  `source`, and never re-derive meaning from a truncated copy (the analyzer itself parses the
+  full on-disk text).
+- **`value` is present by default** and absent under `--no-artifact-text` — an absent `value` is a
+  capture setting, not an empty config key.
+- **Dockerfile `ARG` is not bindable.** `ENV` mints an `env`-namespace key a `process.env` read
+  joins; `ARG` mints a `dockerfile`-namespace key that deliberately never joins one — it exists
+  at build time only. A query that unions the two namespaces will report build-time values as
+  runtime configuration.
+- **`config_access` nodes are reads, not calls** — they carry no `callee`; joining them through
+  `TS_RESOLVES_TO` finds nothing. Follow `TS_USES_CONFIG` to the `ConfigKey`.
+
 ## Caveats and risks
 
 - **Transitive payload.** npm lock trees are large; unit A's `direct: false` records are the
@@ -222,3 +271,6 @@ every tier — literal, intra-dataflow, interprocedural, plus one `undefined-key
 - Every gate above passes; the spec's caveats are reflected in `.claude/SCHEMA_DECISIONS.md`.
 - `CLAUDE.md`, `README.md` (`--help` block), and the epic comment trail record the shipped
   contract; `artifacts-and-dependencies.md` is marked superseded by this spec.
+- `docs/skills/analyzing-cants-graphs/` exists with the guidance above (not just field
+  mechanics), every recipe states its minimum `-a` level, and it ships as a release asset
+  alongside the machine-readable contract — python v1.3.0's asset set is the parity bar.
