@@ -64,7 +64,13 @@ export function inventoryArtifacts(
     const text = decodeLossy(raw);
     const capture = opts.artifactText ?? true;
     const cap = opts.artifactTextMaxBytes ?? DEFAULT_ARTIFACT_TEXT_MAX_BYTES;
-    const stored = !capture || text === undefined ? "" : text.length > cap ? text.slice(0, cap) : text;
+    const textByteLength = text === undefined ? 0 : Buffer.byteLength(text, "utf8");
+    const stored =
+      !capture || text === undefined
+        ? ""
+        : textByteLength > cap
+          ? Buffer.from(text, "utf8").subarray(0, cap).toString("utf8")
+          : text;
     const node: TSArtifact = {
       id: "",
       kind: "artifact",
@@ -74,7 +80,7 @@ export function inventoryArtifacts(
       size_bytes: raw.length,
       sha256: sha256(raw),
       source: stored,
-      text_truncated: capture && text !== undefined && text.length > cap,
+      text_truncated: capture && text !== undefined && textByteLength > cap,
       extraction: "none",
     };
     artifacts[rel] = node;

@@ -148,6 +148,30 @@ describe("level-invariance + determinism (#101)", () => {
     expect(a.artifacts["package.json"]?.source).toBe("");
     expect(a.dependencies.find((d) => d.name === "express")?.locked_version).toBe("4.19.2");
   });
+
+  test("text cap is byte-accurate on multi-byte UTF-8 (not character-count)", async () => {
+    // Create a test .md file with multi-byte chars to verify cap is byte-accurate, not char-count.
+    // "Hi 🎉": H=1 byte, i=1 byte, space=1 byte, emoji=4 bytes (UTF-8) = 7 bytes total, 5 chars.
+    const testFile = path.join(FIXTURE, "multi-byte-test.md");
+    const fullContent = "Hi 🎉";
+    fs.writeFileSync(testFile, fullContent, "utf8");
+
+    // Analyze with a cap of 3 bytes. This is enough for "Hi " but splits the emoji.
+    const r = await analyze(options({ artifactTextMaxBytes: 3 }));
+    const art = r.application.application.artifacts["multi-byte-test.md"];
+
+    expect(art?.text_truncated).toBe(true);
+    // The stored source should be truncated (not the full 7 bytes).
+    // With a 3-byte cap, we get "Hi " exactly (3 bytes), no truncation of multi-byte sequence.
+    expect(art!.source).not.toBe(fullContent);
+    expect(art!.source).toBe("Hi ");
+    expect(Buffer.byteLength(art!.source, "utf8")).toBe(3);
+    expect(art?.sha256).toBeDefined(); // hash is always full-file
+    expect(art?.size_bytes).toBe(7); // size is full-file (7 bytes)
+
+    // Clean up
+    fs.unlinkSync(testFile);
+  });
 });
 
 describe("Neo4j projection — neutral :Artifact/:Package (#101, contract 2.2.0)", () => {
