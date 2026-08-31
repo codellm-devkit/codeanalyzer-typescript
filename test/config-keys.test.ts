@@ -206,4 +206,37 @@ describe("parseYamlKeys — anchors, aliases, and merge keys (fix round 2)", () 
   test("a dangling alias (no matching anchor) resolves to undefined and is skipped, not thrown", () => {
     expect(parseYamlKeys("a: *nope\n")).toEqual([]);
   });
+
+  // Fix round 3: explicit keys must beat merged ones of the same name regardless of document
+  // order, and the winning entry's span must be the EXPLICIT site, not the anchor's — otherwise a
+  // last-wins consumer reads the value YAML says is overridden, and the two entries collide on id
+  // (configKeyIdOf derives the id from the key string alone, so a genuine duplicate would too).
+  test("an explicit key beats a merged one of the same name — one entry, explicit value and span", () => {
+    const text = "defaults: &defaults\n  timeout: 30\nweb:\n  timeout: 60\n  <<: *defaults\n";
+    const keys = parseYamlKeys(text).filter((k) => k.key === "web.timeout");
+    expect(keys.length).toBe(1);
+    expect(keys[0]?.value).toBe(60);
+    expect(keys[0]?.span?.start).toEqual([4, 12]); // line 4: the explicit "  timeout: 60" line
+  });
+
+  test("the same override with << written BEFORE the explicit key — identical result, proving order-independence", () => {
+    const text = "defaults: &defaults\n  timeout: 30\nweb:\n  <<: *defaults\n  timeout: 60\n";
+    const keys = parseYamlKeys(text).filter((k) => k.key === "web.timeout");
+    expect(keys.length).toBe(1);
+    expect(keys[0]?.value).toBe(60);
+    expect(keys[0]?.span?.start).toEqual([5, 12]); // explicit key moved to line 5 — span follows it
+  });
+
+  test("in a merge sequence, an earlier source wins over a later one when both define the same key", () => {
+    const text = "a: &a\n  x: 1\nb: &b\n  x: 2\nc:\n  <<: [*a, *b]\n";
+    const keys = parseYamlKeys(text).filter((k) => k.key === "c.x");
+    expect(keys.length).toBe(1);
+    expect(keys[0]?.value).toBe(1); // *a, not *b
+  });
+
+  test("no duplicate dotted keys across the whole anchor/merge fixture", () => {
+    const text = "defaults: &defaults\n  timeout: 30\nweb:\n  <<: *defaults\nplain:\n  val: *defaults\n";
+    const keys = parseYamlKeys(text);
+    expect(new Set(keys.map((k) => k.key)).size).toBe(keys.length);
+  });
 });
