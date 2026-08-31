@@ -56,6 +56,16 @@ async function run(): Promise<TSApplication> {
   }
 }
 
+async function runLevel3(): Promise<TSApplication> {
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-multitsconfig-l3-"));
+  try {
+    const r = await analyze({ ...options(), analysisLevel: 3, graphs: ["cfg", "dfg", "pdg"], cacheDir });
+    return r.application.application;
+  } finally {
+    fs.rmSync(cacheDir, { recursive: true, force: true });
+  }
+}
+
 describe("multi-tsconfig program construction (#56)", () => {
   test("both programs' files are in one merged symbol table, each owned once", async () => {
     const app = await run();
@@ -87,6 +97,30 @@ describe("multi-tsconfig program construction (#56)", () => {
 
     // The callee is a real symbol-table callable, not a minted external symbol.
     expect(Object.keys(app.external_symbols ?? {})).not.toContain("@app/service.svc");
+  });
+
+  // #111: extraction used to index every callable against the ROOT program alone. A file a DEEPER
+  // program owns is absent from that index, so `if (!fn) continue` skipped it silently — the run
+  // succeeded and produced no flow. Measured on vscode (92 programs, no root tsconfig): 1,204 of
+  // 174,767 callables. Here the root tsconfig excludes `web`, so every web callable is owned by
+  // the nested program and is exactly the case that vanished.
+  test("L3 populates callables owned by the NESTED program, not just the root's (#111)", async () => {
+    const app = await runLevel3();
+
+    const web = app.symbol_table["web/src/main.ts"];
+    expect(web, "web/src/main.ts missing from the symbol table").toBeDefined();
+    const boot = (web!.functions ?? {})["boot"];
+    expect(boot, "boot() missing").toBeDefined();
+    expect(boot!.cfg?.length ?? 0, "nested-program callable got no CFG").toBeGreaterThan(0);
+    expect(Object.keys(boot!.body ?? {}).some((k) => k === "@entry")).toBe(true);
+
+    const svcMod = app.symbol_table["web/src/app/service.ts"];
+    const svc = (svcMod?.functions ?? {})["svc"];
+    expect(svc?.cfg?.length ?? 0, "nested-program callee got no CFG").toBeGreaterThan(0);
+
+    // The root program's own callables keep working — this is a widening, not a swap.
+    const server = (app.symbol_table["src/server.ts"]?.functions ?? {})["serve"];
+    expect(server?.cfg?.length ?? 0, "root-program callable lost its CFG").toBeGreaterThan(0);
   });
 
   test("the root program's relative import still resolves (no regression)", async () => {

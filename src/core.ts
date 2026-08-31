@@ -35,15 +35,11 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   // extraction doesn't need callee resolution, so the two run concurrently (the contract's
   // "points-to solve runs concurrently with stages 1–4") and join in buildProgramGraphs.
   //
-  // Multi-program (#56) NOTE: each BuiltProgram carries its owning tsconfig (`configPath`), so the
-  // file→program config map exists here. Threading it per-file into the dataflow workers (each
-  // builds its own Project from ONE tsconfig, src/dataflow/worker.ts) is deferred: extraction still
-  // uses the root program's config, so at L3 files in a NESTED program are analyzed with the root
-  // options. Documented limitation — L2 call-graph resolution (the #56 gate) is fully per-program.
-  if (opts.analysisLevel >= 3 && programs.length > 1) {
-    log.warn(`L3 dataflow uses the root tsconfig for all ${programs.length} programs; nested-program files may under-resolve (see #56)`);
-  }
-  const extraction = opts.analysisLevel >= 3 ? startExtraction(project, symbol_table, mat.tsConfigFilePath, opts, log) : null;
+  // Multi-program: extraction resolves each callable under the tsconfig that OWNS its file, the
+  // same assignment the symbol table and the L2 call graph use (#111). It used to index the whole
+  // repo against the root program alone, which silently skipped every callable a deeper program
+  // owned.
+  const extraction = opts.analysisLevel >= 3 ? startExtraction(programs, symbol_table, opts, log) : null;
 
   // Call graph: the tsc resolver, per program (each with its own Project + its slice of callables
   // via `only`), merged across programs. Only worth running at level >= 2: finalizeAnalysis
