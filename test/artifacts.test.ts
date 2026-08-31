@@ -151,23 +151,28 @@ describe("level-invariance + determinism (#101)", () => {
 
   test("text cap is byte-accurate on multi-byte UTF-8 (not character-count)", async () => {
     // Create a test .md file with multi-byte chars to verify cap is byte-accurate, not char-count.
-    // "Hi 🎉": H=1 byte, i=1 byte, space=1 byte, emoji=4 bytes (UTF-8) = 7 bytes total, 5 chars.
+    // "Hi 🎉": H=1 byte, i=1 byte, space=1 byte, emoji=4 bytes (UTF-8) = 7 bytes total, 5 UTF-16 code units.
     const testFile = path.join(FIXTURE, "multi-byte-test.md");
     const fullContent = "Hi 🎉";
     fs.writeFileSync(testFile, fullContent, "utf8");
 
-    // Analyze with a cap of 3 bytes. This is enough for "Hi " but splits the emoji.
-    const r = await analyze(options({ artifactTextMaxBytes: 3 }));
-    const art = r.application.application.artifacts["multi-byte-test.md"];
+    // Test 1: cap=6 bytes. Discriminates: old char-slicing counts UTF-16 units (text.length=5, which is NOT > 6),
+    // so text.slice(0,6) incorrectly returns full "Hi 🎉" (7 bytes, FAILS <= 6). New byte-slicing correctly
+    // compares Buffer.byteLength (7 > 6), truncates to 6 bytes (replacement char boundary), and PASSES <= 6.
+    const r1 = await analyze(options({ artifactTextMaxBytes: 6 }));
+    const art1 = r1.application.application.artifacts["multi-byte-test.md"];
+    expect(art1?.text_truncated).toBe(true);
+    expect(Buffer.byteLength(art1!.source, "utf8")).toBeLessThanOrEqual(6);
+    expect(art1!.source).not.toBe(fullContent);
 
-    expect(art?.text_truncated).toBe(true);
-    // The stored source should be truncated (not the full 7 bytes).
-    // With a 3-byte cap, we get "Hi " exactly (3 bytes), no truncation of multi-byte sequence.
-    expect(art!.source).not.toBe(fullContent);
-    expect(art!.source).toBe("Hi ");
-    expect(Buffer.byteLength(art!.source, "utf8")).toBe(3);
-    expect(art?.sha256).toBeDefined(); // hash is always full-file
-    expect(art?.size_bytes).toBe(7); // size is full-file (7 bytes)
+    // Test 2: cap=7 bytes (exact full byte length). Verifies > boundary (not >=):
+    // text_truncated must be false and source must be intact at exact cap.
+    const r2 = await analyze(options({ artifactTextMaxBytes: 7 }));
+    const art2 = r2.application.application.artifacts["multi-byte-test.md"];
+    expect(art2?.text_truncated).toBe(false);
+    expect(art2!.source).toBe(fullContent);
+    expect(art2?.sha256).toBeDefined(); // hash is always full-file
+    expect(art2?.size_bytes).toBe(7); // size is full-file (7 bytes)
 
     // Clean up
     fs.unlinkSync(testFile);
