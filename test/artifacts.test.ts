@@ -147,6 +147,9 @@ describe("unresolved imports — the hygiene signal (#101/PR-160)", () => {
     const u = r.application.application.unresolved_imports.find((x) => x.module === "left-pad");
     expect(u?.bound_to).toBe("left-pad");
     expect(u?.prov).toEqual(["installed-metadata"]);
+
+    // Clean up
+    fs.rmSync(path.join(FIXTURE, "node_modules"), { recursive: true, force: true });
   });
 });
 
