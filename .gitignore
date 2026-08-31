@@ -11,3 +11,11 @@ packaging/python/README.md
 
 !CLAUDE.md
 !AGENTS.md
+
+# .claude is globally ignored (agent scratch state), but this branch's decision log is reviewable
+# project record, tracked like CLAUDE.md/AGENTS.md above. A bare parent-directory exclusion can
+# never be re-included by negating a child alone (git gitignore docs) -- un-ignore the dir, then
+# re-ignore its contents, then except this one file.
+!.claude/
+.claude/*
+!.claude/SCHEMA_DECISIONS.md

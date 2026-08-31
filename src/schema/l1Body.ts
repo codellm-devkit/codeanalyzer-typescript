@@ -53,10 +53,15 @@ function callNodeOf(cs: TSCallsite): TSBodyNode {
 
 function resetCallable(c: TSCallable): void {
   const body: Record<string, TSBodyNode> = {};
-  for (const [key, cs] of callBodyKeys(c.call_sites)) body[key] = callNodeOf(cs);
+  // Defensive reads: a warm .codeanalyzer cache written by an earlier build of the SAME
+  // analyzer_version (loadCache invalidates on version change, not shape) can hand this a
+  // TSCallable that predates a field added mid-version — `config_accesses` (#101 unit C1) is
+  // exactly that case. `?? []` is the whole fix; it does not change the cache format or the
+  // invalidation rule, only tolerates data narrower than today's contract.
+  for (const [key, cs] of callBodyKeys(c.call_sites ?? [])) body[key] = callNodeOf(cs);
   // config_access nodes share the body key space with calls: allocate AFTER them, disambiguating
   // against keys already present so a read and a call on one line never collide.
-  for (const ca of c.config_accesses) {
+  for (const ca of c.config_accesses ?? []) {
     const base = `${ca.start_line}:${ca.start_column}`;
     let key = base;
     for (let k = 2; key in body; k++) key = `${base}/${k}`;
