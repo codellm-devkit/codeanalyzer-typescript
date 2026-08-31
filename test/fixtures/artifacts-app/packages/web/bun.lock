@@ -1,0 +1,6 @@
+{
+  "lockfileVersion": 1,
+  "packages": {
+    "lodash": ["lodash@4.17.21", {},],
+  },
+}

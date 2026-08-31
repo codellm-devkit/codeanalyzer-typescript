@@ -4,6 +4,10 @@ dist/
 .codeanalyzer/
 bun.lock
 bun.lockb
+# ...except in test fixtures, where a lockfile is test data, not a dependency lockfile:
+# the artifacts suite asserts on this one (lock backfills its SIBLING manifest), and its
+# package-lock.json/yarn.lock/pnpm-lock.yaml siblings are tracked for the same reason.
+!test/fixtures/**/bun.lock
 .DS_Store
 # The PyPI long-description is the repo root README, copied in by build_wheels.sh at build time
 # (single source of truth). The copy is generated, not tracked.
