@@ -37,4 +37,13 @@ describe("config keys — flat and JSON (#101 unit B)", () => {
   test("key ids chain off the artifact id", () => {
     expect(keysOf(".env")["PAYMENT_HOST"]?.id).toBe("can://artifact/artifacts-app/.env@key/PAYMENT_HOST");
   });
+
+  test("a dependency manifest is never also a config file — manifests/lockfiles yield zero keys", () => {
+    expect(arts["package.json"]?.config_keys.length).toBe(0);
+    expect(arts["package-lock.json"]?.config_keys.length).toBe(0);
+    expect(arts["packages/web/bun.lock"]?.config_keys.length).toBe(0);
+    // the gate is role-scoped, not blanket — plain config files in the same formats still extract
+    expect(arts["tsconfig.json"]?.config_keys.length).toBeGreaterThan(0);
+    expect(arts[".env"]?.config_keys.length).toBeGreaterThan(0);
+  });
 });

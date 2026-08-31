@@ -92,8 +92,14 @@ export function parseIniKeys(text: string, namespace: string): TSConfigKey[] {
   return out;
 }
 
-/** Dispatch by artifact format. YAML is handled by yamlKeys.ts (Task 5). */
-export function extractConfigKeys(format: string, text: string): TSConfigKey[] {
+/**
+ * Dispatch by artifact format. A dependency manifest or lockfile is never also a config file
+ * (codeanalyzer-python v1.3.0 parity) — gated on `roles`, not `format`, since both package.json
+ * (json) and lockfiles (json/jsonc) would otherwise pass the format check below. YAML is handled
+ * by yamlKeys.ts (Task 5).
+ */
+export function extractConfigKeys(format: string, roles: string[], text: string): TSConfigKey[] {
+  if (roles.includes("dependency-manifest")) return [];
   switch (format) {
     case "env":
       return parseEnvKeys(text);

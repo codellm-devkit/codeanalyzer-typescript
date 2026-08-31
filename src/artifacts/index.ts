@@ -108,7 +108,7 @@ export function inventoryArtifacts(
     // config-shaped but unparseable → keep the node, mark partial (overlay posture).
     if (["env", "json", "jsonc", "ini", "properties", "yaml"].includes(node.format)) {
       try {
-        const keys = extractConfigKeys(node.format, text);
+        const keys = extractConfigKeys(node.format, node.roles, text);
         if (keys.length) {
           node.config_keys = keys;
           node.extraction = node.extraction === "none" ? "full" : node.extraction;
