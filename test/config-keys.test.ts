@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { analyze } from "../src/core";
-import { parseJsonc } from "../src/artifacts/configKeys";
+import { parseEnvKeys, parseIniKeys, parseJsonc } from "../src/artifacts/configKeys";
 import { parseYamlKeys } from "../src/artifacts/yamlKeys";
 import { parseDockerfileEnv, yamlEnvKeys } from "../src/artifacts/deployEnv";
 import type { AnalysisOptions } from "../src/options";
@@ -409,5 +409,25 @@ describe("parseDockerfileEnv — redefinition and dedup (#101 unit D)", () => {
 
   test("never throws, even on garbage input", () => {
     expect(() => parseDockerfileEnv("ENV \nARG\n\0\0binary garbage\nENV =nope\n")).not.toThrow();
+  });
+});
+
+// Review fix: parseEnvKeys/parseIniKeys pushed one TSConfigKey per line, so a key set twice in
+// one file emitted two records sharing an id — Neo4j's id-dedup collapsed them to one node while
+// analysis.json kept both, so the two projections disagreed. Same last-wins fix as
+// parseDockerfileEnv above, applied to the other two line-based parsers.
+describe("parseEnvKeys / parseIniKeys — same-file dedup (review fix)", () => {
+  test("a key set twice in one .env file keeps the LAST value — one key, not two colliding ids", () => {
+    const keys = parseEnvKeys("FOO=1\nFOO=2\n");
+    const foo = keys.filter((k) => k.key === "FOO");
+    expect(foo.length).toBe(1);
+    expect(foo[0]?.value).toBe("2");
+  });
+
+  test("a key set twice in one .ini section keeps the LAST value — one key, not two colliding ids", () => {
+    const keys = parseIniKeys("[web]\ntimeout=30\ntimeout=60\n", "ini");
+    const timeout = keys.filter((k) => k.key === "web.timeout");
+    expect(timeout.length).toBe(1);
+    expect(timeout[0]?.value).toBe("60");
   });
 });

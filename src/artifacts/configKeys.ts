@@ -69,8 +69,12 @@ function flatten(doc: unknown, prefix: string, out: TSConfigKey[], ns: string, d
 
 const ENV_LINE = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(.*?)\s*$/;
 
+// A key set twice in one file keeps the LAST occurrence (shell/dotenv override semantics,
+// parseDockerfileEnv precedent) — keyed by namespace:key so at most one TSConfigKey per
+// (namespace, key) comes out of one file. Ids are (artifact, namespace, key)-derived, so two
+// records sharing an id is exactly the collision Neo4j's id-dedup would otherwise mask.
 export function parseEnvKeys(text: string): TSConfigKey[] {
-  const out: TSConfigKey[] = [];
+  const byKey = new Map<string, TSConfigKey>();
   const lines = text.split("\n");
   lines.forEach((line, i) => {
     if (!line.trim() || line.trim().startsWith("#")) return;
@@ -81,14 +85,14 @@ export function parseEnvKeys(text: string): TSConfigKey[] {
       value = value.slice(1, -1);
     }
     const span: TSSpan = { start: [i + 1, 1], end: [i + 1, line.length + 1], bytes: [0, 0] };
-    out.push(keyNode(m[1] as string, "env", value, span));
+    byKey.set(`env:${m[1]}`, keyNode(m[1] as string, "env", value, span)); // later line wins
   });
-  return out;
+  return [...byKey.values()];
 }
 
-/** INI / .properties: `[section]` prefixes a dotted key space. */
+/** INI / .properties: `[section]` prefixes a dotted key space. Last occurrence wins — see parseEnvKeys. */
 export function parseIniKeys(text: string, namespace: string): TSConfigKey[] {
-  const out: TSConfigKey[] = [];
+  const byKey = new Map<string, TSConfigKey>();
   let section = "";
   text.split("\n").forEach((line, i) => {
     const t = line.trim();
@@ -103,9 +107,10 @@ export function parseIniKeys(text: string, namespace: string): TSConfigKey[] {
     const key = t.slice(0, eq).trim();
     const value = t.slice(eq + 1).trim();
     const span: TSSpan = { start: [i + 1, 1], end: [i + 1, line.length + 1], bytes: [0, 0] };
-    out.push(keyNode(section ? `${section}.${key}` : key, namespace, value, span));
+    const dotted = section ? `${section}.${key}` : key;
+    byKey.set(`${namespace}:${dotted}`, keyNode(dotted, namespace, value, span)); // later line wins
   });
-  return out;
+  return [...byKey.values()];
 }
 
 /**
