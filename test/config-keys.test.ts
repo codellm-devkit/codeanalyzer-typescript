@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { analyze } from "../src/core";
 import { parseJsonc } from "../src/artifacts/configKeys";
+import { parseYamlKeys } from "../src/artifacts/yamlKeys";
 import type { AnalysisOptions } from "../src/options";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/artifacts-app");
@@ -43,6 +44,10 @@ describe("config keys — flat and JSON (#101 unit B)", () => {
     expect(arts["package.json"]?.config_keys.length).toBe(0);
     expect(arts["package-lock.json"]?.config_keys.length).toBe(0);
     expect(arts["packages/web/bun.lock"]?.config_keys.length).toBe(0);
+    // fix round 2: the gate is checked on `roles` before the format switch, so it must hold for
+    // YAML too — pnpm-lock.yaml is format "yaml" with role dependency-manifest; previously only
+    // exercised by probe, not a committed test.
+    expect(arts["pnpm-lock.yaml"]?.config_keys.length).toBe(0);
     // the gate is role-scoped, not blanket — plain config files in the same formats still extract
     expect(arts["tsconfig.json"]?.config_keys.length).toBeGreaterThan(0);
     expect(arts[".env"]?.config_keys.length).toBeGreaterThan(0);
@@ -147,5 +152,58 @@ describe("config keys — YAML (#101 unit B)", () => {
     // wrong line here instead.
     expect(k["1.spec.containers.0.env.0.name"]?.span?.start).toEqual([11, 17]);
     expect(arts["k8s/multi.yaml"]?.extraction).toBe("full");
+  });
+
+  // Fix round 2: "any document has errors" must mean any — not just the first. This fixture's
+  // FIRST document is well-formed; only the second has a syntax error, exercised through the
+  // full index.ts pipeline (not a direct parseYamlKeys call) so the assertion is on what the
+  // artifact node actually ends up looking like, the same shape as the single-document
+  // "falls back to partial" test above.
+  test("an error in a NON-first document still fails the whole file — partial, node intact", () => {
+    const art = arts["k8s/multi-broken.yaml"];
+    expect(art?.extraction).toBe("partial");
+    expect(art?.config_keys).toEqual([]); // the well-formed first document is not partially salvaged
+    expect(art?.sha256.length).toBe(64);
+    expect(art?.source).toBe("services:\n  web:\n    image: node:22\n---\nspec:\n  containers: [1, 2\n");
+  });
+});
+
+// Direct unit tests of the parser (fix round 2): anchors/aliases/merge-keys/cycles are properties
+// of parseYamlKeys itself, not of the artifact pipeline around it — same rationale as the
+// parseJsonc block above.
+describe("parseYamlKeys — anchors, aliases, and merge keys (fix round 2)", () => {
+  test("an aliased map recurses into its own keys; a merge key splices into the CURRENT prefix", () => {
+    const text = "defaults: &defaults\n  timeout: 30\nweb:\n  <<: *defaults\nplain:\n  val: *defaults\n";
+    const keys = Object.fromEntries(parseYamlKeys(text).map((k) => [k.key, k]));
+    expect(keys["defaults.timeout"]?.value).toBe(30);
+    expect(keys["web.timeout"]?.value).toBe(30); // merge key: no ".<<." segment — spliced into "web"
+    expect(keys["plain.val.timeout"]?.value).toBe(30); // aliased map recurses exactly like an inline one
+    // the span belongs to the ANCHOR's own scalar node — every alias of it points back at that
+    // one source location, not at the `*name` reference site.
+    expect(keys["web.timeout"]?.span?.start).toEqual(keys["defaults.timeout"]?.span?.start);
+    expect(keys["plain.val.timeout"]?.span?.start).toEqual(keys["defaults.timeout"]?.span?.start);
+  });
+
+  test("a merge-key sequence (<<: [*a, *b]) splices every source into the current prefix", () => {
+    const text = "a: &a\n  x: 1\nb: &b\n  y: 2\nc:\n  <<: [*a, *b]\n";
+    const keys = Object.fromEntries(parseYamlKeys(text).map((k) => [k.key, k.value]));
+    expect(keys["a.x"]).toBe(1);
+    expect(keys["b.y"]).toBe(2);
+    expect(keys["c.x"]).toBe(1); // merged from *a
+    expect(keys["c.y"]).toBe(2); // merged from *b
+  });
+
+  test("a cyclic alias (a map aliasing itself) terminates via the existing depth cap instead of hanging, and still keys the reachable scalar", () => {
+    const text = "node: &node\n  value: 1\n  self: *node\n";
+    const start = Date.now();
+    const keys = parseYamlKeys(text);
+    expect(Date.now() - start).toBeLessThan(1000); // terminates — the bug this guards is an infinite loop
+    const byKey = Object.fromEntries(keys.map((k) => [k.key, k.value]));
+    expect(byKey["node.value"]).toBe(1); // the one genuine scalar is still reachable and correct
+    expect(keys.length).toBeLessThan(30); // bounded by the depth cap (~24), not unbounded
+  });
+
+  test("a dangling alias (no matching anchor) resolves to undefined and is skipped, not thrown", () => {
+    expect(parseYamlKeys("a: *nope\n")).toEqual([]);
   });
 });

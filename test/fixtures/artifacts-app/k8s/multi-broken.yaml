@@ -1,0 +1,6 @@
+services:
+  web:
+    image: node:22
+---
+spec:
+  containers: [1, 2
