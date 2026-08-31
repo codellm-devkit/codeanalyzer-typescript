@@ -4,6 +4,7 @@
  * marks `extraction: "partial"`). Parses the FULL on-disk text, never the stored `source`.
  */
 import type { TSConfigKey, TSSpan } from "../schema";
+import { parseYamlKeys } from "./yamlKeys";
 
 const PLACEHOLDER = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
 
@@ -128,6 +129,8 @@ export function extractConfigKeys(format: string, roles: string[], text: string)
       return parseIniKeys(text, "ini");
     case "properties":
       return parseIniKeys(text, "properties");
+    case "yaml":
+      return parseYamlKeys(text);
     default:
       return [];
   }

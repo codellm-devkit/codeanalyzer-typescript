@@ -110,3 +110,13 @@ describe("parseJsonc — comments then trailing commas, each pass string-aware",
     expect(() => parseJsonc(`{"a": "unterminated}`)).toThrow();
   });
 });
+
+describe("config keys — YAML (#101 unit B)", () => {
+  test("nested maps and sequences flatten with numeric segments and real spans", () => {
+    const k = keysOf("docker-compose.yml");
+    expect(k["services.web.image"]?.value).toBe("node:22");
+    expect(k["services.web.ports.0"]?.value).toBe("3000:3000");
+    expect(k["services.web.image"]?.namespace).toBe("yaml");
+    expect(k["services.web.image"]?.span?.start[0]).toBeGreaterThan(0);
+  });
+});

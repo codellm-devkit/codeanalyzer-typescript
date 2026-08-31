@@ -1,0 +1,8 @@
+services:
+  web:
+    image: node:22
+    ports:
+      - "3000:3000"
+    environment:
+      PAYMENT_HOST: https://pay.example.com
+      FEATURE_FLAG: "on"
