@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # Every PR, whatever its base: the repo works in stacked PRs, and a base filter of `main`
+  # silently exempted every branch in a stack from CI (#105).
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 
