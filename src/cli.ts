@@ -163,7 +163,10 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     // Malformed input (e.g. "abc") must fall back, not silently disable truncation via NaN --
     // every `> cap` comparison against NaN is false.
     artifactTextMaxBytes: (() => {
-      const n = Number(o.artifactTextMaxBytes ?? DEFAULT_ARTIFACT_TEXT_MAX_BYTES);
+      // An empty value is malformed too -- Number("") is 0, which would cap every
+      // artifact's text at zero bytes. An explicit 0 still means exactly that.
+      const raw = String(o.artifactTextMaxBytes ?? "").trim();
+      const n = raw === "" ? NaN : Number(raw);
       return Number.isFinite(n) && n >= 0 ? n : DEFAULT_ARTIFACT_TEXT_MAX_BYTES;
     })(),
     cacheDir: o.cacheDir ? path.resolve(String(o.cacheDir)) : null,
