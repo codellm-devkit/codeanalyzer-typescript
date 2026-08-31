@@ -22,6 +22,7 @@
 import { Node, SyntaxKind, type ParameterDeclaration, type Project, type VariableDeclaration } from "ts-morph";
 import type { AnalysisInternal, TSCallable, TSConfigRead } from "../schema/schema";
 import { forEachCallable } from "../schema/schema";
+import { symbolAt } from "../schema/checker";
 import { type ConfigUseSets, keyIndex } from "../semantic_analysis/configUse";
 import { ACCESS_RULES } from "../semantic_analysis/configUseRules";
 
@@ -63,7 +64,7 @@ function resolveKeyThroughDataflow(read: TSConfigRead, project: Project, app: An
   if (!node || !Node.isElementAccessExpression(node)) return null;
   const arg = node.getArgumentExpression();
   if (!arg || !Node.isIdentifier(arg)) return null;
-  const decl = arg.getSymbol()?.getDeclarations()?.[0];
+  const decl = symbolAt(arg)?.getDeclarations()?.[0];
   if (!decl) return null;
   // INTRA: `const/let/var key = "LITERAL"` (or a non-interpolated template literal), never reassigned.
   if (Node.isVariableDeclaration(decl)) {
@@ -140,16 +141,19 @@ function isAssignmentOperator(k: SyntaxKind): boolean {
 function isReassigned(decl: VariableDeclaration): boolean {
   const nameNode = decl.getNameNode();
   if (!Node.isIdentifier(nameNode)) return true; // destructuring binding — conservative, never widen
-  const symbol = nameNode.getSymbol();
+  const symbol = symbolAt(nameNode);
+  // The checker could not resolve the binding: stay conservative rather than let an undefined
+  // symbol compare equal to another unresolved one below and fake a match.
+  if (!symbol) return true;
   // A shorthand `{ key }` binds `key` via a SEPARATE symbol (one per ShorthandPropertyAssignment
   // declaration slot) — plain `.getSymbol()` on its identifier never equals `symbol`, even though
   // it IS the same reassigned variable. `getShorthandAssignmentValueSymbol` is the checker's own
   // resolver for exactly this indirection (confirmed empirically: `.getSymbol()` alone misses it).
   const checker = decl.getProject().getTypeChecker();
   const targetsSymbol = (left: Node): boolean => {
-    if (Node.isIdentifier(left)) return left.getSymbol() === symbol;
+    if (Node.isIdentifier(left)) return symbolAt(left) === symbol;
     return left.getDescendantsOfKind(SyntaxKind.Identifier).some((id) => {
-      if (id.getSymbol() === symbol) return true;
+      if (symbolAt(id) === symbol) return true;
       const p = id.getParent();
       return Node.isShorthandPropertyAssignment(p) && checker.getShorthandAssignmentValueSymbol(p) === symbol;
     });

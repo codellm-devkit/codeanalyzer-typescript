@@ -2,5 +2,6 @@
 // syntactic and semantic phases).
 export * from "./schema";
 export * from "./signatures";
+export * from "./checker";
 export * from "./graphs";
 export * from "./emit";

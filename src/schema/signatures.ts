@@ -6,6 +6,7 @@
  */
 import { Node } from "ts-morph";
 import { fileKeyOf, signatureOf, constructorSignatureOf } from "./schema";
+import { aliasedSymbolOf, symbolAt } from "./checker";
 
 /** The name a node contributes to a signature's dotted member chain, or null if it contributes none. */
 export function contributorName(node: Node): string | null {
@@ -89,9 +90,9 @@ export function resolveCalleeDecl(call: Node): Node | undefined {
   let symNode: Node = expr;
   if (Node.isPropertyAccessExpression(expr)) symNode = expr.getNameNode();
   else if (Node.isElementAccessExpression(expr)) return undefined; // dynamic dispatch — best-effort skip
-  let sym = symNode.getSymbol();
+  let sym = symbolAt(symNode);
   if (!sym) return undefined;
-  const aliased = sym.getAliasedSymbol();
+  const aliased = aliasedSymbolOf(sym);
   if (aliased) sym = aliased;
   const decls = sym.getDeclarations();
   return decls && decls.length ? decls[0] : undefined;

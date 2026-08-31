@@ -9,6 +9,7 @@ import type { AnalysisInternal } from "./schema";
 import { type AnalysisResult, finalizeAnalysis } from "./schema/emit";
 import { buildSymbolTable } from "./syntactic_analysis";
 import { Logger } from "./utils";
+import { checkerFailures, resetCheckerFailures } from "./schema/checker";
 
 export type { AnalysisResult } from "./schema/emit";
 
@@ -21,6 +22,7 @@ export type { AnalysisResult } from "./schema/emit";
 export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   const log = new Logger(opts.verbosity);
   log.info(`analyzing ${opts.input} (level ${opts.analysisLevel})`);
+  resetCheckerFailures();
   const cacheDir = opts.cacheDir ?? path.join(opts.input, ".codeanalyzer");
 
   const mat = materialize(opts, log);
@@ -101,5 +103,9 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   // Cache the id-free base (ids/body/heritage are per-run layers stamped by finalizeAnalysis;
   // the cached tree must stay --app-name-free).
   saveCache(cacheDir, { symbol_table });
+  // Never let "some edges are missing" look like "there were no edges": a node the checker could
+  // not resolve is skipped (see schema/checker.ts), and the count is said out loud.
+  const skipped = checkerFailures();
+  if (skipped) log.warn(`${skipped} symbol resolution(s) skipped — the TypeScript checker could not resolve them; affected call edges are absent`);
   return finalizeAnalysis(app, pg, opts, resolutions, project);
 }

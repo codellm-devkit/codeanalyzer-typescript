@@ -27,7 +27,7 @@
  */
 import { Node, SyntaxKind } from "ts-morph";
 import { CALL_DEP, type TSCallEdge, type TSCallable, type TSCallsite, type TSExternalSymbol, forEachCallable } from "../schema";
-import { computeSignatureForDecl, externalHomeOf, fileKeyOf, isCallableDecl, resolveCalleeSignature } from "../schema";
+import { aliasedSymbolOf, computeSignatureForDecl, externalHomeOf, fileKeyOf, isCallableDecl, resolveCalleeSignature, symbolAt } from "../schema";
 import { callBodyKeys } from "../schema/l1Body";
 import type { CallGraphContext } from "./provider";
 import type { CallGraphResult } from "./callGraph";
@@ -113,9 +113,9 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
     if (!Node.isIdentifier(expr)) return null;
     let node: Node = expr;
     for (let hop = 0; hop < ALIAS_CHASE_LIMIT; hop++) {
-      let sym = node.getSymbol();
+      let sym = symbolAt(node);
       if (!sym) return null;
-      const aliased = sym.getAliasedSymbol();
+      const aliased = aliasedSymbolOf(sym);
       if (aliased) sym = aliased;
       const decl = sym.getDeclarations()?.[0];
       if (!decl) return null;
@@ -144,7 +144,7 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
   /** The parameter index of `expr` within `enclosing`, when it names one of its parameters. */
   const paramIndexOf = (expr: Node, enclosing: TSCallable): number | null => {
     if (!Node.isIdentifier(expr)) return null;
-    const decl = expr.getSymbol()?.getDeclarations()?.[0];
+    const decl = symbolAt(expr)?.getDeclarations()?.[0];
     if (!decl || !Node.isParameterDeclaration(decl)) return null;
     const name = expr.getText();
     const idx = enclosing.parameters.findIndex((p) => p.name === name);
@@ -211,7 +211,7 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
             paramSites.push({ enclosing: c, bodyKey, paramIndex: pIdx });
           } else if (Node.isIdentifier(expr)) {
             // T4b — `const f = factory(); f()`: binding initialized by a resolved-internal call.
-            const decl = expr.getSymbol()?.getDeclarations()?.[0];
+            const decl = symbolAt(expr)?.getDeclarations()?.[0];
             const init = decl && Node.isVariableDeclaration(decl) ? decl.getInitializer() : undefined;
             if (init && Node.isCallExpression(init)) {
               const r = resolveCalleeSignature(init, root, allSignatures);
@@ -327,7 +327,9 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
         const direct = functionValueSig(expr);
         if (direct) targetSig = direct;
         else {
-          const decl = expr.getSymbol()?.getAliasedSymbol()?.getDeclarations()?.[0] ?? expr.getSymbol()?.getDeclarations()?.[0];
+          const sym = symbolAt(expr);
+          const decl =
+            (sym ? aliasedSymbolOf(sym)?.getDeclarations()?.[0] : undefined) ?? sym?.getDeclarations()?.[0];
           const home = decl ? externalHomeOf(decl) : null;
           if (home) {
             const member = expr.getText();
@@ -391,7 +393,7 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
     const direct = functionValueSig(arg);
     if (direct) return [direct];
     if (!Node.isIdentifier(arg)) return [];
-    const decl = arg.getSymbol()?.getDeclarations()?.[0];
+    const decl = symbolAt(arg)?.getDeclarations()?.[0];
     if (!decl || !Node.isParameterDeclaration(decl)) return [];
     const owner = decl.getParent();
     if (!owner) return [];
