@@ -7,8 +7,8 @@
  * identically at every `-a`. Not cached. Ids are stamped by assignIds (they embed `--app-name`).
  *
  * Discovery skips the source-walk's directory set; TS/JS source stays in the symbol table.
- * Extensionless files with a shebang are captured as `script` artifacts. Unmatched files are
- * NOT artifacts (rules-matched capture — python's posture).
+ * All non-source files are captured: rules-matched files carry their designated roles, extensionless
+ * shebang files are `script` artifacts, and everything else is `unknown` (text or binary).
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -53,12 +53,18 @@ export function inventoryArtifacts(
       continue; // unreadable — skip, don't crash
     }
     if (!matched) {
-      // extensionless shebang scripts are captured too (python PR #160)
+      // Never drop: a file without a rule is still inventoried. Extensionless shebang files are
+      // scripts; everything else decodable is `unknown`; undecodable bytes are hash-only.
+      const probe = decodeLossy(raw);
       if (path.extname(base) === "" && raw.subarray(0, 2).toString("utf-8") === "#!") {
         format = "text";
         roles = ["script"];
+      } else if (probe === undefined) {
+        format = "binary";
+        roles = ["unknown"];
       } else {
-        continue; // rules-matched capture only
+        format = "text";
+        roles = ["unknown"];
       }
     }
     const text = decodeLossy(raw);

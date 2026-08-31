@@ -42,6 +42,20 @@ describe("artifact inventory — rules-matched, neutral ids (#101/PR-160)", () =
     expect(Object.keys(arts).some((k) => k.endsWith(".ts"))).toBe(false);
   });
 
+  test("never drops: unmatched files are unknown-role, binaries are hash-only", () => {
+    const unknown = arts["notes.dat"];
+    expect(unknown?.roles).toEqual(["unknown"]);
+    expect(unknown?.format).toBe("text");
+    expect(unknown?.source.length).toBeGreaterThan(0);
+
+    const bin = arts["logo.bin"];
+    expect(bin?.format).toBe("binary");
+    expect(bin?.roles).toEqual(["unknown"]);
+    expect(bin?.source).toBe("");
+    expect(bin?.sha256.length).toBe(64);
+    expect(bin?.size_bytes).toBeGreaterThan(0);
+  });
+
   test("ids are LANGUAGE-NEUTRAL (can://artifact/<app>/<path>); dotfiles keep the dot", () => {
     expect(arts[".env"]?.id).toBe("can://artifact/artifacts-app/.env");
     expect(arts["packages/web/package.json"]?.id).toBe("can://artifact/artifacts-app/packages/web/package.json");
