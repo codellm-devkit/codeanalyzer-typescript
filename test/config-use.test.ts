@@ -151,6 +151,14 @@ describe("config_use dataflow tiers (#101 unit C3)", () => {
     expect(app3.config_reads.some((r) => r.site.includes("readReassigned"))).toBe(true);
     expect(app3.config_uses.some((u) => u.src.includes("readReassigned"))).toBe(false);
   });
+
+  test("a destructuring reassignment (`({ key } = ...)`) never widens either (fix round 1)", () => {
+    // isReassigned's original identity check missed this: `key` is a binding target nested
+    // inside the assignment's left side, never the whole of it.
+    const read = app3.config_reads.find((r) => r.site.includes("readDestructuredKey"));
+    expect(read?.reason).toBe("non-literal");
+    expect(app3.config_uses.some((u) => u.src.includes("readDestructuredKey"))).toBe(false);
+  });
 });
 
 const r4 = await analyze(options(4));
@@ -171,6 +179,12 @@ describe("config_use interproc tier (#101 unit C3, -a 4)", () => {
   test("disagreeing callers block the interproc tier — a missing edge, not a wrong one", () => {
     expect(app4.config_uses.some((u) => u.src.includes("readAmbiguous"))).toBe(false);
     expect(app4.config_reads.some((r) => r.site.includes("readAmbiguous"))).toBe(true);
+  });
+
+  test("a destructuring reassignment still never widens at -a 4 (fix round 1)", () => {
+    const read = app4.config_reads.find((r) => r.site.includes("readDestructuredKey"));
+    expect(read?.reason).toBe("non-literal");
+    expect(app4.config_uses.some((u) => u.src.includes("readDestructuredKey"))).toBe(false);
   });
 
   test("config_uses stays superset-monotonic L3 ⊆ L4", () => {

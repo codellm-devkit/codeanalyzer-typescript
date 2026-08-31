@@ -38,6 +38,14 @@ export function readReassigned(): string | undefined {
   if (process.env.NODE_ENV === "test") key = "FEATURE_FLAG";
   return process.env[key];
 }
+// Destructuring reassignment (#101 unit C3 fix round 1): `({ key } = ...)` rebinds `key` just as
+// much as `key = ...` does. isReassigned must catch this even though the tracked identifier never
+// appears as the WHOLE left side of an assignment, only nested inside one.
+export function readDestructuredKey(): string | undefined {
+  let key = "PAYMENT_HOST";
+  ({ key } = { key: "FEATURE_FLAG" });
+  return process.env[key];
+}
 export function readUndeclared(): string | undefined {
   return process.env.NOT_DECLARED_ANYWHERE;
 }

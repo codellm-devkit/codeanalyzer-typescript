@@ -65,15 +65,27 @@ function resolveKeyThroughDataflow(read: TSConfigRead, project: Project, app: An
   if (!arg || !Node.isIdentifier(arg)) return null;
   const decl = arg.getSymbol()?.getDeclarations()?.[0];
   if (!decl) return null;
-  // INTRA: `const/let/var key = "LITERAL"`, never reassigned.
+  // INTRA: `const/let/var key = "LITERAL"` (or a non-interpolated template literal), never reassigned.
   if (Node.isVariableDeclaration(decl)) {
     const init = decl.getInitializer();
-    if (init && Node.isStringLiteral(init) && !isReassigned(decl)) return init.getLiteralValue();
-    return null;
+    const value = literalTextOf(init);
+    return value !== undefined && !isReassigned(decl) ? value : null;
   }
   // INTERPROC (-a 4): a parameter whose every resolved caller passes one identical literal.
   if (level >= 4 && Node.isParameterDeclaration(decl)) return uniqueLiteralArgument(decl, app, project);
   return null;
+}
+
+/**
+ * The value of a string literal OR a non-interpolated template literal, or undefined — mirrors
+ * the literal tier's own acceptance (`literalArgumentAt` in semantic_analysis/configUse.ts) so
+ * the same expression shape resolves the same way at every tier. An INTERPOLATED template
+ * (`` `PAYMENT_${x}` ``) parses as a distinct `TemplateExpression` node kind, never this one, so
+ * it is excluded for free — no separate `${`-substring guard needed here.
+ */
+function literalTextOf(node: Node | undefined): string | undefined {
+  if (node && (Node.isStringLiteral(node) || Node.isNoSubstitutionTemplateLiteral(node))) return node.getLiteralValue();
+  return undefined;
 }
 
 /** Every callable in `app`, one flat list — config reads are rare, so re-walking per read costs nothing. */
@@ -114,19 +126,38 @@ function isAssignmentOperator(k: SyntaxKind): boolean {
 }
 
 /**
- * Any assignment whose left side resolves to the same declaration. A local binding can only be
- * referenced within its own lexical scope, so scanning the whole file's identifiers (filtered by
- * symbol identity) covers every possible reference without a separate closure-boundary walk.
+ * Any assignment whose left side CONTAINS an identifier resolving to the same declaration — not
+ * merely IS one. Fix round 1: the original identity check (`left === id`) missed destructuring
+ * reassignment (`({ key } = obj)`, `[key] = arr`), where the tracked identifier is a binding
+ * target nested inside the left side, not the whole of it. A local binding can only be
+ * referenced within its own lexical scope, so scanning the whole file's assignments covers every
+ * possible reference without a separate closure-boundary walk.
+ *
+ * Deliberately over-inclusive: `obj[key] = value` also counts (the left side's subtree contains
+ * `key`, even though `key` is only a computed index there, not itself rebound). That costs a
+ * missed edge, never a wrong one — the same posture as every other check in this tier.
  */
 function isReassigned(decl: VariableDeclaration): boolean {
   const nameNode = decl.getNameNode();
   if (!Node.isIdentifier(nameNode)) return true; // destructuring binding — conservative, never widen
   const symbol = nameNode.getSymbol();
-  return decl.getSourceFile().getDescendantsOfKind(SyntaxKind.Identifier).some((id) => {
-    if (id === nameNode || id.getSymbol() !== symbol) return false;
-    const p = id.getParent();
-    return Node.isBinaryExpression(p) && p.getLeft() === id && isAssignmentOperator(p.getOperatorToken().getKind());
-  });
+  // A shorthand `{ key }` binds `key` via a SEPARATE symbol (one per ShorthandPropertyAssignment
+  // declaration slot) — plain `.getSymbol()` on its identifier never equals `symbol`, even though
+  // it IS the same reassigned variable. `getShorthandAssignmentValueSymbol` is the checker's own
+  // resolver for exactly this indirection (confirmed empirically: `.getSymbol()` alone misses it).
+  const checker = decl.getProject().getTypeChecker();
+  const targetsSymbol = (left: Node): boolean => {
+    if (Node.isIdentifier(left)) return left.getSymbol() === symbol;
+    return left.getDescendantsOfKind(SyntaxKind.Identifier).some((id) => {
+      if (id.getSymbol() === symbol) return true;
+      const p = id.getParent();
+      return Node.isShorthandPropertyAssignment(p) && checker.getShorthandAssignmentValueSymbol(p) === symbol;
+    });
+  };
+  return decl
+    .getSourceFile()
+    .getDescendantsOfKind(SyntaxKind.BinaryExpression)
+    .some((bin) => isAssignmentOperator(bin.getOperatorToken().getKind()) && targetsSymbol(bin.getLeft()));
 }
 
 /**
@@ -157,9 +188,10 @@ function uniqueLiteralArgument(decl: ParameterDeclaration, app: AnalysisInternal
       if (node.kind !== "call" || node.callee !== callable.id || !node.span) continue;
       const callNode = nodeAtSpan(project, caller.abs_path, node.span.bytes[0], node.span.bytes[1]);
       const argExpr = callNode && Node.isCallExpression(callNode) ? callNode.getArguments()[paramIndex] : undefined;
-      if (!argExpr || !Node.isStringLiteral(argExpr)) return null; // missing/dynamic arg breaks agreement
-      if (literal === undefined) literal = argExpr.getLiteralValue();
-      else if (literal !== argExpr.getLiteralValue()) return null; // callers disagree
+      const value = literalTextOf(argExpr);
+      if (value === undefined) return null; // missing/dynamic arg breaks agreement
+      if (literal === undefined) literal = value;
+      else if (literal !== value) return null; // callers disagree
     }
   }
   return literal ?? null; // no resolved caller — nothing to widen
