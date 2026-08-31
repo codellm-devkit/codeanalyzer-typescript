@@ -123,3 +123,59 @@ describe("config_use literal tier (#101 unit C3)", () => {
     expect(dsts.some((d) => d.endsWith("@key/PAYMENT_HOST"))).toBe(true);
   });
 });
+
+const r3 = await analyze(options(3));
+const app3 = r3.application.application;
+
+describe("config_use dataflow tiers (#101 unit C3)", () => {
+  test("an indirect key resolves at -a 3 and carries prov dataflow", () => {
+    const u = app3.config_uses.find((x) => x.src.includes("readIndirect"));
+    expect(u?.dst).toContain("@key/PAYMENT_HOST");
+    expect(u?.prov).toContain("dataflow");
+  });
+
+  test("config_uses is superset-monotonic L2 ⊆ L3", () => {
+    const key = (u: { src: string; dst: string }): string => `${u.src}|${u.dst}`;
+    const l3 = new Set(app3.config_uses.map(key));
+    for (const u of app2.config_uses) expect(l3.has(key(u))).toBe(true);
+  });
+
+  test("config_reads shrinks as levels rise (the deliberate non-monotonic section)", () => {
+    expect(app3.config_reads.length).toBeLessThan(app2.config_reads.length);
+    // a read that never closes on a literal stays unresolved at every level
+    expect(app3.config_reads.some((r) => r.site.includes("readVia"))).toBe(true);
+  });
+
+  test("a reassigned local never widens, even though its initializer is a single literal", () => {
+    // isReassigned must block this: `key`'s initializer IS one literal, but it's also assigned to.
+    expect(app3.config_reads.some((r) => r.site.includes("readReassigned"))).toBe(true);
+    expect(app3.config_uses.some((u) => u.src.includes("readReassigned"))).toBe(false);
+  });
+});
+
+const r4 = await analyze(options(4));
+const app4 = r4.application.application;
+
+describe("config_use interproc tier (#101 unit C3, -a 4)", () => {
+  test("a parameter resolves once its one resolved caller passes a literal", () => {
+    const u = app4.config_uses.find((x) => x.src.includes("readVia@"));
+    expect(u?.dst).toContain("@key/PAYMENT_HOST");
+    expect(u?.prov).toEqual(["dataflow"]);
+    expect(app4.config_reads.some((r) => r.site.includes("readVia@"))).toBe(false);
+  });
+
+  test("never at -a 3 — the interproc tier is level-gated, not just call-graph-gated", () => {
+    expect(app3.config_uses.some((u) => u.src.includes("readVia@"))).toBe(false);
+  });
+
+  test("disagreeing callers block the interproc tier — a missing edge, not a wrong one", () => {
+    expect(app4.config_uses.some((u) => u.src.includes("readAmbiguous"))).toBe(false);
+    expect(app4.config_reads.some((r) => r.site.includes("readAmbiguous"))).toBe(true);
+  });
+
+  test("config_uses stays superset-monotonic L3 ⊆ L4", () => {
+    const key = (u: { src: string; dst: string }): string => `${u.src}|${u.dst}`;
+    const l4 = new Set(app4.config_uses.map(key));
+    for (const u of app3.config_uses) expect(l4.has(key(u))).toBe(true);
+  });
+});

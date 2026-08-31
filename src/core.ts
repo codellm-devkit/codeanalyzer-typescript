@@ -101,5 +101,5 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   // Cache the id-free base (ids/body/heritage are per-run layers stamped by finalizeAnalysis;
   // the cached tree must stay --app-name-free).
   saveCache(cacheDir, { symbol_table });
-  return finalizeAnalysis(app, pg, opts, resolutions);
+  return finalizeAnalysis(app, pg, opts, resolutions, project);
 }

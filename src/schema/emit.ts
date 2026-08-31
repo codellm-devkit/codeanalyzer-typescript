@@ -17,6 +17,7 @@
  */
 
 import * as path from "node:path";
+import type { Project } from "ts-morph";
 import type { AnalysisOptions } from "../options";
 import { ANALYZER_VERSION } from "../utils/version";
 import type { AnalysisInternal, TSAnalysis, TSApplication } from "./schema";
@@ -28,6 +29,7 @@ import { homeExternals, homeSynthesized } from "./homing";
 import { backfillCallees, reidentifyCallGraph } from "./l2Callees";
 import { applyDataflow } from "../dataflow/attach";
 import { resolveLiteralConfigUses } from "../semantic_analysis/configUse";
+import { widenConfigUses } from "../dataflow/configUse";
 
 const LANGUAGE = "typescript";
 const SCHEMA_VERSION = "2.1.0";
@@ -82,6 +84,7 @@ export function finalizeAnalysis(
   pg: ProgramGraphs | null,
   opts: AnalysisOptions,
   resolutions?: Map<string, Map<string, string>>,
+  project?: Project,
 ): AnalysisResult {
   const level = opts.analysisLevel;
   const appName = (opts.appName ?? (opts.input ? path.basename(opts.input) : "") ?? "").trim() || "app";
@@ -118,6 +121,15 @@ export function finalizeAnalysis(
     root.config_uses = literal.uses;
     root.config_reads = literal.reads;
     root.call_graph = reidentifyCallGraph(app.call_graph ?? [], idBySig, dangling);
+  }
+
+  // config_use dataflow tiers (#101 unit C3): widens the literal tier over AST symbol resolution
+  // (intra) and resolved internal call sites (interproc, -a 4). Needs the real AST, so it's
+  // gated on `project` too, not just the level — core.ts always has one to pass at level >= 3.
+  if (level >= 3 && project) {
+    const widened = widenConfigUses(app, project, { uses: root.config_uses, reads: root.config_reads }, level);
+    root.config_uses = widened.uses;
+    root.config_reads = widened.reads;
   }
 
   // L3/L4 — grow body{} + cfg/cdg/ddg/summary on callables and param_in/param_out on the app.
