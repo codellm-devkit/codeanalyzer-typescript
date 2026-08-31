@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { analyze } from "../src/core";
 import { parseJsonc } from "../src/artifacts/configKeys";
 import { parseYamlKeys } from "../src/artifacts/yamlKeys";
+import { parseDockerfileEnv, yamlEnvKeys } from "../src/artifacts/deployEnv";
 import type { AnalysisOptions } from "../src/options";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/artifacts-app");
@@ -238,5 +239,120 @@ describe("parseYamlKeys — anchors, aliases, and merge keys (fix round 2)", () 
     const text = "defaults: &defaults\n  timeout: 30\nweb:\n  <<: *defaults\nplain:\n  val: *defaults\n";
     const keys = parseYamlKeys(text);
     expect(new Set(keys.map((k) => k.key)).size).toBe(keys.length);
+  });
+});
+
+describe("deployment-env namespaces (#101 unit D)", () => {
+  test("Dockerfile ENV mints bindable env keys; ARG stays non-bindable dockerfile", () => {
+    const k = keysOf("Dockerfile");
+    expect(k["PAYMENT_HOST"]?.namespace).toBe("env");
+    expect(k["PAYMENT_HOST"]?.value).toBe("https://pay.example.com");
+    expect(k["FEATURE_FLAG"]?.namespace).toBe("env");
+    expect(k["FEATURE_FLAG"]?.value).toBe("on"); // legacy `ENV K "V"` form, quotes stripped
+    expect(k["BUILD_ID"]?.namespace).toBe("dockerfile"); // build-time only, never joins a read
+    expect(k["BUILD_ID"]?.value).toBe("local");
+    expect(arts["Dockerfile"]?.extraction).toBe("full");
+  });
+
+  test("compose environment blocks mint env keys ALONGSIDE the structural yaml keys", () => {
+    const k = keysOf("docker-compose.yml");
+    expect(k["services.web.environment.PAYMENT_HOST"]?.namespace).toBe("yaml"); // structural
+    const envKeys = (arts["docker-compose.yml"]?.config_keys ?? []).filter((x) => x.namespace === "env");
+    expect(envKeys.map((x) => x.key).sort()).toEqual(["FEATURE_FLAG", "PAYMENT_HOST"]);
+    const byName = Object.fromEntries(envKeys.map((x) => [x.key, x]));
+    expect(byName["PAYMENT_HOST"]?.value).toBe("https://pay.example.com");
+  });
+
+  // Controller ruling: yamlKeys.ts prefixes every key in a multi-document stream with its
+  // zero-based document index ("1.spec.containers.0.env.0.name"). A compose/k8s matcher anchored
+  // at "^services" that ignores this prefix would silently match nothing on a real
+  // Kubernetes-shaped multi-document file. k8s/multi.yaml is exactly that shape: doc 0 is a
+  // compose-shaped services: map, doc 1 is a Deployment with spec.containers[0].env[0].
+  test("multi-document files (k8s/multi.yaml) still mint env keys despite the doc-index prefix", () => {
+    const envKeys = (arts["k8s/multi.yaml"]?.config_keys ?? []).filter((x) => x.namespace === "env");
+    expect(envKeys.map((x) => x.key)).toEqual(["PAYMENT_HOST"]);
+    expect(envKeys[0]?.value).toBe("https://pay.example.com");
+    expect(arts["k8s/multi.yaml"]?.extraction).toBe("full");
+  });
+
+  // extractConfigKeys already refuses a dependency-manifest; deploymentEnvKeys must not
+  // independently re-open that door. pnpm-lock.yaml (format "yaml", role dependency-manifest) is
+  // the one existing fixture that exercises this for the yaml path (a Dockerfile can never carry
+  // that role, so there is nothing to check on the dockerfile side of the same gate).
+  test("a dependency-manifest yaml file (pnpm-lock.yaml) gains zero env keys — same gate as structural keys", () => {
+    expect(arts["pnpm-lock.yaml"]?.config_keys.filter((x) => x.namespace === "env")).toEqual([]);
+  });
+
+  // docker-compose.broken.yml / k8s/multi-broken.yaml falling back to "partial" with empty
+  // config_keys is already pinned above (config keys — YAML block); nothing to re-assert here
+  // beyond confirming this task didn't reach for deploy keys on a file that never parsed.
+});
+
+// Direct unit tests (fixtures don't cover every shape without risking the line/span assertions
+// pinned on them elsewhere): compose list form, k8s valueFrom, and the doc-index prefix, each in
+// isolation — same rationale as the parseJsonc/parseYamlKeys direct-unit-test blocks above.
+describe("yamlEnvKeys — compose list form and k8s valueFrom (#101 unit D)", () => {
+  test("compose list-form environment entries (`- KEY=value`) mint bindable env keys too", () => {
+    const text =
+      "services:\n  web:\n    environment:\n      - FEATURE_FLAG=on\n      - PAYMENT_HOST=https://pay.example.com\n";
+    const keys = Object.fromEntries(yamlEnvKeys(parseYamlKeys(text)).map((k) => [k.key, k]));
+    expect(keys["FEATURE_FLAG"]?.namespace).toBe("env");
+    expect(keys["FEATURE_FLAG"]?.value).toBe("on");
+    expect(keys["PAYMENT_HOST"]?.value).toBe("https://pay.example.com");
+    // the numeric list index must never itself be minted as a variable name
+    expect(keys["0"]).toBeUndefined();
+    expect(keys["1"]).toBeUndefined();
+  });
+
+  test("a k8s env entry using valueFrom (no literal value) still mints the key, with no value", () => {
+    const text = [
+      "spec:",
+      "  containers:",
+      "    - name: app",
+      "      env:",
+      "        - name: DB_PASSWORD",
+      "          valueFrom:",
+      "            secretKeyRef:",
+      "              name: db-secret",
+      "              key: password",
+      "",
+    ].join("\n");
+    const keys = Object.fromEntries(yamlEnvKeys(parseYamlKeys(text)).map((k) => [k.key, k]));
+    expect(keys["DB_PASSWORD"]?.namespace).toBe("env");
+    expect(keys["DB_PASSWORD"]?.value).toBeUndefined(); // no literal — not dropped, just valueless
+  });
+
+  test("the doc-index prefix from a multi-document stream is tolerated by both compose and k8s matchers", () => {
+    const text =
+      'services:\n  web:\n    environment:\n      DEBUG: "true"\n---\nspec:\n  containers:\n    - name: app\n      env:\n        - name: DEBUG\n          value: "false"\n';
+    const flat = parseYamlKeys(text);
+    expect(flat.some((k) => k.key.startsWith("0."))).toBe(true); // sanity: this IS a multi-doc stream
+    const keys = yamlEnvKeys(flat);
+    // same bare name "DEBUG" from two different documents/containers — first occurrence in
+    // flattened (document) order wins: exactly one TSConfigKey, not two colliding on id.
+    const debug = keys.filter((k) => k.key === "DEBUG");
+    expect(debug.length).toBe(1);
+    expect(debug[0]?.value).toBe("true");
+  });
+});
+
+describe("parseDockerfileEnv — redefinition and dedup (#101 unit D)", () => {
+  test("a key redefined on a later ENV line keeps the LAST value — one key, not two colliding ids", () => {
+    const keys = parseDockerfileEnv("FROM node:22\nENV FOO=1\nENV FOO=2\n");
+    const foo = keys.filter((k) => k.key === "FOO");
+    expect(foo.length).toBe(1);
+    expect(foo[0]?.value).toBe("2");
+  });
+
+  test("ARG and ENV of the same name land in different namespaces and both survive", () => {
+    const keys = parseDockerfileEnv("ARG VERSION=1.0\nENV VERSION=$VERSION\n");
+    const byNs = Object.fromEntries(keys.map((k) => [k.namespace, k]));
+    expect(byNs["dockerfile"]?.key).toBe("VERSION");
+    expect(byNs["env"]?.key).toBe("VERSION");
+    expect(keys.length).toBe(2);
+  });
+
+  test("never throws, even on garbage input", () => {
+    expect(() => parseDockerfileEnv("ENV \nARG\n\0\0binary garbage\nENV =nope\n")).not.toThrow();
   });
 });

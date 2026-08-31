@@ -23,6 +23,7 @@ import { matchRules } from "./rules";
 import { applyLockVersions, parsePackageJson, readLock, transitiveRecords } from "./deps";
 import { bindImports } from "./binding";
 import { extractConfigKeys } from "./configKeys";
+import { deploymentEnvKeys } from "./deployEnv";
 
 const SOURCE_EXTS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]);
 const JSON_LOCKFILES = new Set(["package-lock.json", "npm-shrinkwrap.json", "bun.lock"]);
@@ -113,8 +114,25 @@ export function inventoryArtifacts(
           node.config_keys = keys;
           node.extraction = node.extraction === "none" ? "full" : node.extraction;
         }
+        // Deployment-env keys (#101 unit D): additive on top of the structural keys above.
+        // Compose/k8s mint theirs from `keys` (the same yaml parse — no second one); a throw from
+        // extractConfigKeys above already skipped straight to the catch below, so a malformed
+        // document never reaches here either.
+        const deployKeys = deploymentEnvKeys(node.format, node.roles, text, keys);
+        if (deployKeys.length) {
+          node.config_keys = [...node.config_keys, ...deployKeys];
+          node.extraction = "full";
+        }
       } catch {
         node.extraction = "partial";
+      }
+    } else if (node.format === "dockerfile") {
+      // Not namespace-eligible above (no structural extractConfigKeys case for it), but ENV/ARG
+      // still mint deploy keys; the line-based parse never throws, so no try/catch needed.
+      const deployKeys = deploymentEnvKeys(node.format, node.roles, text);
+      if (deployKeys.length) {
+        node.config_keys = deployKeys;
+        node.extraction = "full";
       }
     }
   }
