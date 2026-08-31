@@ -20,6 +20,10 @@ import type { TSConfigKey, TSSpan } from "../schema";
 
 const DOCKER_LINE = /^\s*(ENV|ARG)\s+(.*)$/i;
 
+// POSIX-shell variable-name grammar (python v1.3.0's _ENV_KEY_NAME, adopted verbatim): gates
+// which compose list-form leaves are real env-var declarations vs. junk.
+const ENV_KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 /**
  * Line-based, never throws — a line that doesn't match is just skipped, never a reason to mark
  * the whole Dockerfile "partial". `ENV K=V` and the legacy `ENV K V` both occur; ARG may be bare
@@ -79,8 +83,14 @@ export function yamlEnvKeys(flat: TSConfigKey[]): TSConfigKey[] {
     // variable literally called "0".
     const composeList = /^(?:\d+\.)?services\.[^.]+\.environment\.\d+$/.exec(k.key);
     if (composeList && typeof k.value === "string") {
+      // "KEY=value" AND bare "KEY" both mint — compose's own syntax for a bare list entry is
+      // "inherit this variable from the host environment", a real bindable declaration, not
+      // dropped convenience. "KEY=" (an "=" present, empty right side) mints an EMPTY-STRING
+      // value; bare "KEY" (no "=" at all) mints NO value — same valueless shape as the k8s
+      // valueFrom case below. Either way, a name that isn't a valid env var name stays dropped.
       const eq = k.value.indexOf("=");
-      if (eq > 0) push(k.value.slice(0, eq), k.value.slice(eq + 1), k.span);
+      const name = eq >= 0 ? k.value.slice(0, eq) : k.value;
+      if (ENV_KEY_NAME.test(name)) push(name, eq >= 0 ? k.value.slice(eq + 1) : undefined, k.span);
       continue;
     }
     // compose map form: [doc.]services.<svc>.environment.<NAME>

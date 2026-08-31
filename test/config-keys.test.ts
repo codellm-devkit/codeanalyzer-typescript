@@ -343,6 +343,22 @@ describe("yamlEnvKeys — compose list form and k8s valueFrom (#101 unit D)", ()
     expect(keys["1"]).toBeUndefined();
   });
 
+  // Fix round 2 (coordinator ruling, python v1.3.0 parity): a bare list entry ("- KEY", no "=")
+  // is compose's own syntax for "inherit this variable from the host environment" — a real
+  // bindable declaration, not dropped convenience — and must mint a valueless key, same shape as
+  // the k8s valueFrom case below. Distinguished from "- KEY=" (an "=" present, empty right side),
+  // which mints an EMPTY-STRING value. A name that isn't a valid env var name stays dropped either way.
+  test("a bare compose list entry (`- KEY`, no `=`) mints a valueless env key; `- KEY=` mints an empty string; junk is dropped", () => {
+    const text =
+      "services:\n  web:\n    environment:\n      - PASSTHROUGH_KEY\n      - EMPTY_KEY=\n      - 9INVALID\n";
+    const keys = Object.fromEntries(yamlEnvKeys(parseYamlKeys(text)).map((k) => [k.key, k]));
+    expect(keys["PASSTHROUGH_KEY"]?.namespace).toBe("env");
+    expect(keys["PASSTHROUGH_KEY"]?.value).toBeUndefined(); // no "=" at all — absent, not ""
+    expect("value" in (keys["PASSTHROUGH_KEY"] ?? {})).toBe(false); // truly absent, not present-as-undefined
+    expect(keys["EMPTY_KEY"]?.value).toBe(""); // "=" present, empty right side — distinct from bare
+    expect(keys["9INVALID"]).toBeUndefined(); // not a valid env var name (leading digit) — dropped
+  });
+
   test("a k8s env entry using valueFrom (no literal value) still mints the key, with no value", () => {
     const text = [
       "spec:",
