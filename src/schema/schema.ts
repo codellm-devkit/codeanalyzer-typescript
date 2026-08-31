@@ -333,6 +333,16 @@ export interface TSModule {
 // extraction is narrow (only dependency-manifest roles feed `dependencies` this unit).
 // ----------------------------------------------------------------------------------------------
 
+/** A configuration key flattened out of a config-bearing artifact (#101 unit B). */
+export interface TSConfigKey {
+  id: string; // `${artifactId}@key/${dotted}` — stamped per-run by assignIds
+  key: string; // dotted path; numeric segments for arrays ("services.web.ports.0")
+  namespace: string; // env|json|yaml|toml|ini|properties|dockerfile
+  value?: string | number | boolean; // present by default; absent under --no-artifact-text
+  span?: TSSpan; // best-effort: exact for json/yaml, line-based elsewhere
+  references: string[]; // recognized ${VAR}/$VAR tokens, deduped, in order
+}
+
 /** A recognized non-code file (config, manifest, CI, container spec). */
 export interface TSArtifact {
   id: string; // can://artifact/<app>/<path> — language-NEUTRAL namespace, stamped per-run
@@ -345,6 +355,7 @@ export interface TSArtifact {
   source: string; // verbatim, unbounded by decision (spec §3)
   text_truncated: boolean; // true when `source` is a prefix, not the full file
   extraction: "none" | "partial" | "full";
+  config_keys: TSConfigKey[]; // contained children; containment mirrors DEFINES_CONFIG
 }
 
 /** One third-party dependency (declared or lockfile-only transitive), evidence-tagged via `prov`. */

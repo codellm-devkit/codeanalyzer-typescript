@@ -1,1 +1,5 @@
-{ "compilerOptions": { "strict": true, "target": "ES2022" }, "include": ["src"] }
+{
+  // JSONC: comments and trailing commas are legal in tsconfig
+  "compilerOptions": { "strict": true, "target": "ES2022", },
+  "include": ["src"],
+}

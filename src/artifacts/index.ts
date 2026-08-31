@@ -22,6 +22,7 @@ import { SKIP_DIRS } from "../syntactic_analysis/discovery";
 import { matchRules } from "./rules";
 import { applyLockVersions, parsePackageJson, readLock, transitiveRecords } from "./deps";
 import { bindImports } from "./binding";
+import { extractConfigKeys } from "./configKeys";
 
 const SOURCE_EXTS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]);
 const JSON_LOCKFILES = new Set(["package-lock.json", "npm-shrinkwrap.json", "bun.lock"]);
@@ -92,6 +93,7 @@ export function inventoryArtifacts(
       source: stored,
       text_truncated: capture && text !== undefined && textByteLength > cap,
       extraction: "none",
+      config_keys: [],
     };
     artifacts[rel] = node;
     if (text === undefined) continue;
@@ -101,6 +103,24 @@ export function inventoryArtifacts(
       locks[ownerRel] = readLock(base, text);
       lockPathOf[ownerRel] = rel;
       artifacts[rel].extraction = "full";
+    }
+    // Config keys: attempted for every namespace-eligible format; a throw means the file is
+    // config-shaped but unparseable → keep the node, mark partial (overlay posture).
+    if (["env", "json", "jsonc", "ini", "properties", "yaml"].includes(node.format)) {
+      try {
+        const keys = extractConfigKeys(node.format, text);
+        if (keys.length) {
+          node.config_keys = keys;
+          node.extraction = node.extraction === "none" ? "full" : node.extraction;
+        }
+      } catch {
+        node.extraction = "partial";
+      }
+    }
+  }
+  if (opts.artifactText === false) {
+    for (const art of Object.values(artifacts)) {
+      for (const ck of art.config_keys) delete ck.value;
     }
   }
 

@@ -8,7 +8,7 @@
  * id-uniqueness gate's collision list.
  */
 
-import { applicationIdOf, artifactIdOf, idFromSig, memberKey, moduleIdOf, modulePrefixOf } from "./ids";
+import { applicationIdOf, artifactIdOf, configKeyIdOf, idFromSig, memberKey, moduleIdOf, modulePrefixOf } from "./ids";
 import type { AnalysisInternal, TSCallable, TSField, TSType } from "./schema";
 
 export interface AssignedIds {
@@ -68,6 +68,7 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
   // with no node id of their own (the graph's :Package node is purl-keyed).
   for (const [relPath, art] of Object.entries(app.artifacts ?? {})) {
     art.id = artifactIdOf(appName, relPath);
+    for (const ck of art.config_keys) ck.id = configKeyIdOf(art.id, ck.key);
   }
   for (const dep of app.dependencies ?? []) {
     const artPath = dep.declared_in; // scanners record the REL PATH; re-stamp onto the id

@@ -42,6 +42,11 @@ export function artifactIdOf(appName: string, relPath: string): string {
   return `can://artifact/${appName}/${rel}`;
 }
 
+/** Config-key id: the owning artifact's id, `@key/`, then the dotted path. */
+export function configKeyIdOf(artifactId: string, dotted: string): string {
+  return `${artifactId}@key/${dotted}`;
+}
+
 /** Package URL for an npm package name — the cross-language package id (`pkg:npm/...`). */
 export function purlNpm(name: string): string {
   if (name.startsWith("@")) {
