@@ -2,8 +2,10 @@
  * Repository-artifact layer (#101), parity with codeanalyzer-python PR #160 / the ratified
  * 2026-08-27 spec: `inventoryArtifacts` walks the project once and returns the three
  * application sections — `artifacts` (every RULES-matched non-code file, verbatim `source`,
- * unbounded by decision), `dependencies` (flat, evidence-tagged, declared-only; locks backfill
- * `locked_version`), and `unresolved_imports` (the hygiene signal). Level-free: attached
+ * unbounded by decision), `dependencies` (flat, evidence-tagged: `direct:true` declared records
+ * from manifests, plus `direct:false` transitive records for lock-pinned packages no manifest
+ * names; locks backfill `locked_version` on declared records), and `unresolved_imports` (the
+ * hygiene signal). Level-free: attached
  * identically at every `-a`. Not cached. Ids are stamped by assignIds (they embed `--app-name`).
  *
  * Discovery skips the source-walk's directory set; TS/JS source stays in the symbol table.
@@ -18,7 +20,7 @@ import type { TSArtifact, TSDependency, TSImportBinding, TSModule } from "../sch
 import { sha256 } from "../utils";
 import { SKIP_DIRS } from "../syntactic_analysis/discovery";
 import { matchRules } from "./rules";
-import { applyLockVersions, parsePackageJson, readLock } from "./deps";
+import { applyLockVersions, parsePackageJson, readLock, transitiveRecords } from "./deps";
 import { bindImports } from "./binding";
 
 const SOURCE_EXTS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]);
@@ -38,6 +40,8 @@ export function inventoryArtifacts(
   const artifacts: Record<string, TSArtifact> = {};
   // Owning manifest's rel path → {name: locked version} (a lock pins its SIBLING package.json).
   const locks: Record<string, Record<string, string>> = {};
+  // Same key → the lock file's OWN rel path (the transitive records' `declared_in` attribution).
+  const lockPathOf: Record<string, string> = {};
   const manifests: Array<{ rel: string; text: string }> = [];
 
   for (const rel of walk(root).sort()) {
@@ -95,6 +99,7 @@ export function inventoryArtifacts(
     else if (JSON_LOCKFILES.has(base)) {
       const ownerRel = rel.split("/").slice(0, -1).concat("package.json").join("/");
       locks[ownerRel] = readLock(base, text);
+      lockPathOf[ownerRel] = rel;
       artifacts[rel].extraction = "full";
     }
   }
@@ -108,6 +113,16 @@ export function inventoryArtifacts(
     const lock = locks[rel];
     if (lock) applyLockVersions(recs, lock);
     dependencies.push(...recs);
+  }
+
+  // Lock-only packages (pinned, never declared in any manifest): direct:false transitive records,
+  // attributed to the lock that pinned them (python PR #160 parity — supply chain, not just surface).
+  const declaredNames = new Set(dependencies.map((d) => d.name));
+  for (const [ownerRel, pins] of Object.entries(locks).sort(([a], [b]) => a.localeCompare(b))) {
+    const lockRel = lockPathOf[ownerRel] as string;
+    const lockArtifact = artifacts[lockRel];
+    if (!lockArtifact) continue;
+    dependencies.push(...transitiveRecords(pins, declaredNames, lockRel)); // rel path; assignIds re-stamps
   }
 
   const unresolved_imports = bindImports(symbol_table, dependencies, root, opts.resolveInstalled ?? false);

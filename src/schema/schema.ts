@@ -347,13 +347,14 @@ export interface TSArtifact {
   extraction: "none" | "partial" | "full";
 }
 
-/** One declared third-party dependency, evidence-tagged via `prov`. */
+/** One third-party dependency (declared or lockfile-only transitive), evidence-tagged via `prov`. */
 export interface TSDependency {
   name: string; // npm-native, @scope kept
   spec: string; // as declared ("^4.17.21"); "" when the section value is not a string
   kind: "runtime" | "dev" | "optional" | "peer" | "build"; // `peer` is the spec'd additive npm token
   extras: string[]; // npm has none — always [] (shared shape parity)
-  declared_in: string; // TSArtifact id
+  declared_in: string; // TSArtifact id (a manifest for direct:true, the lock for direct:false)
+  direct: boolean; // false = lockfile-only transitive (no manifest declares it)
   locked_version?: string;
   provides_imports: string[]; // import specifiers this distribution provides (npm: the name; @types/x: x)
   prov: string[]; // declared | lockfile | installed-metadata | heuristic

@@ -1,8 +1,10 @@
 /**
  * Dependency extraction (#101, python PR #160 parity): `package.json` manifests → FLAT
- * evidence-tagged `TSDependency` records on the application; the JSON lockfile family backfills
- * `locked_version` on the OWNING manifest's records (`prov` gains "lockfile"); lockfiles never
- * create records. Defensive throughout — a malformed file yields no records, never an exception.
+ * evidence-tagged `TSDependency` records on the application (`direct: true`); the JSON lockfile
+ * family backfills `locked_version` on those OWNING manifest's records (`prov` gains "lockfile"),
+ * and also mints its own `direct: false` records for packages it pins that no manifest declares
+ * (the transitive supply chain — see `transitiveRecords`). Defensive throughout — a malformed
+ * file yields no records, never an exception.
  */
 import type { TSDependency } from "../schema";
 
@@ -46,6 +48,7 @@ export function parsePackageJson(text: string, declaredIn: string): TSDependency
         kind,
         extras: [],
         declared_in: declaredIn,
+        direct: true,
         provides_imports: providesOf(name),
         prov: ["declared"],
       });
@@ -116,4 +119,34 @@ export function applyLockVersions(deps: TSDependency[], lock: Record<string, str
     dep.locked_version = v;
     if (!dep.prov.includes("lockfile")) dep.prov.push("lockfile");
   }
+}
+
+/**
+ * Lock-only packages are TRANSITIVE: pinned with no manifest declaration. They earn records
+ * (`direct: false`) because the dependency SURFACE and the dependency SUPPLY CHAIN are different
+ * questions — a vulnerable package four levels down ships whether or not anyone named it.
+ * `kind` is "runtime": a lock does not record why a package is present, and inferring it would
+ * take a whole-graph walk this unit deliberately does not do.
+ */
+export function transitiveRecords(
+  pins: Record<string, string>,
+  declaredNames: Set<string>,
+  lockArtifactId: string,
+): TSDependency[] {
+  const out: TSDependency[] = [];
+  for (const name of Object.keys(pins).sort()) {
+    if (declaredNames.has(name)) continue;
+    out.push({
+      name,
+      spec: "",
+      kind: "runtime",
+      extras: [],
+      declared_in: lockArtifactId,
+      direct: false,
+      locked_version: pins[name] as string,
+      provides_imports: [name],
+      prov: ["lockfile"],
+    });
+  }
+  return out;
 }

@@ -88,7 +88,7 @@ describe("dependencies — flat, evidence-tagged (#101/PR-160)", () => {
     expect(byName.get("typescript")?.kind).toBe("dev");
     expect(byName.get("fsevents")?.kind).toBe("optional");
     expect(byName.get("react")?.kind).toBe("peer");
-    for (const d of deps) {
+    for (const d of deps.filter((d) => d.direct)) {
       expect(d.prov).toContain("declared");
       expect(d.extras).toEqual([]);
     }
@@ -104,8 +104,21 @@ describe("dependencies — flat, evidence-tagged (#101/PR-160)", () => {
     expect(byName.get("express")?.prov).toEqual(["declared", "lockfile"]);
     expect(byName.get("lodash")?.locked_version).toBe("4.17.21"); // sibling bun.lock (JSONC)
     expect(byName.get("react")?.locked_version).toBeUndefined();
-    expect(byName.has("lockonly-transitive")).toBe(false); // locks never create records
     expect(byName.has("transitive-shadow")).toBe(false); // nested lock entries ignored
+  });
+
+  test("lock-only packages become direct:false records attributed to the lock", () => {
+    const t = deps.find((d) => d.name === "lockonly-transitive");
+    expect(t).toBeDefined();
+    expect(t?.direct).toBe(false);
+    expect(t?.kind).toBe("runtime");
+    expect(t?.prov).toEqual(["lockfile"]);
+    expect(t?.locked_version).toBe("1.0.0");
+    expect(t?.declared_in).toBe("can://artifact/artifacts-app/package-lock.json");
+    // declared packages stay direct
+    expect(byName.get("express")?.direct).toBe(true);
+    // nested shadow entries are NOT records
+    expect(deps.some((d) => d.name === "transitive-shadow")).toBe(false);
   });
 
   test("provides_imports: the name itself; @types/x also provides x", () => {
