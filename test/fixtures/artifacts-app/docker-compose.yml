@@ -6,3 +6,4 @@ services:
     environment:
       PAYMENT_HOST: https://pay.example.com
       FEATURE_FLAG: "on"
+PAYMENT_HOST: https://root-level.example.com

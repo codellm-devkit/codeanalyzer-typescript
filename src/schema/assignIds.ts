@@ -68,7 +68,20 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
   // with no node id of their own (the graph's :Package node is purl-keyed).
   for (const [relPath, art] of Object.entries(app.artifacts ?? {})) {
     art.id = artifactIdOf(appName, relPath);
-    for (const ck of art.config_keys) ck.id = configKeyIdOf(art.id, ck.key);
+    // Deployment-env id disambiguation (#101 unit D fix round 1, python v1.3.0 parity verbatim):
+    // the `key` FIELD always stays the bare variable name — env-namespace resolution still joins
+    // on a plain `key ===` match — but a bare name can collide across mints on the SAME artifact
+    // (Dockerfile: `ARG VERSION` + `ENV VERSION=$VERSION`; yaml: a top-level `PAYMENT_HOST:` leaf
+    // vs. the `env` dual-mint from `services.web.environment.PAYMENT_HOST`), so only the ID gets
+    // an internal prefix: `arg.` for a dockerfile-namespace (ARG) mint, `env.` for a yaml
+    // artifact's env dual-mint. Dockerfile's own ENV mint and every ordinary structural key stay
+    // unprefixed.
+    for (const ck of art.config_keys) {
+      let idKey = ck.key;
+      if (ck.namespace === "dockerfile") idKey = `arg.${ck.key}`;
+      else if (art.format === "yaml" && ck.namespace === "env") idKey = `env.${ck.key}`;
+      ck.id = configKeyIdOf(art.id, idKey);
+    }
   }
   for (const dep of app.dependencies ?? []) {
     const artPath = dep.declared_in; // scanners record the REL PATH; re-stamp onto the id

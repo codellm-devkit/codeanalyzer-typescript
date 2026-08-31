@@ -283,6 +283,45 @@ describe("deployment-env namespaces (#101 unit D)", () => {
     expect(arts["pnpm-lock.yaml"]?.config_keys.filter((x) => x.namespace === "env")).toEqual([]);
   });
 
+  // Fix round 1 (coordinator ruling): configKeyIdOf(artifactId, key) ignores namespace, so a bare
+  // name minted into TWO namespaces on the SAME artifact collided on `.id` before this round —
+  // confirmed to actually happen via `ARG VERSION` + `ENV VERSION=$VERSION`, a routine Dockerfile
+  // idiom (promote a build arg into a runtime env var under the same name). The `key` FIELD stays
+  // the bare name in both cases (env-namespace resolution still joins on a plain `key ===` match);
+  // only the id gets an internal prefix — python v1.3.0 parity, applied in assignIds.ts.
+  test("ARG VERSION + ENV VERSION=$VERSION mint the same bare key in two namespaces with DISTINCT ids", () => {
+    const keys = arts["Dockerfile"]?.config_keys ?? [];
+    const argVersion = keys.find((k) => k.namespace === "dockerfile" && k.key === "VERSION");
+    const envVersion = keys.find((k) => k.namespace === "env" && k.key === "VERSION");
+    expect(argVersion?.key).toBe("VERSION"); // key field stays bare — only the id is disambiguated
+    expect(envVersion?.key).toBe("VERSION");
+    expect(argVersion?.id).toBe("can://artifact/artifacts-app/Dockerfile@key/arg.VERSION");
+    expect(envVersion?.id).toBe("can://artifact/artifacts-app/Dockerfile@key/VERSION"); // ENV: unprefixed
+    expect(argVersion?.id).not.toBe(envVersion?.id);
+  });
+
+  // Same collision class, one namespace over: a yaml artifact's TOP-LEVEL leaf and its "env"
+  // dual-mint (compose/k8s) can share a bare name too — docker-compose.yml now carries both a
+  // root PAYMENT_HOST: leaf and services.web.environment.PAYMENT_HOST (which dual-mints an "env"
+  // key named bare "PAYMENT_HOST"). Only the dual-mint's id gets the `env.` prefix.
+  test("a yaml artifact's top-level leaf and its env dual-mint share a bare name but get DISTINCT ids", () => {
+    const keys = arts["docker-compose.yml"]?.config_keys ?? [];
+    const structural = keys.find((k) => k.namespace === "yaml" && k.key === "PAYMENT_HOST");
+    const deployEnv = keys.find((k) => k.namespace === "env" && k.key === "PAYMENT_HOST");
+    expect(structural?.value).toBe("https://root-level.example.com");
+    expect(deployEnv?.value).toBe("https://pay.example.com");
+    expect(structural?.id).toBe("can://artifact/artifacts-app/docker-compose.yml@key/PAYMENT_HOST");
+    expect(deployEnv?.id).toBe("can://artifact/artifacts-app/docker-compose.yml@key/env.PAYMENT_HOST");
+    expect(structural?.id).not.toBe(deployEnv?.id);
+  });
+
+  // The regression guard that would have caught the original bug: every config-key id across the
+  // WHOLE fixture app, unique — not just within the two cases spelled out above.
+  test("no two config keys anywhere in the fixture app share an id", () => {
+    const ids = Object.values(arts).flatMap((a) => a.config_keys.map((k) => k.id));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   // docker-compose.broken.yml / k8s/multi-broken.yaml falling back to "partial" with empty
   // config_keys is already pinned above (config keys — YAML block); nothing to re-assert here
   // beyond confirming this task didn't reach for deploy keys on a file that never parsed.
