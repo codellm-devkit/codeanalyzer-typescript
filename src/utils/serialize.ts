@@ -23,7 +23,68 @@ export async function emit(application: TSAnalysis, opts: AnalysisOptions): Prom
     return;
   }
   fs.mkdirSync(opts.output, { recursive: true });
-  fs.writeFileSync(path.join(opts.output, "analysis.json"), JSON.stringify(application));
+  writeAnalysisJson(path.join(opts.output, "analysis.json"), application);
+}
+
+/**
+ * Write the envelope WITHOUT ever holding it as one string (#112).
+ *
+ * `JSON.stringify(application)` materialises the entire output before a byte is written, so peak
+ * memory carries the tree AND its serialisation at once, and a large enough analysis exceeds the
+ * runtime's maximum string length outright: vscode at -a 4 dies with `RangeError: Out of memory`
+ * in stringify after the analysis itself has completed successfully.
+ *
+ * The envelope's shape is fixed and its two unbounded members are `symbol_table` (keyed by module)
+ * and the application-scope edge arrays, so both are streamed element by element. Each element is
+ * still stringified individually — bounded by the largest single module, not by the whole repo.
+ * Output is byte-identical to the previous whole-string write.
+ */
+function writeAnalysisJson(file: string, envelope: TSAnalysis): void {
+  const fd = fs.openSync(file, "w");
+  const put = (chunk: string): void => {
+    fs.writeSync(fd, chunk);
+  };
+  try {
+    const { application: app, ...head } = envelope as unknown as Record<string, unknown>;
+    const root = app as Record<string, unknown>;
+
+    // envelope head — every key except `application`
+    put("{");
+    for (const [k, v] of Object.entries(head)) put(`${JSON.stringify(k)}:${JSON.stringify(v)},`);
+    put(`"application":{`);
+
+    // Walk the application's keys in INSERTION ORDER so the bytes match what JSON.stringify
+    // produced; only the two unbounded members stream, everything else is small.
+    let firstKey = true;
+    for (const [k, v] of Object.entries(root)) {
+      if (v === undefined) continue;
+      if (!firstKey) put(",");
+      firstKey = false;
+      put(`${JSON.stringify(k)}:`);
+      if (k === "symbol_table" && v && typeof v === "object") {
+        put("{");
+        let first = true;
+        for (const [key, mod] of Object.entries(v as Record<string, unknown>)) {
+          if (!first) put(",");
+          first = false;
+          put(`${JSON.stringify(key)}:${JSON.stringify(mod)}`);
+        }
+        put("}");
+      } else if (Array.isArray(v)) {
+        put("[");
+        for (let i = 0; i < v.length; i++) {
+          if (i) put(",");
+          put(JSON.stringify(v[i]));
+        }
+        put("]");
+      } else {
+        put(JSON.stringify(v));
+      }
+    }
+    put("}}");
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 /**

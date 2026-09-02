@@ -26,7 +26,8 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { Project } from "ts-morph";
+import type { Node, Project } from "ts-morph";
+import type { BuiltProgram } from "../syntactic_analysis/symbolTable";
 import type { AnalysisOptions } from "../options";
 import {
   PROGRAM_GRAPHS_SCHEMA_VERSION,
@@ -66,13 +67,19 @@ export interface ExtractionHandle {
 }
 
 export function startExtraction(
-  project: Project,
+  programs: BuiltProgram[],
   symbol_table: Record<string, TSModule>,
-  tsConfigFilePath: string | null,
   opts: AnalysisOptions,
   log: Logger,
+  keepProject?: Project,
 ): ExtractionHandle {
   const callables = collectCallables(symbol_table);
+  // Every callable is extracted under the tsconfig that OWNS its file, exactly as the symbol table
+  // and the L2 call graph already resolve it (#111). Indexing the whole repo against one root
+  // program silently drops every callable a deeper program owns: `indexCallableDecls` never sees
+  // the declaration, and the `if (!fn) continue` below skips it. On vscode -- 92 programs, no root
+  // tsconfig -- that was 1,204 of 174,767 callables extracted.
+  const ownerOf = programOwnerIndex(programs, callables, opts.input);
 
   // Partition callables by owning file (round-robin over the sorted file list) so each worker
   // deeply visits only its share of the program. TSCallable.abs_path is the declaration's ABSOLUTE
@@ -95,7 +102,7 @@ export function startExtraction(
   const jobs = opts.jobs === 0 ? 1 : opts.jobs;
 
   if (jobs <= 1) {
-    return { promise: Promise.resolve(extractSequential(project, callables, opts)), pool: null };
+    return { promise: Promise.resolve(extractSequential(programs, ownerOf, callables, opts, log, keepProject)), pool: null };
   }
   const workerCount = Math.max(1, Math.min(jobs, files.length));
 
@@ -104,30 +111,44 @@ export function startExtraction(
     pool = new WorkerPool(workerCount);
   } catch (e) {
     log.warn(`graph workers unavailable (${(e as Error).message}); extracting sequentially`);
-    return { promise: Promise.resolve(extractSequential(project, callables, opts)), pool: null };
+    return { promise: Promise.resolve(extractSequential(programs, ownerOf, callables, opts, log, keepProject)), pool: null };
   }
 
-  const partitions: Array<Array<{ signature: string; path: string; absPath: string }>> = Array.from(
-    { length: workerCount },
-    () => [],
-  );
-  files.forEach((f, i) => partitions[i % workerCount]?.push(...(byFile.get(f) ?? [])));
+  // Partition WITHIN each owning program: a task's files must all share one tsconfig, because the
+  // worker builds a single Project per task config (#111). Round-robin inside a program keeps the
+  // per-worker balance the previous global round-robin had.
+  const byConfig = new Map<string, { configPath: string | null; files: string[] }>();
+  for (const f of files) {
+    const configPath = ownerOf.get(f) ?? null;
+    const key = configPath ?? "";
+    const g = byConfig.get(key) ?? { configPath, files: [] };
+    g.files.push(f);
+    byConfig.set(key, g);
+  }
+  const partitions: Array<{ configPath: string | null; sigs: Array<{ signature: string; path: string; absPath: string }> }> = [];
+  for (const key of [...byConfig.keys()].sort()) {
+    const g = byConfig.get(key)!;
+    const slots: Array<Array<{ signature: string; path: string; absPath: string }>> = Array.from(
+      { length: Math.max(1, Math.min(workerCount, g.files.length)) },
+      () => [],
+    );
+    g.files.forEach((f, i) => slots[i % slots.length]?.push(...(byFile.get(f) ?? [])));
+    for (const s of slots) if (s.length) partitions.push({ configPath: g.configPath, sigs: s });
+  }
 
   const handle: ExtractionHandle = { promise: Promise.resolve(new Map()), pool };
   handle.promise = Promise.all(
-    partitions
-      .filter((p) => p.length)
-      .map((sigs) => {
-        const task: ExtractTask = {
-          type: "extract",
-          root: opts.input,
-          tsConfigFilePath,
-          skipTests: opts.skipTests,
-          k: opts.graphFieldDepth,
-          sigs,
-        };
-        return pool.exec<CallableGraphData[]>(task);
-      }),
+    partitions.map(({ configPath, sigs }) => {
+      const task: ExtractTask = {
+        type: "extract",
+        root: opts.input,
+        tsConfigFilePath: configPath,
+        skipTests: opts.skipTests,
+        k: opts.graphFieldDepth,
+        sigs,
+      };
+      return pool.exec<CallableGraphData[]>(task);
+    }),
   )
     .then((chunks) => {
       const out = new Map<string, CallableGraphData>();
@@ -137,6 +158,7 @@ export function startExtraction(
         // main thread's — treat it as a failure, never as an empty program.
         throw new Error("workers returned no callables");
       }
+      reportCoverage(out.size, callables.size, log);
       return out;
     })
     .catch((e: Error) => {
@@ -146,26 +168,86 @@ export function startExtraction(
       log.warn(`graph extraction workers failed (${e.message}); falling back to sequential`);
       handle.pool?.close();
       handle.pool = null;
-      return extractSequential(project, callables, opts);
+      return extractSequential(programs, ownerOf, callables, opts, log, keepProject);
     });
 
   return handle;
 }
 
-function extractSequential(
-  project: Project,
+/**
+ * absolute file path -> the tsconfig that OWNS it, taken from the same program assignment the
+ * symbol table used (`BuiltProgram.fileKeys`, deepest scope wins). A file no program claims maps
+ * to null, the default-options program.
+ */
+function programOwnerIndex(
+  programs: BuiltProgram[],
   callables: Map<string, TSCallable>,
-  opts: AnalysisOptions,
-): Map<string, CallableGraphData> {
-  const astIndex = indexCallableDecls(project, opts.input);
-  const out = new Map<string, CallableGraphData>();
-  for (const [sig, c] of [...callables.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    const fn = astIndex.get(sig);
-    if (!fn) continue; // bodiless (interface/abstract/ambient/implicit) or unmatchable
-    const data = extractCallableData(sig, fn, fileKeyOf(c.abs_path, opts.input).fileKey, opts.input, opts.graphFieldDepth);
-    if (data) out.set(sig, data);
+  root: string,
+): Map<string, string | null> {
+  const byFileKey = new Map<string, string | null>();
+  for (const p of programs) for (const k of p.fileKeys) if (!byFileKey.has(k)) byFileKey.set(k, p.configPath);
+  const out = new Map<string, string | null>();
+  for (const c of callables.values()) {
+    if (out.has(c.abs_path)) continue;
+    out.set(c.abs_path, byFileKey.get(fileKeyOf(c.abs_path, root).fileKey) ?? null);
   }
   return out;
+}
+
+function extractSequential(
+  programs: BuiltProgram[],
+  ownerOf: Map<string, string | null>,
+  callables: Map<string, TSCallable>,
+  opts: AnalysisOptions,
+  log: Logger,
+  keepProject?: Project,
+): Map<string, CallableGraphData> {
+  // Group first, then index ONE program at a time. Building all of them up front holds every
+  // program's declaration nodes live at once: on vscode (92 programs) that peaked at 26.9GB and
+  // the process was killed. Only one index is resident here, so the memory profile matches the
+  // single-root version while the lookup is per-owning-program (#111).
+  const byConfig = new Map<string, Array<[string, TSCallable]>>();
+  for (const [sig, c] of [...callables.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    const key = ownerOf.get(c.abs_path) ?? "";
+    const group = byConfig.get(key);
+    if (group) group.push([sig, c]);
+    else byConfig.set(key, [[sig, c]]);
+  }
+
+  const out = new Map<string, CallableGraphData>();
+  for (const p of programs) {
+    const group = byConfig.get(p.configPath ?? "");
+    if (!group?.length) continue;
+    const idx = indexCallableDecls(p.project, opts.input);
+    for (const [sig, c] of group) {
+      const fn = idx.get(sig);
+      if (!fn) continue; // bodiless (interface/abstract/ambient/implicit) or unmatchable
+      const data = extractCallableData(sig, fn, fileKeyOf(c.abs_path, opts.input).fileKey, opts.input, opts.graphFieldDepth);
+      if (data) out.set(sig, data);
+    }
+    // Release this program's ASTs now that nothing else will read them (#112). Indexing a
+    // project forces tsc to parse and bind every file in it, so on a repo with many programs the
+    // materialised set is the dominant cost -- vscode has 92. `keepProject` is the root program,
+    // which finalizeAnalysis still needs for the config-use dataflow tier, so it is spared.
+    if (p.project !== keepProject) {
+      for (const sf of p.project.getSourceFiles()) p.project.removeSourceFile(sf);
+    }
+  }
+  reportCoverage(out.size, callables.size, log);
+  return out;
+}
+
+/**
+ * Say how much flow was actually extracted. A near-empty L3 used to be indistinguishable from a
+ * successful one -- #111 shipped precisely because nothing reported that 0.7% of callables had
+ * been populated.
+ */
+function reportCoverage(extracted: number, collected: number, log: Logger): void {
+  if (!collected) return;
+  const pct = (100 * extracted) / collected;
+  const msg = `dataflow: extracted ${extracted.toLocaleString()} of ${collected.toLocaleString()} callables (${pct.toFixed(1)}%)`;
+  if (pct < 50) log.warn(`${msg} — most callables produced no control/data flow`);
+  else log.info(msg);
 }
 
 // ------------------------------------------------------------------------------------------------
