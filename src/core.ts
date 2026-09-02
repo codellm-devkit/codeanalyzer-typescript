@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import { buildProgramGraphs, startExtraction } from "./dataflow";
+import { type ExtractionHandle, buildProgramGraphs, startExtraction } from "./dataflow";
 import { type LinkerResolutions, mergeCallGraphs, runDefuseLinker, tscProvider } from "./semantic_analysis";
 import { loadCache, saveCache } from "./utils";
 import { materialize } from "./build";
@@ -43,7 +43,11 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   if (opts.analysisLevel >= 3 && programs.length > 1) {
     log.warn(`L3 dataflow uses the root tsconfig for all ${programs.length} programs; nested-program files may under-resolve (see #56)`);
   }
-  const extraction = opts.analysisLevel >= 3 ? startExtraction(project, symbol_table, mat.tsConfigFilePath, opts, log) : null;
+  let extraction: ExtractionHandle | null = null;
+  if (opts.analysisLevel >= 3) {
+    if (!project) throw new Error("compiler project missing for dataflow analysis");
+    extraction = startExtraction(project, symbol_table, mat.tsConfigFilePath, opts, log);
+  }
 
   // Call graph: the tsc resolver, per program (each with its own Project + its slice of callables
   // via `only`), merged across programs. Only worth running at level >= 2: finalizeAnalysis

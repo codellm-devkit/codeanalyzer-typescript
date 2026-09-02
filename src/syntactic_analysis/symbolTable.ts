@@ -19,11 +19,11 @@ export interface BuiltProgram {
 }
 
 export interface SymbolTableResult {
-  // The ROOT program's Project — single-program consumers keep working unchanged.
-  project: Project;
+  // The root Project is absent only on a complete warm Level-1 hit; Levels 2–4 always receive it.
+  project: Project | undefined;
   symbol_table: Record<string, TSModule>;
   files: DiscoveredFile[];
-  // One entry per discovered program (deepest scope first, root last).
+  // Deepest scope first and root last; empty only with the Project-free Level-1 fast path.
   programs: BuiltProgram[];
 }
 
@@ -57,12 +57,40 @@ export function buildSymbolTable(
   // The set of files to BUILD (targets in -t mode, else all).
   const buildFiles = targets ?? allProjectFiles;
 
+  const reusable = new Map<string, TSModule>();
+  if (cached && !opts.eager) {
+    for (const file of buildFiles) {
+      const cachedModule = cached[file.fileKey];
+      if (cachedModule && fileUnchanged(file.absPath, cachedModule)) {
+        reusable.set(file.fileKey, cachedModule);
+      }
+    }
+  }
+
   // Assign every discovered file to exactly one program (deepest scope wins), then construct one
   // Project per program from ONLY its files — so each file resolves under the tsconfig that governs
   // it (module resolution, `paths` aliases, lib) instead of a single root program swallowing all.
   const assignment = new Map<ProgramSpec, DiscoveredFile[]>();
   for (const s of specs) assignment.set(s, []);
   for (const f of allProjectFiles) assignment.get(ownerProgram(f.absPath, specs))!.push(f);
+
+  if (
+    opts.analysisLevel === 1 &&
+    cached !== null &&
+    !opts.eager &&
+    reusable.size === buildFiles.length
+  ) {
+    const symbol_table: Record<string, TSModule> = {};
+    for (const file of buildFiles) symbol_table[file.fileKey] = reusable.get(file.fileKey)!;
+    for (const spec of specs) {
+      const files = assignment.get(spec)!;
+      log.info(
+        `program: ${spec.configPath ? path.relative(root, spec.configPath) : "default"} (${files.length} files)`,
+      );
+    }
+    log.info(`symbol table: 0 built, ${buildFiles.length} cached, ${buildFiles.length} modules`);
+    return { project: undefined, symbol_table, files: buildFiles, programs: [] };
+  }
 
   const projectOf = new Map<ProgramSpec, Project>();
   const programs: BuiltProgram[] = [];
@@ -87,8 +115,9 @@ export function buildSymbolTable(
   let built = 0;
   let fromCache = 0;
   for (const f of buildFiles) {
-    if (cached && !opts.eager && cached[f.fileKey] && fileUnchanged(f.absPath, cached[f.fileKey])) {
-      symbol_table[f.fileKey] = cached[f.fileKey];
+    const cachedModule = reusable.get(f.fileKey);
+    if (cachedModule) {
+      symbol_table[f.fileKey] = cachedModule;
       fromCache++;
       continue;
     }
