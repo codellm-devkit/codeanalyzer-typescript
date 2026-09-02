@@ -58,14 +58,14 @@ export function inventoryArtifacts(
     } catch {
       continue; // unreadable — skip, don't crash
     }
+    const text = decodeLossy(raw);
     if (!matched) {
       // Never drop: a file without a rule is still inventoried. Extensionless shebang files are
       // scripts; everything else decodable is `unknown`; undecodable bytes are hash-only.
-      const probe = decodeLossy(raw);
       if (path.extname(base) === "" && raw.subarray(0, 2).toString("utf-8") === "#!") {
         format = "text";
         roles = ["script"];
-      } else if (probe === undefined) {
+      } else if (text === undefined) {
         format = "binary";
         roles = ["unknown"];
       } else {
@@ -73,7 +73,6 @@ export function inventoryArtifacts(
         roles = ["unknown"];
       }
     }
-    const text = decodeLossy(raw);
     const capture = opts.artifactText ?? true;
     const cap = opts.artifactTextMaxBytes ?? DEFAULT_ARTIFACT_TEXT_MAX_BYTES;
     const textByteLength = text === undefined ? 0 : Buffer.byteLength(text, "utf8");
