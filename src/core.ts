@@ -39,7 +39,6 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   // same assignment the symbol table and the L2 call graph use (#111). It used to index the whole
   // repo against the root program alone, which silently skipped every callable a deeper program
   // owned.
-  const extraction = opts.analysisLevel >= 3 ? startExtraction(programs, symbol_table, opts, log) : null;
 
   // Call graph: the tsc resolver, per program (each with its own Project + its slice of callables
   // via `only`), merged across programs. Only worth running at level >= 2: finalizeAnalysis
@@ -73,6 +72,14 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
       }
     }
   }
+  // Extraction runs AFTER the solve, not concurrently with it (#112). The two only ever
+  // overlapped under `-j N > 1` -- at the default `-j 1` startExtraction evaluates
+  // extractSequential eagerly, so they were already serial. Ordering them explicitly lets
+  // extraction be the LAST reader of each program's Project, which is what makes disposal safe:
+  // on a repo with many programs, holding all of them materialised is what exhausted the heap.
+  const extraction =
+    opts.analysisLevel >= 3 ? startExtraction(programs, symbol_table, opts, log, project) : null;
+
   const call_graph = cg.edges;
 
   // Repository-artifact layer (#101, python PR #160 parity): level-free, identical at every -a.

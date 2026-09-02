@@ -26,7 +26,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { Node } from "ts-morph";
+import type { Node, Project } from "ts-morph";
 import type { BuiltProgram } from "../syntactic_analysis/symbolTable";
 import type { AnalysisOptions } from "../options";
 import {
@@ -71,6 +71,7 @@ export function startExtraction(
   symbol_table: Record<string, TSModule>,
   opts: AnalysisOptions,
   log: Logger,
+  keepProject?: Project,
 ): ExtractionHandle {
   const callables = collectCallables(symbol_table);
   // Every callable is extracted under the tsconfig that OWNS its file, exactly as the symbol table
@@ -101,7 +102,7 @@ export function startExtraction(
   const jobs = opts.jobs === 0 ? 1 : opts.jobs;
 
   if (jobs <= 1) {
-    return { promise: Promise.resolve(extractSequential(programs, ownerOf, callables, opts, log)), pool: null };
+    return { promise: Promise.resolve(extractSequential(programs, ownerOf, callables, opts, log, keepProject)), pool: null };
   }
   const workerCount = Math.max(1, Math.min(jobs, files.length));
 
@@ -110,7 +111,7 @@ export function startExtraction(
     pool = new WorkerPool(workerCount);
   } catch (e) {
     log.warn(`graph workers unavailable (${(e as Error).message}); extracting sequentially`);
-    return { promise: Promise.resolve(extractSequential(programs, ownerOf, callables, opts, log)), pool: null };
+    return { promise: Promise.resolve(extractSequential(programs, ownerOf, callables, opts, log, keepProject)), pool: null };
   }
 
   // Partition WITHIN each owning program: a task's files must all share one tsconfig, because the
@@ -167,7 +168,7 @@ export function startExtraction(
       log.warn(`graph extraction workers failed (${e.message}); falling back to sequential`);
       handle.pool?.close();
       handle.pool = null;
-      return extractSequential(programs, ownerOf, callables, opts, log);
+      return extractSequential(programs, ownerOf, callables, opts, log, keepProject);
     });
 
   return handle;
@@ -199,6 +200,7 @@ function extractSequential(
   callables: Map<string, TSCallable>,
   opts: AnalysisOptions,
   log: Logger,
+  keepProject?: Project,
 ): Map<string, CallableGraphData> {
   // Group first, then index ONE program at a time. Building all of them up front holds every
   // program's declaration nodes live at once: on vscode (92 programs) that peaked at 26.9GB and
@@ -223,7 +225,13 @@ function extractSequential(
       const data = extractCallableData(sig, fn, fileKeyOf(c.abs_path, opts.input).fileKey, opts.input, opts.graphFieldDepth);
       if (data) out.set(sig, data);
     }
-    // idx drops here — the next program's index replaces it rather than accumulating.
+    // Release this program's ASTs now that nothing else will read them (#112). Indexing a
+    // project forces tsc to parse and bind every file in it, so on a repo with many programs the
+    // materialised set is the dominant cost -- vscode has 92. `keepProject` is the root program,
+    // which finalizeAnalysis still needs for the config-use dataflow tier, so it is spared.
+    if (p.project !== keepProject) {
+      for (const sf of p.project.getSourceFiles()) p.project.removeSourceFile(sf);
+    }
   }
   reportCoverage(out.size, callables.size, log);
   return out;
