@@ -64,7 +64,7 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
     const fileKey = moduleKeyOf(mod);
     const modRef = b.node([CAN, "TSModule"], "id", mod.id, moduleProps(mod, fileKey));
     b.edge("TS_HAS_MODULE", appRef, modRef);
-    projectScope(b, mod, modRef, fileKey);
+    projectScope(b, mod, modRef, fileKey, mod.source ?? "");
   }
 
   // Repository-artifact layer (#101, python PR #160 parity): language-NEUTRAL :Artifact and
@@ -165,37 +165,37 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
 // ----------------------------------------------------------------------------------------------
 
 /** Walk a scope's child maps (module OR namespace: types + functions + fields). */
-function projectScope(b: RowBuilder, scope: TSModule | TSType, parent: NodeRef, fileKey: string): void {
-  for (const t of Object.values(scope.types ?? {})) projectType(b, t, parent, fileKey);
-  for (const c of Object.values(scope.functions ?? {})) projectCallable(b, c, parent, "TS_DECLARES", fileKey);
+function projectScope(b: RowBuilder, scope: TSModule | TSType, parent: NodeRef, fileKey: string, source: string): void {
+  for (const t of Object.values(scope.types ?? {})) projectType(b, t, parent, fileKey, source);
+  for (const c of Object.values(scope.functions ?? {})) projectCallable(b, c, parent, "TS_DECLARES", fileKey, source);
   for (const f of Object.values(scope.fields ?? {})) projectField(b, f, parent, fileKey);
 }
 
-function projectType(b: RowBuilder, t: TSType, parent: NodeRef, fileKey: string): void {
+function projectType(b: RowBuilder, t: TSType, parent: NodeRef, fileKey: string, source: string): void {
   const label = KIND_LABEL[t.kind] ?? "TSClass";
-  const node = b.node([CAN, label], "id", t.id, typeProps(t, fileKey));
+  const node = b.node([CAN, label], "id", t.id, typeProps(t, fileKey, source));
   b.edge("TS_DECLARES", parent, node);
   // Inheritance overlay — resolved-only (emit.ts already dropped unresolved/external supertypes);
   // the deferred gate is defense-in-depth against a resolved id that never materialized as a node.
   for (const eid of t.extends_ids ?? []) b.edgeToSymbol("TS_EXTENDS", node, eid);
   for (const iid of t.implements_ids ?? []) b.edgeToSymbol("TS_IMPLEMENTS", node, iid);
   if (t.kind === "namespace") {
-    projectScope(b, t, node, fileKey); // a namespace nests types/functions/fields
+    projectScope(b, t, node, fileKey, source); // a namespace nests types/functions/fields
     return;
   }
-  for (const c of Object.values(t.callables ?? {})) projectCallable(b, c, node, "TS_HAS_METHOD", fileKey);
+  for (const c of Object.values(t.callables ?? {})) projectCallable(b, c, node, "TS_HAS_METHOD", fileKey, source);
   for (const f of Object.values(t.fields ?? {})) projectField(b, f, node, fileKey);
 }
 
 /** An unnamed callable's signature ends with the positional segment `contributorName` gives it. */
 const ANON_SIG = /\.<anon@\d+:\d+>$/;
 
-function projectCallable(b: RowBuilder, c: TSCallable, owner: NodeRef, ownerRel: string, fileKey: string): void {
+function projectCallable(b: RowBuilder, c: TSCallable, owner: NodeRef, ownerRel: string, fileKey: string, source: string): void {
   // An unnamed callable carries :TSAnonymousCallable alongside :TSCallable — one node, two labels,
   // reached by ordinary containment. That is what keeps pre-2.1.0 MATCH (:TSAnonymousCallable)
   // queries working and puts these nodes on the snapshot wipe's containment walk (issue #75).
   const labels = ANON_SIG.test(c.signature) ? [CAN, "TSCallable", "TSAnonymousCallable"] : [CAN, "TSCallable"];
-  const node = b.node(labels, "id", c.id, callableProps(c, fileKey));
+  const node = b.node(labels, "id", c.id, callableProps(c, fileKey, source));
   b.edge(ownerRel, owner, node);
 
   // Body nodes (L1: call sites; L3+: statements + synthetic vertices) + their overlays.
@@ -217,8 +217,8 @@ function projectCallable(b: RowBuilder, c: TSCallable, owner: NodeRef, ownerRel:
   for (const e of edges(c.summary)) b.edge("TS_SUMMARY", ref(fq(c.id, e.src)), ref(fq(c.id, e.dst)), prune({ var: e.var ?? null }));
 
   // Nested callables (closures) + local classes.
-  for (const cc of Object.values(c.callables ?? {})) projectCallable(b, cc, node, "TS_DECLARES", fileKey);
-  for (const t of Object.values(c.types ?? {})) projectType(b, t, node, fileKey);
+  for (const cc of Object.values(c.callables ?? {})) projectCallable(b, cc, node, "TS_DECLARES", fileKey, source);
+  for (const t of Object.values(c.types ?? {})) projectType(b, t, node, fileKey, source);
 }
 
 function projectField(b: RowBuilder, f: TSField, owner: NodeRef, fileKey: string): void {
@@ -232,6 +232,25 @@ function projectField(b: RowBuilder, f: TSField, owner: NodeRef, fileKey: string
 // property flattening (v2 node attrs → Neo4j-legal scalars/arrays)
 // ----------------------------------------------------------------------------------------------
 
+/**
+ * A declaration's text: the owning module's `source` sliced by the node's UTF-8 BYTE span.
+ *
+ * Schema v2 stores source once per module and every node carries `span.bytes`, so `code` is derived
+ * here at projection time rather than duplicated into the tree — the same thing codeanalyzer-python
+ * does (`neo4j/project.py::_span_code`), which is why its graph has `code` on :PyClass/:PyCallable
+ * while its JSON does not. Ours declared neither, leaving TypeScript source unreachable from the
+ * graph: no `code` on the node AND no `source` on :TSModule to slice from.
+ *
+ * Byte offsets, so this must slice a Buffer. String slicing would cut multi-byte UTF-8 mid-character.
+ */
+function spanCode(source: string, sp: { bytes?: [number, number] } | undefined): string | null {
+  const bytes = sp?.bytes;
+  if (!source || !bytes) return null;
+  const [lo, hi] = bytes;
+  if (hi <= lo) return null;
+  return Buffer.from(source, "utf8").subarray(lo, hi).toString("utf8");
+}
+
 function moduleProps(mod: TSModule, fileKey: string): Props {
   // `name` is the file key. `content_hash` is what the incremental push diffs against on the next
   // run (bolt.ts) -- schema.ts has always declared it on :TSModule, but nothing wrote it (#118).
@@ -242,18 +261,18 @@ function moduleProps(mod: TSModule, fileKey: string): Props {
   });
 }
 
-function typeProps(t: TSType, fileKey: string): Props {
+function typeProps(t: TSType, fileKey: string, source: string): Props {
   return prune({
     id: t.id, kind: t.kind, signature: t.signature, name: t.name,
     base_classes: strArr(t.base_classes), implements_types: strArr(t.implements_types),
     aliased_type: t.aliased_type ?? null,
     is_abstract: t.is_abstract ?? null, is_const: t.is_const ?? null,
     is_exported: t.is_exported, is_ambient: t.is_ambient,
-    ...span(t),
+    code: spanCode(source, t.span), ...span(t),
   });
 }
 
-function callableProps(c: TSCallable, fileKey: string): Props {
+function callableProps(c: TSCallable, fileKey: string, source: string): Props {
   return prune({
     id: c.id, kind: c.kind, signature: c.signature, name: c.name,
     return_type: c.return_type ?? null, cyclomatic_complexity: c.cyclomatic_complexity,
@@ -261,7 +280,7 @@ function callableProps(c: TSCallable, fileKey: string): Props {
     is_static: c.is_static, is_abstract: c.is_abstract,
     is_async: c.is_async, is_generator: c.is_generator,
     is_exported: c.is_exported, is_ambient: c.is_ambient,
-    is_implicit: c.is_implicit, ...span(c), _module: fileKey,
+    is_implicit: c.is_implicit, code: spanCode(source, c.span), ...span(c), _module: fileKey,
   });
 }
 
