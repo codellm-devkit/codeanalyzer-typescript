@@ -86,6 +86,7 @@
         "is_abstract": "boolean",
         "is_exported": "boolean",
         "is_ambient": "boolean",
+        "code": "string",
         "start_line": "integer",
         "end_line": "integer"
       }
@@ -103,6 +104,7 @@
         "base_classes": "string[]",
         "is_exported": "boolean",
         "is_ambient": "boolean",
+        "code": "string",
         "start_line": "integer",
         "end_line": "integer"
       }
@@ -120,6 +122,7 @@
         "is_const": "boolean",
         "is_exported": "boolean",
         "is_ambient": "boolean",
+        "code": "string",
         "start_line": "integer",
         "end_line": "integer"
       }
@@ -137,6 +140,7 @@
         "aliased_type": "string",
         "is_exported": "boolean",
         "is_ambient": "boolean",
+        "code": "string",
         "start_line": "integer",
         "end_line": "integer"
       }
@@ -153,6 +157,7 @@
         "name": "string",
         "is_exported": "boolean",
         "is_ambient": "boolean",
+        "code": "string",
         "start_line": "integer",
         "end_line": "integer"
       }
@@ -178,6 +183,7 @@
         "is_exported": "boolean",
         "is_ambient": "boolean",
         "is_implicit": "boolean",
+        "code": "string",
         "start_line": "integer",
         "end_line": "integer"
       }
@@ -531,6 +537,7 @@
   ],
   "indexes": [
     "CREATE INDEX callable_name IF NOT EXISTS FOR (c:TSCallable) ON (c.name)",
+    "CREATE FULLTEXT INDEX ts_code_fts IF NOT EXISTS FOR (c:TSCallable) ON EACH [c.code]",
     "CREATE INDEX cannode_kind IF NOT EXISTS FOR (n:CanNode) ON (n.kind)",
     "CREATE INDEX cannode_module IF NOT EXISTS FOR (n:CanNode) ON (n._module)"
   ]

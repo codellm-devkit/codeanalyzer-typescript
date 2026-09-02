@@ -103,32 +103,32 @@ export const NODE_LABELS: NodeLabel[] = [
     key: "id",
     properties: {
       ...COMMON, signature: "string", name: "string", base_classes: "string[]", implements_types: "string[]",
-      is_abstract: "boolean", is_exported: "boolean", is_ambient: "boolean", ...SPAN,
+      is_abstract: "boolean", is_exported: "boolean", is_ambient: "boolean", code: "string", ...SPAN,
     },
   },
   {
     label: "TSInterface",
     mergeLabel: CAN,
     key: "id",
-    properties: { ...COMMON, signature: "string", name: "string", base_classes: "string[]", is_exported: "boolean", is_ambient: "boolean", ...SPAN },
+    properties: { ...COMMON, signature: "string", name: "string", base_classes: "string[]", is_exported: "boolean", is_ambient: "boolean", code: "string", ...SPAN },
   },
   {
     label: "TSEnum",
     mergeLabel: CAN,
     key: "id",
-    properties: { ...COMMON, signature: "string", name: "string", is_const: "boolean", is_exported: "boolean", is_ambient: "boolean", ...SPAN },
+    properties: { ...COMMON, signature: "string", name: "string", is_const: "boolean", is_exported: "boolean", is_ambient: "boolean", code: "string", ...SPAN },
   },
   {
     label: "TSTypeAlias",
     mergeLabel: CAN,
     key: "id",
-    properties: { ...COMMON, signature: "string", name: "string", aliased_type: "string", is_exported: "boolean", is_ambient: "boolean", ...SPAN },
+    properties: { ...COMMON, signature: "string", name: "string", aliased_type: "string", is_exported: "boolean", is_ambient: "boolean", code: "string", ...SPAN },
   },
   {
     label: "TSNamespace",
     mergeLabel: CAN,
     key: "id",
-    properties: { ...COMMON, signature: "string", name: "string", is_exported: "boolean", is_ambient: "boolean", ...SPAN },
+    properties: { ...COMMON, signature: "string", name: "string", is_exported: "boolean", is_ambient: "boolean", code: "string", ...SPAN },
   },
   {
     label: "TSCallable",
@@ -138,7 +138,7 @@ export const NODE_LABELS: NodeLabel[] = [
       ...COMMON, signature: "string", name: "string", return_type: "string", cyclomatic_complexity: "integer",
       accessibility: "string", accessor_kind: "string", is_static: "boolean", is_abstract: "boolean",
       is_async: "boolean", is_generator: "boolean", is_exported: "boolean", is_ambient: "boolean", is_implicit: "boolean",
-      ...SPAN,
+      code: "string", ...SPAN,
     },
   },
   { label: "TSField", mergeLabel: CAN, key: "id", properties: { ...COMMON, name: "string", type: "string", ...SPAN } },
@@ -243,6 +243,8 @@ export const CONSTRAINTS: readonly string[] = uniquenessConstraints();
 /** Curated performance indexes (not 1:1 with labels, so declared explicitly). */
 export const INDEXES: readonly string[] = [
   "CREATE INDEX callable_name IF NOT EXISTS FOR (c:TSCallable) ON (c.name)",
+  // Mirrors python's `py_code_fts` — a declaration's text is only useful in the graph if it is searchable.
+  "CREATE FULLTEXT INDEX ts_code_fts IF NOT EXISTS FOR (c:TSCallable) ON EACH [c.code]",
   "CREATE INDEX cannode_kind IF NOT EXISTS FOR (n:CanNode) ON (n.kind)",
   // Backs the bolt writer's per-module edge-delete + vanished-decl sweep, which anchor on
   // `(:CanNode {_module})` — without this they would scan the whole node store.
