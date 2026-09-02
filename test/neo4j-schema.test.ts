@@ -16,6 +16,8 @@ import {
   REL_TYPES,
   buildSchemaDocument,
   project,
+  renderCypher,
+  writeCypherFile,
 } from "../src/build/neo4j";
 import { analyze } from "../src/core";
 import type { AnalysisOptions } from "../src/options";
@@ -203,4 +205,18 @@ describe("neo4j inheritance edges (issue #33)", () => {
     expect(nodeValues.has(coloredShape!.value)).toBe(true);
     expect(nodeValues.has(shape!.value)).toBe(true);
   });
+});
+
+test("streamed Cypher snapshot matches the compatibility renderer byte for byte", () => {
+  const application = rows.nodes.find((node) => node.labels.includes("TSApplication"));
+  expect(application, "TSApplication row").toBeDefined();
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-cypher-test-"));
+  const output = path.join(dir, "graph.cypher");
+  try {
+    writeCypherFile(output, rows, application!.value);
+    expect(fs.readFileSync(output, "utf8")).toBe(renderCypher(rows, application!.value));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

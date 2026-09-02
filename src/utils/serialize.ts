@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { boltWriter, buildSchemaDocument, project, renderCypher } from "../build/neo4j";
+import { boltWriter, buildSchemaDocument, project, writeCypherFile } from "../build/neo4j";
 import type { AnalysisOptions } from "../options";
 import type { TSAnalysis } from "../schema";
 import { Logger } from "./logging";
@@ -126,5 +126,5 @@ async function emitNeo4j(application: TSAnalysis, opts: AnalysisOptions): Promis
 
   const dir = opts.output ?? process.cwd();
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "graph.cypher"), renderCypher(rows, appId));
+  writeCypherFile(path.join(dir, "graph.cypher"), rows, appId);
 }
