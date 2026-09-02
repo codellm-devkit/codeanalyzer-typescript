@@ -18,6 +18,7 @@
  * (json) output entirely.
  */
 
+import type { ManagedTransaction } from "neo4j-driver";
 import type { Logger } from "../../utils";
 import type { EdgeRow, GraphRows, NodeRow, Prop } from "./rows";
 import { chunk } from "./rows";
@@ -129,6 +130,28 @@ export async function boltWriter(
             `(module=${counts[0]}, shared=${counts[1]}, app=${counts[2]})`,
         );
       }
+    }
+    // Full runs reconcile the current application's artifact ownership. Artifact and ConfigKey
+    // ids are neutral across sibling analyzers, so remove only this app's stale ownership edges
+    // first and delete the shared subtree only when no Application still owns the artifact.
+    if (fullRun && appId !== null) {
+      const artifactIds = rows.nodes
+        .filter((n) => n.labels.includes("Artifact"))
+        .map((n) => n.value);
+      await withSession(session, async (s) => {
+        await s.executeWrite(async (tx: ManagedTransaction) => {
+          await tx.run(
+            `MATCH (a:Application {id: $appId})-[r:HAS_ARTIFACT]->(artifact:Artifact) ` +
+              `WHERE NOT artifact.id IN $artifactIds DELETE r`,
+            { appId, artifactIds },
+          );
+          await tx.run(
+            `MATCH (artifact:Artifact) WHERE NOT ()-[:HAS_ARTIFACT]->(artifact) ` +
+              `OPTIONAL MATCH (artifact)-[:DEFINES_CONFIG]->(config:ConfigKey) ` +
+              `DETACH DELETE config, artifact`,
+          );
+        });
+      });
     }
 
     // 3. diff content_hash.

@@ -40,6 +40,10 @@ function wipe(appId: string): string {
     "OPTIONAL MATCH (a)-[:TS_HAS_MODULE]->(m:TSModule)",
     "OPTIONAL MATCH (m)-[:TS_DECLARES|TS_HAS_METHOD|TS_HAS_FIELD|TS_HAS_BODY_NODE*1..]->(x)",
     "DETACH DELETE x, m, a;",
+    "MATCH (artifact:Artifact)",
+    "WHERE NOT ()-[:HAS_ARTIFACT]->(artifact)",
+    "OPTIONAL MATCH (artifact)-[:DEFINES_CONFIG]->(config:ConfigKey)",
+    "DETACH DELETE config, artifact;",
   ].join("\n");
 }
 

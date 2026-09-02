@@ -164,6 +164,30 @@ containerSuite("neo4j bolt writer", () => {
   );
 
   test(
+    "a full run prunes an artifact no longer owned by the application",
+    async () => {
+      const rows = project((await analyze(optsFor())).application);
+      const victim = rows.nodes.find((n) => n.labels.includes("Artifact"))?.value;
+      expect(victim).toBeDefined();
+
+      const reduced = {
+        nodes: rows.nodes.filter((n) => n.value !== victim),
+        edges: rows.edges.filter((e) => e.from.value !== victim && e.to.value !== victim),
+      };
+      await boltWriter(reduced, cfg, log, true);
+
+      expect(
+        await num(
+          "MATCH (:Application)-[:HAS_ARTIFACT]->(a:Artifact {id:$id}) RETURN count(a)",
+          { id: victim },
+        ),
+      ).toBe(0);
+      expect(await num("MATCH (a:Artifact {id:$id}) RETURN count(a)", { id: victim })).toBe(0);
+    },
+    120_000,
+  );
+
+  test(
     "migrates a 1.1.0-shaped graph to the current schema, wiping legacy residue (#46)",
     async () => {
       // Seed a minimal schema-1.1.0 graph on a clean store: twin labels, the old

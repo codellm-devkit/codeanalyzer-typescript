@@ -10,7 +10,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { analyze } from "../src/core";
-import { project } from "../src/build/neo4j";
+import { project, renderCypher } from "../src/build/neo4j";
 import type { AnalysisOptions } from "../src/options";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/artifacts-app");
@@ -245,5 +245,12 @@ describe("Neo4j projection — neutral :Artifact/:Package (#101)", () => {
     expect(
       rows.edges.some((e) => e.type === "TS_UNRESOLVED_IMPORT" && String(e.to.value).endsWith("/@external/left-pad")),
     ).toBe(true);
+  });
+
+  test("snapshot cleanup removes only unowned artifact subtrees", () => {
+    const cypher = renderCypher(rows, root.id);
+    expect(cypher).toContain("WHERE NOT ()-[:HAS_ARTIFACT]->(artifact)");
+    expect(cypher).toContain("OPTIONAL MATCH (artifact)-[:DEFINES_CONFIG]->(config:ConfigKey)");
+    expect(cypher).toContain("DETACH DELETE config, artifact");
   });
 });
