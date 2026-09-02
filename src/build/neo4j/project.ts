@@ -233,10 +233,10 @@ function projectField(b: RowBuilder, f: TSField, owner: NodeRef, fileKey: string
 // ----------------------------------------------------------------------------------------------
 
 function moduleProps(mod: TSModule, fileKey: string): Props {
-  // The wire strips the internal fields (module_name, content_hash) — the graph name is the
-  // file key, exactly as the historical projection of the stripped tree produced.
+  // `name` is the file key. `content_hash` is what the incremental push diffs against on the next
+  // run (bolt.ts) -- schema.ts has always declared it on :TSModule, but nothing wrote it (#118).
   return prune({
-    id: mod.id, kind: "module", name: fileKey,
+    id: mod.id, kind: "module", name: fileKey, content_hash: mod.content_hash ?? null,
     is_tsx: mod.is_tsx, is_declaration_file: mod.is_declaration_file,
     ...span(mod), _module: fileKey,
   });

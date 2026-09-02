@@ -58,7 +58,10 @@ function stripInternal(root: TSApplication): void {
     for (const nt of Object.values((t["types"] as Record<string, Record<string, unknown>>) ?? {})) stripType(nt);
   };
   for (const mod of Object.values(root.symbol_table) as unknown as Record<string, unknown>[]) {
-    delete mod["content_hash"];
+    // `content_hash` STAYS on the wire (#118). The Neo4j projection is built from this envelope
+    // and writes it onto :TSModule, where the incremental push reads it back to find changed
+    // modules -- stripping it here made that diff compare against NULL forever, so every push was
+    // a full re-upsert. codeanalyzer-python keeps it for the same reason (schema/py_schema.py).
     delete mod["last_modified"];
     delete mod["file_size"];
     for (const fn of Object.values((mod["functions"] as Record<string, Record<string, unknown>>) ?? {})) stripCallable(fn);

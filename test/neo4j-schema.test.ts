@@ -122,6 +122,22 @@ describe("neo4j schema conformance", () => {
 // The JSON envelope advertises `analyzer{name,version}` (#29); the Neo4j :Application node is the
 // co-primary projection of the same envelope and must not diverge on analyzer identity.
 
+// #118: the incremental push diffs each module's stored `content_hash` to find what changed. The
+// field was stripped from the wire and never projected, so the diff compared against NULL forever
+// and every push was a full re-upsert. schema.ts declared the property, bolt.ts read it, and
+// project.ts never wrote it -- three parts of the system disagreeing. The old bolt test seeded the
+// value by hand, so it exercised the diff against data the projection could not produce.
+describe("module content_hash reaches the graph (#118)", () => {
+  test("every projected :TSModule carries a non-null content_hash", () => {
+    const modules = rows.nodes.filter((n) => n.labels.includes("TSModule"));
+    expect(modules.length).toBeGreaterThan(0);
+    for (const m of modules) {
+      expect(m.props["content_hash"], `no content_hash on ${m.value}`).toBeDefined();
+      expect(typeof m.props["content_hash"]).toBe("string");
+    }
+  });
+});
+
 describe(":Application node carries analyzer identity (issue #43)", () => {
   test("version matches package.json (the same source the JSON envelope's analyzer.version uses)", () => {
     const appNode = rows.nodes.find((n) => n.labels.includes("Application"));
