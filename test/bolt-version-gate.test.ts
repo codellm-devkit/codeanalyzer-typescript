@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { LEGACY_WIPE_STATEMENTS, shouldForceFullUpsert } from "../src/build/neo4j/bolt";
+import { EAGER_PURGE, shouldForceFullUpsert } from "../src/build/neo4j/bolt";
 
 describe("bolt version gate (#68)", () => {
   test("mismatch or absent stored version forces a full upsert", () => {
@@ -9,29 +9,25 @@ describe("bolt version gate (#68)", () => {
   });
 });
 
-describe("legacy (pre-2.0.0) wipe (#46)", () => {
-  test("wipes the three legacy node classes, in order, unanchored but CanNode-guarded", () => {
-    expect(LEGACY_WIPE_STATEMENTS).toHaveLength(3);
+describe("--eager purge is scoped to this analyzer AND this app (#116)", () => {
+  // The statement this replaces was `MATCH (n) WHERE n._module IS NOT NULL AND NOT n:CanNode
+  // DETACH DELETE n`, deliberately unanchored so it would reach pre-2.0.0 nodes. But
+  // codeanalyzer-python and codeanalyzer-java both set `_module` and neither applies `:CanNode`,
+  // so that predicate described THEIR nodes exactly: pointing cants at a shared database deleted
+  // the python and java graphs. It only failed loudly because the delete exhausted transaction
+  // memory and rolled back.
+  test("anchors on :CanNode, so a sibling analyzer's nodes can never match", () => {
+    expect(EAGER_PURGE).toContain("MATCH (n:CanNode)");
+    // The lethal shape: reaching nodes by the ABSENCE of our own marker.
+    expect(EAGER_PURGE).not.toContain("NOT n:CanNode");
+    expect(EAGER_PURGE).not.toContain("_module IS NOT NULL");
+  });
 
-    // (1) project-owned twin-label nodes: matched by `_module`, spared iff :CanNode.
-    expect(LEGACY_WIPE_STATEMENTS[0]).toBe(
-      "MATCH (n) WHERE n._module IS NOT NULL AND NOT n:CanNode DETACH DELETE n RETURN count(n) AS wiped",
-    );
-    // (2) 1.x shared nodes (no `_module`): externals / packages / decorators, spared iff :CanNode.
-    expect(LEGACY_WIPE_STATEMENTS[1]).toBe(
-      "MATCH (n) WHERE (n:External OR n:Package OR n:Decorator) AND NOT n:CanNode DETACH DELETE n RETURN count(n) AS wiped",
-    );
-    // (3) the 1.x :Application node, keyed on name → no `id`.
-    expect(LEGACY_WIPE_STATEMENTS[2]).toBe(
-      "MATCH (a:Application) WHERE a.id IS NULL DETACH DELETE a RETURN count(a) AS wiped",
-    );
+  test("anchors on the application id, so another app in the same database survives", () => {
+    expect(EAGER_PURGE).toContain("n.id STARTS WITH $prefix");
+  });
 
-    // Each is intentionally UNANCHORED on the MATCH (no :CanNode label) — it must reach legacy nodes —
-    // yet every one guards current v2 data with an explicit `NOT n:CanNode` / `a.id IS NULL` predicate.
-    for (const stmt of LEGACY_WIPE_STATEMENTS) {
-      expect(stmt).not.toContain("MATCH (n:CanNode");
-      expect(stmt).toContain("DETACH DELETE");
-      expect(stmt).toContain("RETURN count(");
-    }
+  test("deletes in batches — one transaction over a whole app exhausts the memory cap", () => {
+    expect(EAGER_PURGE).toContain("IN TRANSACTIONS OF");
   });
 });

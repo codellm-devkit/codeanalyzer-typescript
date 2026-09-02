@@ -29,7 +29,8 @@
         "roles": "string[]",
         "size_bytes": "integer",
         "sha256": "string",
-        "extraction": "string"
+        "extraction": "string",
+        "source": "string"
       }
     },
     {

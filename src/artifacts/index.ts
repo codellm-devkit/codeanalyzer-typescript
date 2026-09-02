@@ -14,7 +14,6 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { DEFAULT_ARTIFACT_TEXT_MAX_BYTES } from "../options";
 import type { AnalysisOptions } from "../options";
 import type { TSArtifact, TSDependency, TSImportBinding, TSModule } from "../schema";
 import { sha256 } from "../utils";
@@ -74,15 +73,11 @@ export function inventoryArtifacts(
       }
     }
     const text = decodeLossy(raw);
+    // Captured whole or not at all -- there is no byte cap. A truncated `source` is a prefix that
+    // reads like a complete file, and every consumer then needs a flag to tell the two apart;
+    // `--no-artifact-text` remains the way to opt out of the payload entirely.
     const capture = opts.artifactText ?? true;
-    const cap = opts.artifactTextMaxBytes ?? DEFAULT_ARTIFACT_TEXT_MAX_BYTES;
-    const textByteLength = text === undefined ? 0 : Buffer.byteLength(text, "utf8");
-    const stored =
-      !capture || text === undefined
-        ? ""
-        : textByteLength > cap
-          ? Buffer.from(text, "utf8").subarray(0, cap).toString("utf8")
-          : text;
+    const stored = !capture || text === undefined ? "" : text;
     const node: TSArtifact = {
       id: "",
       kind: "artifact",
@@ -92,7 +87,6 @@ export function inventoryArtifacts(
       size_bytes: raw.length,
       sha256: sha256(raw),
       source: stored,
-      text_truncated: capture && text !== undefined && textByteLength > cap,
       extraction: "none",
       config_keys: [],
     };

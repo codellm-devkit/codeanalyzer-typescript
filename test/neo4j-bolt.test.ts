@@ -93,7 +93,7 @@ containerSuite("neo4j bolt writer", () => {
     async () => {
       const opts = optsFor();
       const rows = project((await analyze(opts)).application);
-      await boltWriter(rows, cfg, log, true);
+      await boltWriter(rows, cfg, log, true, false);
 
       // Every projected node/edge lands (the fixture has no library deps, so endpoints all resolve).
       expect(await num("MATCH (n) RETURN count(n)")).toBe(rows.nodes.length);
@@ -133,7 +133,7 @@ containerSuite("neo4j bolt writer", () => {
     async () => {
       const opts = optsFor();
       const rows = project((await analyze(opts)).application);
-      await boltWriter(rows, cfg, log, true);
+      await boltWriter(rows, cfg, log, true, false);
       expect(await num("MATCH (n) RETURN count(n)")).toBe(rows.nodes.length);
       expect(await num("MATCH ()-[r]->() RETURN count(r)")).toBe(rows.edges.length);
     },
@@ -141,7 +141,7 @@ containerSuite("neo4j bolt writer", () => {
   );
 
   test(
-    "a full run prunes a module whose source vanished",
+    "a vanished module is pruned only under --eager (#116)",
     async () => {
       const opts = optsFor();
       const result = await analyze(opts);
@@ -150,9 +150,13 @@ containerSuite("neo4j bolt writer", () => {
       delete app.symbol_table[victim];
 
       const rows = project(finalizeAnalysis(app, result.program_graphs ?? null, opts).application);
-      await boltWriter(rows, cfg, log, true);
 
-      // The victim's nodes are gone.
+      // Default push: deletion is the operator's call, so the vanished module's nodes stay.
+      await boltWriter(rows, cfg, log, true, false);
+      expect(await num("MATCH (n {_module:$m}) RETURN count(n)", { m: victim })).toBeGreaterThan(0);
+
+      // --eager: purge this application and rebuild, so the vanished module goes.
+      await boltWriter(rows, cfg, log, true, true);
       expect(await num("MATCH (n {_module:$m}) RETURN count(n)", { m: victim })).toBe(0);
 
       // The surviving module-scoped graph matches the reduced projection. (Shared :TSExternal
@@ -164,7 +168,7 @@ containerSuite("neo4j bolt writer", () => {
   );
 
   test(
-    "migrates a 1.1.0-shaped graph to the current schema, wiping legacy residue (#46)",
+    "a 1.x graph in the same store is left alone, not wiped (#116)",
     async () => {
       // Seed a minimal schema-1.1.0 graph on a clean store: twin labels, the old
       // name/file_key/signature keys, and an :Application keyed on `name` (no `id`).
@@ -180,28 +184,31 @@ containerSuite("neo4j bolt writer", () => {
         await seed.close();
       }
 
-      // A full current-version push against the same DB must detect the mismatch and wipe the residue.
+      // The seed stands in for ANY foreign data: nodes carrying `_module` without `:CanNode`. That
+      // is also an exact description of a codeanalyzer-python or codeanalyzer-java graph, which is
+      // why the old "wipe the residue" behaviour deleted sibling analyzers' work (#116).
       const opts = optsFor();
       const rows = project((await analyze(opts)).application);
-      await boltWriter(rows, cfg, log, true);
+      await boltWriter(rows, cfg, log, true, false);
 
-      // Exactly one :Application survives — the fresh v2 one (id set, version bumped). The 1.x app,
-      // keyed on name with no id, was wiped, so the version read is no longer nondeterministic.
-      expect(await num("MATCH (a:Application) RETURN count(a)")).toBe(1);
+      // The 1.x nodes survive. We do not delete what we cannot prove we wrote.
+      expect(
+        await num("MATCH (n) WHERE n._module IS NOT NULL AND NOT n:CanNode RETURN count(n)"),
+      ).toBe(2);
+
+      // Two :Application nodes now coexist, and that is fine: the version read is scoped by id,
+      // so it is deterministic regardless of what else shares the store.
       expect(
         await num(
           `MATCH (a:Application) WHERE a.id IS NOT NULL AND a.schema_version = '${SCHEMA_VERSION}' RETURN count(a)`,
         ),
       ).toBe(1);
 
-      // No legacy twin-label residue remains (would-be poison for v2 label queries).
+      // Even --eager spares them: the purge is anchored on :CanNode AND this app's id prefix.
+      await boltWriter(rows, cfg, log, true, true);
       expect(
         await num("MATCH (n) WHERE n._module IS NOT NULL AND NOT n:CanNode RETURN count(n)"),
-      ).toBe(0);
-
-      // The stale 'x.ts' :TSModule seed did not survive as a duplicate — exactly the fixture's modules.
-      const fixtureModules = rows.nodes.filter((n) => n.labels.includes("TSModule")).length;
-      expect(await num("MATCH (m:TSModule) RETURN count(m)")).toBe(fixtureModules);
+      ).toBe(2);
     },
     120_000,
   );

@@ -76,6 +76,7 @@ export const NODE_LABELS: NodeLabel[] = [
     properties: {
       id: "string", kind: "string", path: "string", format: "string", roles: "string[]",
       size_bytes: "integer", sha256: "string", extraction: "string",
+      source: "string",
     },
   },
   {

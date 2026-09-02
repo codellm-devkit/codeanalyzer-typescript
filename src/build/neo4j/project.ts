@@ -81,6 +81,10 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
       id: art.id, kind: "artifact", path: art.path, format: art.format,
       roles: art.roles.length ? art.roles : null, size_bytes: art.size_bytes,
       sha256: art.sha256, extraction: art.extraction,
+      // `source` belongs on the graph: python has carried it on :Artifact since it shipped the
+      // layer, and a consumer reading the same neutral :Artifact node from two analyzers must not
+      // get the text from one and nothing from the other. `--no-artifact-text` still empties it.
+      source: art.source,
     }));
     b.edge("HAS_ARTIFACT", appRef, aRef);
     for (const ck of art.config_keys) {

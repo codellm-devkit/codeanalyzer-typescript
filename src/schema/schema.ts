@@ -375,7 +375,6 @@ export interface TSArtifact {
   size_bytes: number;
   sha256: string;
   source: string; // verbatim, unbounded by decision (spec §3)
-  text_truncated: boolean; // true when `source` is a prefix, not the full file
   extraction: "none" | "partial" | "full";
   config_keys: TSConfigKey[]; // contained children; containment mirrors DEFINES_CONFIG
 }

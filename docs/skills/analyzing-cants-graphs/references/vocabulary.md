@@ -10,7 +10,7 @@ assuming the graph is empty.
 | label | merge key | properties | notes |
 | --- | --- | --- | --- |
 | `TSApplication` | `id` | id, schema_version, language, max_level, k_limit, analyzer_name, analyzer_version | one per run; the `:Application` anchor |
-| `Artifact` | `id` (`can://artifact/<app>/<path>`) | id, kind, path, format, roles[], size_bytes, sha256, extraction | **language-neutral, no TS prefix by design** — sibling analyzers MERGE onto the same node. No `source`/`text_truncated`/`config_keys` here (see "No verbatim text in the graph" below) |
+| `Artifact` | `id` (`can://artifact/<app>/<path>`) | id, kind, path, format, roles[], size_bytes, sha256, source, extraction | **language-neutral, no TS prefix by design** — sibling analyzers MERGE onto the same node. `source` is the WHOLE file (no byte cap, #116) or `""` under `--no-artifact-text`; `config_keys` are separate `ConfigKey` nodes |
 | `Package` | `id` (purl `pkg:npm/<name>`, scoped `pkg:npm/%40scope/<name>`) | id, ecosystem, name | language-neutral |
 | `ConfigKey` | `id` (`<artifactId>@key/<dotted>`) | id, key, namespace, value, references[] | language-neutral; `key` is always the bare dotted name even when `id` carries an internal `arg.`/`env.` disambiguation prefix (see SKILL.md's identity section) |
 | `TSModule` | `id` | _module, content_hash, id, is_declaration_file, is_tsx, kind, name, start_line, end_line | `name` is the file key (e.g. `"src/config.ts"`, WITH extension) — same value as `_module` |
@@ -36,14 +36,16 @@ matching rule): `dependency-manifest`, `tool-config`, `container-image`, `servic
 \| `full`. `ConfigKey.namespace`: `env` \| `json` \| `yaml` \| `toml` \| `ini` \| `properties` \|
 `dockerfile`.
 
-### No verbatim text in the graph
+### Source text in the graph
 
-Neither `TSModule` nor `TSCallable` nor `Artifact` carries source text, a file path, or column
-positions in Neo4j — only `_module`/`path` (the file key) and `start_line`/`end_line`. This is a
-deliberate design line (`src/build/neo4j/project.ts`: "`source` text stays off the graph — hash
-and size dereference to it"), not an omission. To read exact text: re-open the file at
-`start_line`/`end_line`, or read `analysis.json`, where every module's `source` is stored once and
-every node's exact text is `source.slice(...span.bytes)`.
+`Artifact` carries `source` — the whole file, matching codeanalyzer-python, so
+`WHERE a.source CONTAINS "..."` works. There is no byte cap; the only way `source` is empty is
+`--no-artifact-text`.
+
+Code nodes are different: neither `TSModule` nor `TSCallable` carries source text, a file path, or
+column positions — only `_module`/`path` (the file key) and `start_line`/`end_line`. To read exact
+code text, re-open the file at those lines, or read `analysis.json`, where every module's `source`
+is stored once and every node's exact text is `source.slice(...span.bytes)`.
 
 ### External ghosts (`TSExternal`) — two grains, one label
 

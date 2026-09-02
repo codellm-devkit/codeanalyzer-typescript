@@ -167,16 +167,16 @@ describe("level-invariance + determinism (#101)", () => {
     expect(a).toBe(b);
   });
 
-  test("text capture: on by default, truncates under the cap, hash stays full-file", async () => {
-    const full = (await analyze(options())).application.application.artifacts["README.md"];
-    expect(full?.source.length).toBeGreaterThan(0);
-    expect(full?.text_truncated).toBe(false);
-
-    const capped = (await analyze(options({ artifactTextMaxBytes: 8 }))).application.application.artifacts["README.md"];
-    expect(capped?.text_truncated).toBe(true);
-    expect(capped!.source.length).toBeLessThanOrEqual(8);
-    expect(capped?.sha256).toBe(full?.sha256); // hash is of the FULL file
-    expect(capped?.size_bytes).toBe(full?.size_bytes);
+  // No byte cap (#116): a file is captured whole or not at all. A truncated `source` is a prefix
+  // that reads like a complete file, so every consumer then needs a flag to tell the two apart.
+  test("text capture: on by default, always the WHOLE file, hash matches", async () => {
+    const app = (await analyze(options())).application.application;
+    const readme = app.artifacts["README.md"];
+    expect(readme?.source.length).toBeGreaterThan(0);
+    // The stored text is the entire file, byte for byte -- not a prefix.
+    const onDisk = fs.readFileSync(path.join(FIXTURE, "README.md"), "utf8");
+    expect(readme!.source).toBe(onDisk);
+    expect(Buffer.byteLength(readme!.source, "utf8")).toBe(readme!.size_bytes);
   });
 
   test("--no-artifact-text drops source but keeps inventory AND extraction", async () => {
@@ -185,34 +185,6 @@ describe("level-invariance + determinism (#101)", () => {
     expect(a.dependencies.find((d) => d.name === "express")?.locked_version).toBe("4.19.2");
   });
 
-  test("text cap is byte-accurate on multi-byte UTF-8 (not character-count)", async () => {
-    // Create a test .md file with multi-byte chars to verify cap is byte-accurate, not char-count.
-    // "Hi 🎉": H=1 byte, i=1 byte, space=1 byte, emoji=4 bytes (UTF-8) = 7 bytes total, 5 UTF-16 code units.
-    const testFile = path.join(FIXTURE, "multi-byte-test.md");
-    const fullContent = "Hi 🎉";
-    fs.writeFileSync(testFile, fullContent, "utf8");
-
-    // Test 1: cap=6 bytes. Discriminates: old char-slicing counts UTF-16 units (text.length=5, which is NOT > 6),
-    // so text.slice(0,6) incorrectly returns full "Hi 🎉" (7 bytes, FAILS <= 6). New byte-slicing correctly
-    // compares Buffer.byteLength (7 > 6), truncates to 6 bytes (replacement char boundary), and PASSES <= 6.
-    const r1 = await analyze(options({ artifactTextMaxBytes: 6 }));
-    const art1 = r1.application.application.artifacts["multi-byte-test.md"];
-    expect(art1?.text_truncated).toBe(true);
-    expect(Buffer.byteLength(art1!.source, "utf8")).toBeLessThanOrEqual(6);
-    expect(art1!.source).not.toBe(fullContent);
-
-    // Test 2: cap=7 bytes (exact full byte length). Verifies > boundary (not >=):
-    // text_truncated must be false and source must be intact at exact cap.
-    const r2 = await analyze(options({ artifactTextMaxBytes: 7 }));
-    const art2 = r2.application.application.artifacts["multi-byte-test.md"];
-    expect(art2?.text_truncated).toBe(false);
-    expect(art2!.source).toBe(fullContent);
-    expect(art2?.sha256).toBeDefined(); // hash is always full-file
-    expect(art2?.size_bytes).toBe(7); // size is full-file (7 bytes)
-
-    // Clean up
-    fs.unlinkSync(testFile);
-  });
 });
 
 describe("Neo4j projection — neutral :Artifact/:Package (#101)", () => {
@@ -222,7 +194,10 @@ describe("Neo4j projection — neutral :Artifact/:Package (#101)", () => {
     const art = rows.nodes.find((n) => n.value === "can://artifact/artifacts-app/package.json");
     expect(art?.labels).toEqual(["Artifact"]);
     expect(art?.props["roles"]).toEqual(["dependency-manifest", "tool-config"]);
-    expect(art?.props["source"]).toBeUndefined(); // text stays off the graph
+    // Artifact text belongs on the graph: python has carried `source` on :Artifact since it
+    // shipped the layer, so a consumer reading the same neutral node from two analyzers must not
+    // get text from one and nothing from the other (#116).
+    expect(art?.props["source"]).toBeDefined();
     const pkg = rows.nodes.find((n) => n.value === "pkg:npm/react");
     expect(pkg?.labels).toEqual(["Package"]);
     const scoped = rows.nodes.find((n) => n.value === "pkg:npm/%40scope/util");

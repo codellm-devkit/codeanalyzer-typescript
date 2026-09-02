@@ -40,32 +40,28 @@ export function shouldForceFullUpsert(dbVersion: string | null, producerVersion:
 }
 
 /**
- * #46/#68 migration: wipe the pre-2.0.0 (schema 1.x) residue when the version gate forces a full
- * upsert. Pushing 2.0.0 onto a 1.1.0 DB otherwise orphans the whole 1.x subgraph AND poisons v2
- * queries — 1.x nodes carry twin TS labels (`:Module:TSModule`, `:Symbol:TSCallable`) so they match
- * v2 patterns, and a second `:Application` (keyed on name, no `id`) makes the version read
- * nondeterministic. These run ONCE, before the per-module loop; they are ordered, idempotent, and
- * no-op on a fresh DB.
+ * `--eager` purge (#116): delete THIS APPLICATION's own nodes, then repopulate from scratch.
  *
- * They are intentionally UNANCHORED (no `:CanNode` guard on the MATCH) — that is the whole point:
- * they must match the *legacy* nodes, which never carry `:CanNode`. Every v2 project-owned node DOES
- * carry `:CanNode`, so the `AND NOT n:CanNode` predicate spares everything current. RETURN count so
- * the caller can log what each statement removed.
+ * Scoped two ways at once, and both matter. `id STARTS WITH <app id>` keeps it to this
+ * application, so a second app in the same database survives. `:CanNode` keeps it to nodes this
+ * analyzer wrote, so a sibling analyzer's graph survives — codeanalyzer-python and
+ * codeanalyzer-java both tag nodes with `_module` and neither applies `:CanNode`, so a predicate
+ * like "has _module but no :CanNode" is an exact description of THEIR nodes, not of stale ours.
+ * That is what the pre-2.0.0 wipe this replaces got wrong: it deleted foreign graphs.
+ *
+ * Batched, because deleting a whole application in one transaction exhausts
+ * `dbms.memory.transaction.total.max` on a modestly-sized server (#116, measured at 2.7 GiB).
  */
-export const LEGACY_WIPE_STATEMENTS: readonly string[] = [
-  // 1.x project-owned nodes carried `_module` under twin labels (:Module:TSModule, …) but not :CanNode.
-  "MATCH (n) WHERE n._module IS NOT NULL AND NOT n:CanNode DETACH DELETE n RETURN count(n) AS wiped",
-  // 1.x shared nodes (externals / packages / decorators) had no `_module`; keyed on name, not id.
-  "MATCH (n) WHERE (n:External OR n:Package OR n:Decorator) AND NOT n:CanNode DETACH DELETE n RETURN count(n) AS wiped",
-  // The 1.x :Application node was keyed on `name`, so it has no `id`.
-  "MATCH (a:Application) WHERE a.id IS NULL DETACH DELETE a RETURN count(a) AS wiped",
-];
+export const EAGER_PURGE =
+  "MATCH (n:CanNode) WHERE n.id STARTS WITH $prefix " +
+  "CALL { WITH n DETACH DELETE n } IN TRANSACTIONS OF 5000 ROWS";
 
 export async function boltWriter(
   rows: GraphRows,
   cfg: BoltConfig,
   log: Logger,
   fullRun: boolean,
+  eager: boolean,
 ): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const neo4j: any = (await import("neo4j-driver")).default;
@@ -107,28 +103,20 @@ export async function boltWriter(
         dbSchemaVersion = res.records[0]?.get("v") ?? null;
       });
     }
+    // Version mismatch no longer deletes anything: a schema change forces a full re-UPSERT, and
+    // MERGE overwrites in place. Removing nodes is `--eager`'s job alone (#116).
     const forceAll = shouldForceFullUpsert(dbSchemaVersion, SCHEMA_VERSION);
     if (forceAll) {
       log.info(
         `neo4j(bolt): schema ${dbSchemaVersion ?? "(none)"} → ${SCHEMA_VERSION}, full upsert forced`,
       );
-      // Detect-and-wipe the pre-2.0.0 subgraph in one step, BEFORE any new write, so stale twin-label
-      // nodes can't survive to poison v2 queries or the content-hash diff. Idempotent on fresh DBs.
-      const counts: number[] = [];
-      await withSession(session, async (s) => {
-        for (const stmt of LEGACY_WIPE_STATEMENTS) {
-          const res = await s.run(stmt);
-          const c = res.records[0]?.get("wiped");
-          counts.push(typeof c?.toNumber === "function" ? c.toNumber() : Number(c ?? 0));
-        }
-      });
-      const wiped = counts.reduce((a, b) => a + b, 0);
-      if (wiped > 0) {
-        log.info(
-          `neo4j(bolt): wiped ${wiped} legacy (pre-2.0.0) nodes ` +
-            `(module=${counts[0]}, shared=${counts[1]}, app=${counts[2]})`,
-        );
-      }
+    }
+
+    // --eager: drop this application's own nodes and rebuild. Without it the push only ever adds
+    // and updates -- managing the database's lifetime is the operator's call, not the analyzer's.
+    if (eager && appId !== null) {
+      await withSession(session, (s) => s.run(EAGER_PURGE, { prefix: appId }));
+      log.info(`neo4j(bolt): --eager, purged the existing graph for ${appId}`);
     }
 
     // 3. diff content_hash.
@@ -154,18 +142,21 @@ export async function boltWriter(
     for (const m of changed) {
       const nodes = byModule.get(m)!;
       const keys = nodes.map((n) => n.value);
-      await withSession(session, async (s) => {
-        await s.executeWrite(async (tx: any) => {
-          // Anchor on :CanNode so these seek the module's index slice instead of scanning the whole
-          // store (and never touch non-CanNode nodes). The `x.id IS NULL` guard defends the sweep
-          // against a null key — three-valued logic would otherwise drop the row from `NOT x.id IN`.
-          await tx.run(`MATCH (x:CanNode {_module: $m})-[r]->() DELETE r`, { m });
-          await tx.run(
-            `MATCH (x:CanNode {_module: $m}) WHERE x.id IS NULL OR NOT x.id IN $keys DETACH DELETE x`,
-            { m, keys },
-          );
+      // Only --eager removes a module's vanished declarations. A default push MERGEs current
+      // nodes over the old ones and leaves anything no longer emitted in place: deleting is the
+      // operator's call (#116). Anchored on :CanNode either way, so a sibling analyzer's nodes
+      // sharing this `_module` key are never in scope.
+      if (eager) {
+        await withSession(session, async (s) => {
+          await s.executeWrite(async (tx: any) => {
+            await tx.run(`MATCH (x:CanNode {_module: $m})-[r]->() DELETE r`, { m });
+            await tx.run(
+              `MATCH (x:CanNode {_module: $m}) WHERE x.id IS NULL OR NOT x.id IN $keys DETACH DELETE x`,
+              { m, keys },
+            );
+          });
         });
-      });
+      }
       await upsertNodes(session, neo4j, nodes);
     }
 
@@ -177,19 +168,23 @@ export async function boltWriter(
     await upsertEdges(session, neo4j, edges);
 
     // 7. orphan prune — only safe on a full run (a targeted run can't tell deleted from untargeted).
-    if (fullRun) {
+    // appId === null would make `STARTS WITH ""` match every node in the store.
+    if (fullRun && eager && appId !== null) {
       const present = [...byModule.keys()];
       await withSession(session, async (s) => {
+        // Anchored on :CanNode AND this app's id prefix, same as EAGER_PURGE. `MATCH (m:TSModule)`
+        // alone would reach a SECOND TypeScript application in the same database -- every one of
+        // its modules is "not in this app's $present" -- and any 1.x twin-labelled node too (#116).
         const res = await s.run(
-          `MATCH (m:TSModule) WHERE NOT m._module IN $present ` +
-            `OPTIONAL MATCH (m)-${DESCENDANTS}->(x) DETACH DELETE x, m RETURN count(m) AS pruned`,
-          { present },
+          `MATCH (m:TSModule:CanNode) WHERE m.id STARTS WITH $prefix AND NOT m._module IN $present ` +
+            `OPTIONAL MATCH (m)-${DESCENDANTS}->(x) DETACH DELETE x, m RETURN count(DISTINCT m) AS pruned`,
+          { present, prefix: appId },
         );
         const pruned = res.records[0]?.get("pruned") ?? 0;
         log.info(`neo4j(bolt): pruned ${pruned} vanished module(s)`);
       });
     } else {
-      log.info("neo4j(bolt): targeted run — orphan pruning skipped (deleted files not removed)");
+      log.info("neo4j(bolt): orphan pruning skipped (use --eager to remove vanished modules)");
     }
   } finally {
     await driver.close();

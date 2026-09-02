@@ -86,15 +86,11 @@ specifically so a TS and a Python analysis of one repository MERGE onto the same
 subdirectories of one monorepo, or run with mismatched app names, will silently disagree on every
 artifact and package id and never merge.
 
-**`sha256` is always the full file; `source` may not be — and in Neo4j, `Artifact` has no
-`source` at all.** Under `--artifact-text-max-bytes`, `text_truncated: true` in `analysis.json`
-means the stored `source` is a prefix — hash-compare on `sha256`, never on `source`, and never
-re-derive meaning from a truncated copy (the analyzer itself always parses the full on-disk text
-for extraction). In the graph, this is moot for a different reason: `Artifact` carries `sha256` +
-`size_bytes` but **no `source` property at all** — verbatim text lives only in `analysis.json`, by
-design (`src/build/neo4j/project.ts`: "`source` text stays off the graph — hash and size
-dereference to it"). A query like `WHERE f.source CONTAINS "..."` will not error; it will silently
-match nothing.
+**`source` is the whole file, in both projections.** There is no byte cap: an artifact's text is
+captured complete or, under `--no-artifact-text`, not at all (`source: ""`). `Artifact` carries
+`source` in Neo4j as well as in `analysis.json`, matching codeanalyzer-python — so
+`WHERE a.source CONTAINS "..."` works against the graph. Compare on `sha256` when you want
+identity rather than content; it is always the hash of the full file.
 
 **`value` is present by default and absent under `--no-artifact-text`** — an absent `ConfigKey.value`
 is a capture setting, not an empty or unset config key. Check `references/vocabulary.md`'s

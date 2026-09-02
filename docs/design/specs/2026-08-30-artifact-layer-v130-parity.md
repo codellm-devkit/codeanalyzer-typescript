@@ -40,7 +40,7 @@ application.config_uses: TSConfigUse[]      // C
 application.config_reads: TSConfigRead[]    // C
 
 TSArtifact   { id: `can://artifact/<app>/<path>`, kind: "artifact", path, format, roles[],
-               size_bytes, sha256, source, text_truncated, extraction: none|partial|full,
+               size_bytes, sha256, source, extraction: none|partial|full,
                config_keys: TSConfigKey[] }
 TSConfigKey  { id: `${artifactId}@key/${dotted}`, key, namespace, value?, span?, references[] }
 TSDependency { name, ecosystem: "npm", spec, kind: runtime|dev|optional|peer|build, extras[],
@@ -64,7 +64,7 @@ code-only.
    but decodable → `roles: ["unknown"]`; undecodable → `format: "binary"`, `source: ""`, hash and
    size only. (Today's branch skips unmatched files — the largest divergence from shipped python.)
 2. **Text policy.** Capture on by default; `--artifact-text` / `--no-artifact-text`;
-   `--artifact-text-max-bytes` (default 256 KiB). `text_truncated` marks a stored prefix.
+   No byte cap: `source` is the whole file, or `""` under `--no-artifact-text` (superseded by #116).
    `sha256` and `size_bytes` are always the **full file**. Extraction (dependencies, config keys)
    parses the **full on-disk text**, never the stored copy — truncation can never change
    extracted meaning.
@@ -236,8 +236,8 @@ record why a package is present.
 - **`--app-name` is the cross-analyzer join precondition** — artifact ids are language-neutral so
   a TS and a python analysis of one monorepo MERGE onto the same `:Artifact`; they only do so if
   both runs pinned the same app name. Analyzers pointed at different subdirectories disagree.
-- **`sha256` is always the full file; `source` may not be.** Under `--artifact-text-max-bytes`,
-  `text_truncated: true` means the stored text is a prefix — hash-compare on `sha256`, never on
+- **`sha256` is always the full file, and so is `source`** (the byte cap was removed in #116) —
+  hash-compare on `sha256`, never on
   `source`, and never re-derive meaning from a truncated copy (the analyzer itself parses the
   full on-disk text).
 - **`value` is present by default** and absent under `--no-artifact-text` — an absent `value` is a
