@@ -9,7 +9,7 @@
  * emit edges to every *instantiated*, concrete subtype's override of that method. RTA edges carry
  * a `ts.dispatch=rta` tag so consumers can tell them apart from the exact declared-type edge.
  */
-import { Node, type Project } from "ts-morph";
+import { Node, type Project, ts as tsMorphTs } from "ts-morph";
 import {
   CALL_DEP,
   type TSCallEdge,
@@ -319,15 +319,31 @@ export function indexCallExpressions(project: Project): Map<string, Node> {
   for (const sf of project.getSourceFiles()) {
     const fp = sf.getFilePath();
     if (sf.isDeclarationFile() || fp.includes("/node_modules/")) continue;
-    sf.forEachDescendant((n) => {
-      if (Node.isCallExpression(n) || Node.isNewExpression(n) || Node.isTaggedTemplateExpression(n)) {
-        const s = sf.getLineAndColumnAtPos(n.getStart());
-        const e = sf.getLineAndColumnAtPos(n.getEnd());
-        // Full span (start AND end) keys the node uniquely; chained calls like `f(x).g(y)`
-        // share a start position, so a start-only key would collide and mis-resolve.
-        idx.set(`${fp}#${s.line}:${s.column}-${e.line}:${e.column}`, n);
+    // Walk the RAW compiler AST, not `forEachDescendant`. ts-morph wraps every node it visits in a
+    // JS object and caches it on the SourceFile for the program's lifetime, so traversing with the
+    // wrapper API materialises the entire AST of every file -- measured at +5.09GB over 6,758 files
+    // of vscode/src, for the ~471k call-like nodes we actually keep. Recursing the compiler nodes
+    // costs nothing and we wrap only the matches.
+    const compilerSf = sf.compilerNode;
+    const visit = (raw: tsMorphTs.Node): void => {
+      const k = raw.kind;
+      if (
+        k === tsMorphTs.SyntaxKind.CallExpression ||
+        k === tsMorphTs.SyntaxKind.NewExpression ||
+        k === tsMorphTs.SyntaxKind.TaggedTemplateExpression
+      ) {
+        const start = raw.getStart(compilerSf);
+        const node = sf.getDescendantAtStartWithWidth(start, raw.getEnd() - start);
+        if (node) {
+          const s = sf.getLineAndColumnAtPos(start);
+          const e = sf.getLineAndColumnAtPos(raw.getEnd());
+          idx.set(`${fp}#${s.line}:${s.column}-${e.line}:${e.column}`, node);
+        }
       }
-    });
+      raw.forEachChild(visit);
+    };
+    compilerSf.forEachChild(visit);
   }
   return idx;
 }
+
