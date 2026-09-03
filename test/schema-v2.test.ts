@@ -84,7 +84,7 @@ function allIds(): string[] {
 
 describe("schema v2 — L1 envelope", () => {
   test("root envelope matches the canonical shape", () => {
-    expect(v2.schema_version).toBe("2.1.0");
+    expect(v2.schema_version).toBe("2.0.0");
     expect(v2.language).toBe("typescript");
     expect(v2.max_level).toBe(1);
     expect(Object.keys(root).sort()).toEqual([

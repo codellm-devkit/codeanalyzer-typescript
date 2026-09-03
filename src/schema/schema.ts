@@ -456,7 +456,7 @@ export interface TSExternalSymbol {
 }
 
 // A first-party anonymous callback a call-graph builder resolved as an edge endpoint but could
-// not name against the symbol table (a residual-fallback safety net; since 2.1.0 the tree names
+// not name against the symbol table (a residual-fallback safety net; since #92 the tree names
 // anonymous callables positionally, so this map is normally empty). The map key IS the
 // synthesized signature, so an edge `source`/`target` byte-matches it like a real signature.
 export interface TSSynthesizedCallable {
@@ -491,7 +491,7 @@ export interface AnalysisInternal {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSAnalysis {
-  schema_version: string; // "2.1.0"
+  schema_version: string; // "2.0.0"
   language: string; // "typescript"
   max_level: number; // highest level populated; consumers read this, not key-sniffing
   k_limit?: number; // access-path depth bound for the L3/L4 dataflow (present at L3+)
@@ -522,7 +522,7 @@ export interface TSApplication {
   config_reads: TSConfigRead[];
   // TS-additive (parity): edge endpoints outside the containment tree need an id home.
   external_symbols?: Record<string, import("./homing").TSExternalNode>; // L2 — library call targets, keyed by id
-  // L2 — 2.1.0 compatibility index: pre-2.1.0 anonymous-callable id → the tree id that replaced
+  // L2 — #92 compatibility index: the older anonymous-callable id → the tree id that replaced
   // it. Entries whose key equals their own `id` are the residual fallback nodes for signatures no
   // provider could name.
   synthesized_callables?: Record<string, import("./homing").TSSynthesizedNode>;
