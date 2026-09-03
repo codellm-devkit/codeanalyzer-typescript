@@ -71,6 +71,34 @@ relative to `--input`. Sharding by *input root* instead of by program would chan
 and break the union. Program granularity is therefore the floor — this scheme cannot be subdivided
 further to buy more headroom.
 
+## Shard size distribution
+
+Measured by replicating `ownerProgram` over vscode's discovered source files (13,370 files across
+99 tsconfig scope dirs, 96 of them non-empty):
+
+| shard | files | share |
+| --- | --- | --- |
+| `src` | 8,966 | **67.1%** |
+| `extensions/copilot` | 2,659 | 19.9% |
+| `build` | 226 | 1.7% |
+| `extensions/terminal-suggest` | 187 | 1.4% |
+| remaining 92 | <= 157 each | ~10% combined |
+
+**The distribution is the opposite of even: two shards hold 87% of the repository.** Three
+consequences, and they shape both the value and the limits of this design:
+
+1. **The peak barely moves.** The `src` shard is the same tree the standalone 28.75 GB `-a 4` run
+   covered. Sharding makes whole-vscode L4 *complete* — today it fails because all 96 programs are
+   held at once — but it lands at roughly 28.75 GB, not at some comfortably lower number.
+2. **There is no headroom, and no way to make more.** `src` cannot be subdivided: sharding below
+   program granularity would change `fileKey` and break id stability (see above). If `src` grows,
+   this design runs out, and the next lever is #112 Step 3 (incremental reuse), not a finer split.
+3. **Parallel orchestration buys almost nothing.** Wall-clock is dominated by one shard. Running
+   the 94 small shards concurrently is fine but shortens nothing material; running `src` and
+   `copilot` concurrently would *defeat the purpose*, since holding both is close to the failure
+   this design exists to avoid. Shards must run sequentially, or at most with the small ones
+   batched alongside one large one.
+
 ## What plain sharding costs, measured
 
 Measured on the whole-vscode `-a 3` output (which does complete: 19m41s, 28.4 GB, 1.41 GB), by
