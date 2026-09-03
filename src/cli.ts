@@ -59,6 +59,13 @@ export function buildProgram(): Command {
     .option("--no-phantoms", "disable phantom (external) nodes for imported/required library calls")
     .option("--resolve-installed", "probe node_modules metadata for import→package binding (default: repo files only)")
     .option("--no-artifact-text", "keep the artifact inventory but drop captured raw text")
+    .option(
+      "--program <tsconfig...>",
+      "restrict the run to these programs, named by scope dir relative to --input ('<root>' for the root program); repeatable",
+    )
+    .option("--list-programs", "list the discovered programs, one per line, and exit")
+    .option("--emit-ir", "persist this shard's graph IR for a later cross-shard stitch")
+    .option("--no-repo-sections", "skip artifacts/dependencies/unresolved_imports (repo-scoped; compute them once per repository, not once per shard)")
     .option("-c, --cache-dir <dir>", "cache/intermediate directory")
     .option("-v, --verbose", "increase verbosity (repeatable)", (_v: string, prev: number) => prev + 1, 0)
     .allowExcessArguments(true);
@@ -147,6 +154,11 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     graphFieldDepth: k,
     jobs,
     targetFiles: targets,
+    programFilter:
+      Array.isArray(o.program) && o.program.length ? o.program.map(String) : null,
+    listPrograms: Boolean(o.listPrograms),
+    emitIr: Boolean(o.emitIr),
+    noRepoSections: o.repoSections === false,
     skipTests: o.includeTests ? false : true,
     eager: Boolean(o.eager),
     // commander maps --no-build / --no-phantoms to opts.build/phantoms === false

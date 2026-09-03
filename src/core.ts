@@ -7,7 +7,7 @@ import { inventoryArtifacts } from "./artifacts";
 import type { AnalysisOptions } from "./options";
 import type { AnalysisInternal } from "./schema";
 import { type AnalysisResult, finalizeAnalysis } from "./schema/emit";
-import { buildSymbolTable } from "./syntactic_analysis";
+import { buildSymbolTable, programName } from "./syntactic_analysis";
 import { Logger } from "./utils";
 import { checkerFailures, resetCheckerFailures } from "./schema/checker";
 
@@ -19,6 +19,15 @@ export type { AnalysisResult } from "./schema/emit";
  * run the per-run pass spine (ids / body / heritage / homing / callees / attach) and assemble
  * the wire envelope. Returns BOTH views: the wire `application` and the live `internal` tree.
  */
+/**
+ * The programs this input discovers, deepest scope first — the names `--program` accepts (#146).
+ * Shard enumeration for an orchestrator: it must be able to find the shards before running them.
+ */
+export function discoverPrograms(opts: AnalysisOptions): string[] {
+  const log = new Logger(opts.verbosity);
+  return materialize(opts, log).programs.map((spec) => programName(spec, opts.input));
+}
+
 export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   const log = new Logger(opts.verbosity);
   log.info(`analyzing ${opts.input} (level ${opts.analysisLevel})`);
@@ -26,6 +35,7 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   const cacheDir = opts.cacheDir ?? path.join(opts.input, ".codeanalyzer");
 
   const mat = materialize(opts, log);
+
   for (const note of mat.notes) log.debug(note);
 
   const cached = opts.eager ? null : loadCache(cacheDir);
@@ -83,11 +93,19 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   const call_graph = cg.edges;
 
   // Repository-artifact layer (#101, python PR #160 parity): level-free, identical at every -a.
-  const layer = inventoryArtifacts(opts.input, opts, symbol_table);
-  log.info(
-    `artifacts: ${Object.keys(layer.artifacts).length} files, ${layer.dependencies.length} dependency records, ` +
-      `${layer.unresolved_imports.length} unresolved imports`,
-  );
+  // Repo-SCOPED, not program-scoped: it is derived from --input, so a `--program` shard would
+  // recompute the whole repository's inventory (#146 measured 4,961 artifacts and 4,107 dependency
+  // records for a shard whose code analysis covers 6,758 modules). Under sharding it is computed
+  // once, by one run, and every other shard passes --no-repo-sections.
+  const layer = opts.noRepoSections
+    ? { artifacts: {}, dependencies: [], unresolved_imports: [] }
+    : inventoryArtifacts(opts.input, opts, symbol_table);
+  if (opts.noRepoSections) log.info("artifacts: skipped (--no-repo-sections)");
+  else
+    log.info(
+      `artifacts: ${Object.keys(layer.artifacts).length} files, ${layer.dependencies.length} dependency records, ` +
+        `${layer.unresolved_imports.length} unresolved imports`,
+    );
 
   const app: AnalysisInternal = {
     symbol_table,
