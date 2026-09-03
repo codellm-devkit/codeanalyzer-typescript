@@ -1,6 +1,6 @@
 {
   "name": "codeanalyzer-typescript",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "CLDK TypeScript analyzer — emits the canonical schema v2 (additive CPG: symbol table → call graph → intraprocedural dataflow → interprocedural SDG) as analysis.json and Neo4j, via ts-morph.",
   "type": "module",
   "module": "src/index.ts",
