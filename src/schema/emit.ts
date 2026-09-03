@@ -32,7 +32,7 @@ import { resolveLiteralConfigUses } from "../semantic_analysis/configUse";
 import { widenConfigUses } from "../dataflow/configUse";
 
 const LANGUAGE = "typescript";
-const SCHEMA_VERSION = "2.1.0";
+const SCHEMA_VERSION = "2.0.0";
 const ANALYZER_NAME = "codeanalyzer-typescript";
 /** Highest analysis level this emitter populates today (L1 tree, L2 call graph, L3/L4 dataflow). */
 const MAX_IMPLEMENTED = 4;

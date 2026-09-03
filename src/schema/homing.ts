@@ -3,7 +3,7 @@
  * application root, so the no-dangling rule holds.
  *
  *  - `homeExternals`: external library call targets → `can://…/@external/<module>/<name>` nodes.
- *  - `homeSynthesized`: the 2.1.0 anonymous-callable compatibility index (pre-2.1.0 id → the
+ *  - `homeSynthesized`: the #92 anonymous-callable compatibility index (the older id → the
  *    tree id that replaced it), plus residual fallback nodes for signatures no provider could
  *    name (recognizable because the map key equals the entry's own id).
  *
@@ -42,11 +42,11 @@ export function homeExternals(app: AnalysisInternal, appId: string, idBySig: Map
 }
 
 /**
- * The compatibility index for anonymous callables (schema 2.1.0).
+ * The compatibility index for anonymous callables (#92).
  *
  * Anonymous callables are real nodes in the containment tree, signed positionally
  * (`<enclosing-sig>.<anon@line:col>`) and reachable by containment. This map is not a node
- * registry: it maps the **pre-2.1.0 id** of each anonymous callable — `<enclosing-can-id>@<line>:<col>`,
+ * registry: it maps the **older id** of each anonymous callable — `<enclosing-can-id>@<line>:<col>`,
  * derived from the old `<enclosing-sig>:<line:col>` signature — onto the tree id that replaced it,
  * so a consumer holding an old id can still resolve it.
  *
@@ -65,7 +65,7 @@ export function homeSynthesized(app: AnalysisInternal, appId: string, idBySig: M
     const m = /^(.*?)((?:\.<anon@\d+:\d+>)+)$/.exec(sig);
     if (!m) continue;
     const host = idBySig.get(m[1] as string);
-    if (!host) continue; // module-level anonymous callable — no resolvable pre-2.1.0 id
+    if (!host) continue; // module-level anonymous callable — no resolvable older id
     const last = /<anon@(\d+):(\d+)>$/.exec(sig) as RegExpExecArray;
     out[`${host}@${last[1]}:${last[2]}`] = { id, kind: "callable" };
   }

@@ -139,7 +139,7 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
   for (const ext of Object.values(root.external_symbols ?? {})) {
     b.node([CAN, "TSExternal"], "id", ext.id, prune({ id: ext.id, kind: "external", name: ext.name, module: ext.module }));
   }
-  // 2.1.0: `synthesized_callables` is mostly a compatibility index (old id → tree id) whose targets
+  // #92: `synthesized_callables` is mostly a compatibility index (old id → tree id) whose targets
   // are already projected as tree nodes. Only the residual fallback entries — a signature no
   // provider could name, recognisable because the map key IS the entry's own id — still need a
   // standalone node, so call-graph edges pointing at them do not dangle.
@@ -193,7 +193,7 @@ const ANON_SIG = /\.<anon@\d+:\d+>$/;
 
 function projectCallable(b: RowBuilder, c: TSCallable, owner: NodeRef, ownerRel: string, fileKey: string, source: string): void {
   // An unnamed callable carries :TSAnonymousCallable alongside :TSCallable — one node, two labels,
-  // reached by ordinary containment. That is what keeps pre-2.1.0 MATCH (:TSAnonymousCallable)
+  // reached by ordinary containment. That is what keeps older MATCH (:TSAnonymousCallable)
   // queries working and puts these nodes on the snapshot wipe's containment walk (issue #75).
   const labels = ANON_SIG.test(c.signature) ? [CAN, "TSCallable", "TSAnonymousCallable"] : [CAN, "TSCallable"];
   const node = b.node(labels, "id", c.id, callableProps(c, fileKey, source));

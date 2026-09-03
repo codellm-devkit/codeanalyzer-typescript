@@ -1,5 +1,5 @@
 /**
- * Issue #92 (schema 2.1.0): an unnamed arrow / function expression is a callable in its own right.
+ * Issue #92: an unnamed arrow / function expression is a callable in its own right.
  * It is tree-contained under its enclosing callable with a durable positional signature segment
  * (`<anon@line:col>`), carries its own body/cfg/cdg/ddg and formal-in vertices, and owns the call
  * sites that used to be attributed to the callable that merely encloses it.
@@ -136,8 +136,8 @@ describe("anonymous callables are first-class (issue #92)", () => {
     }
   });
 
-  test("the envelope declares schema 2.1.0", () => {
-    expect(application.schema_version).toBe("2.1.0");
+  test("the envelope declares schema 2.0.0", () => {
+    expect(application.schema_version).toBe("2.0.0");
   });
 });
 
