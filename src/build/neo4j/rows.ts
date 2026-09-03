@@ -16,8 +16,10 @@ const CAN_NODE = "CanNode";
 
 /** How an edge addresses one of its endpoints: the label + key property to MATCH on, and value. */
 export interface NodeRef {
-  label: string; // the label carrying the uniqueness constraint ("Application" | "CanNode")
-  keyProp: string; // always "id" at schema v2 — every node is keyed on its can:// id
+  label: string; // the label carrying the uniqueness constraint ("CanNode", "Application", ...)
+  // Usually "id" — every can://-keyed node. Shared, non-can:// nodes key on their own natural
+  // identity instead (:Package/:ConfigKey on "id", :TSDecorator on "name").
+  keyProp: string;
   value: string;
 }
 

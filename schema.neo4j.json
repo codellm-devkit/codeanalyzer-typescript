@@ -44,6 +44,15 @@
       }
     },
     {
+      "label": "TSDecorator",
+      "mergeLabel": "TSDecorator",
+      "key": "name",
+      "properties": {
+        "name": "string",
+        "qualified_name": "string"
+      }
+    },
+    {
       "label": "ConfigKey",
       "mergeLabel": "ConfigKey",
       "key": "id",
@@ -393,6 +402,24 @@
       "properties": {}
     },
     {
+      "type": "TS_DECORATED_BY",
+      "from": [
+        "TSClass",
+        "TSInterface",
+        "TSEnum",
+        "TSNamespace",
+        "TSCallable",
+        "TSField"
+      ],
+      "to": [
+        "TSDecorator"
+      ],
+      "properties": {
+        "positional_arguments": "string[]",
+        "keyword_arguments_json": "string"
+      }
+    },
+    {
       "type": "TS_HAS_BODY_NODE",
       "from": [
         "TSCallable",
@@ -532,6 +559,7 @@
     "CREATE CONSTRAINT application_id IF NOT EXISTS FOR (x:Application) REQUIRE x.id IS UNIQUE",
     "CREATE CONSTRAINT artifact_id IF NOT EXISTS FOR (x:Artifact) REQUIRE x.id IS UNIQUE",
     "CREATE CONSTRAINT package_id IF NOT EXISTS FOR (x:Package) REQUIRE x.id IS UNIQUE",
+    "CREATE CONSTRAINT tsdecorator_name IF NOT EXISTS FOR (x:TSDecorator) REQUIRE x.name IS UNIQUE",
     "CREATE CONSTRAINT configkey_id IF NOT EXISTS FOR (x:ConfigKey) REQUIRE x.id IS UNIQUE",
     "CREATE CONSTRAINT cannode_id IF NOT EXISTS FOR (x:CanNode) REQUIRE x.id IS UNIQUE"
   ],

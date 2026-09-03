@@ -86,6 +86,17 @@ export const NODE_LABELS: NodeLabel[] = [
     properties: { id: "string", ecosystem: "string", name: "string" },
   },
   {
+    // A decorator APPLICATION's shared target (#82, python `:PyDecorator` parity). Merged on the
+    // resolved `qualified_name` when the checker supplies one, so `@Get` and `@Get(':id')` land on
+    // one node instead of two. Per-application facts (the arguments) ride on TS_DECORATED_BY, not
+    // here: this node is shared across modules, carries no `_module`, and is never pruned, so
+    // anything application-specific on it would accumulate across every project in the database.
+    label: "TSDecorator",
+    mergeLabel: "TSDecorator",
+    key: "name",
+    properties: { name: "string", qualified_name: "string" },
+  },
+  {
     label: "ConfigKey",
     mergeLabel: "ConfigKey",
     key: "id",
@@ -192,6 +203,10 @@ export const REL_TYPES: RelType[] = [
   },
   { type: "TS_HAS_METHOD", from: ["TSClass", "TSInterface"], to: ["TSCallable"], properties: {} },
   { type: "TS_HAS_FIELD", from: ["TSModule", "TSClass", "TSInterface", "TSEnum", "TSNamespace"], to: ["TSField"], properties: {} },
+  // The decorated node -> the decorator it applies. Arguments are per-application, so they live on
+  // the relationship; `keyword_arguments_json` is a JSON object string because Neo4j has no map
+  // property type (python encodes it the same way, sorted keys, so the two are diffable).
+  { type: "TS_DECORATED_BY", from: ["TSClass", "TSInterface", "TSEnum", "TSNamespace", "TSCallable", "TSField"], to: ["TSDecorator"], properties: { positional_arguments: "string[]", keyword_arguments_json: "string" } },
   { type: "TS_HAS_BODY_NODE", from: ["TSCallable", "TSAnonymousCallable"], to: ["TSBodyNode"], properties: {} },
   { type: "TS_RESOLVES_TO", from: ["TSBodyNode"], to: ["TSCallable", "TSExternal", "TSAnonymousCallable"], properties: {} },
   {

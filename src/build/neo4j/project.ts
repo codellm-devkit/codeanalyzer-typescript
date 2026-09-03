@@ -10,7 +10,7 @@
  * for the incremental writer's per-module isolation); shared nodes (External) carry none.
  */
 
-import type { TSAnalysis, TSApplication, TSBodyNode, TSCallable, TSField, TSModule, TSType } from "../../schema";
+import type { TSAnalysis, TSApplication, TSBodyNode, TSCallable, TSDecorator, TSField, TSModule, TSType } from "../../schema";
 import { purlNpm } from "../../schema/ids";
 import { SCHEMA_VERSION } from "./schema";
 import { type GraphRows, type NodeRef, type Props, RowBuilder, prune } from "./rows";
@@ -175,6 +175,7 @@ function projectType(b: RowBuilder, t: TSType, parent: NodeRef, fileKey: string,
   const label = KIND_LABEL[t.kind] ?? "TSClass";
   const node = b.node([CAN, label], "id", t.id, typeProps(t, fileKey, source));
   b.edge("TS_DECLARES", parent, node);
+  for (const d of t.decorators ?? []) projectDecorator(b, node, d);
   // Inheritance overlay — resolved-only (emit.ts already dropped unresolved/external supertypes);
   // the deferred gate is defense-in-depth against a resolved id that never materialized as a node.
   for (const eid of t.extends_ids ?? []) b.edgeToSymbol("TS_EXTENDS", node, eid);
@@ -197,6 +198,7 @@ function projectCallable(b: RowBuilder, c: TSCallable, owner: NodeRef, ownerRel:
   const labels = ANON_SIG.test(c.signature) ? [CAN, "TSCallable", "TSAnonymousCallable"] : [CAN, "TSCallable"];
   const node = b.node(labels, "id", c.id, callableProps(c, fileKey, source));
   b.edge(ownerRel, owner, node);
+  for (const d of c.decorators ?? []) projectDecorator(b, node, d);
 
   // Body nodes (L1: call sites; L3+: statements + synthetic vertices) + their overlays.
   for (const [localKey, bn] of Object.entries(c.body ?? {})) {
@@ -221,11 +223,37 @@ function projectCallable(b: RowBuilder, c: TSCallable, owner: NodeRef, ownerRel:
   for (const t of Object.values(c.types ?? {})) projectType(b, t, node, fileKey, source);
 }
 
+/**
+ * One decorator application (#82, mirrors python's `_project_decorator`).
+ *
+ * The merge key is the checker-resolved `qualified_name` when there is one, so `@Get` and
+ * `@Get(':id')` collapse to a single node rather than two spellings of the same decorator. The
+ * arguments are per-application and therefore ride on the relationship: `:TSDecorator` is shared
+ * across modules and never pruned, so anything application-specific stored on it would accumulate.
+ */
+function projectDecorator(b: RowBuilder, on: NodeRef, d: TSDecorator): void {
+  const key = d.qualified_name || d.name;
+  const dec = b.node(["TSDecorator"], "name", key, { name: key, qualified_name: d.qualified_name ?? "" });
+  b.edge("TS_DECORATED_BY", on, dec, {
+    positional_arguments: [...(d.positional_arguments ?? [])],
+    // Neo4j has no map property type; python encodes the same field as a sorted-key JSON string.
+    keyword_arguments_json: JSON.stringify(sortedKeys(d.keyword_arguments ?? {})),
+  });
+}
+
+/** Key-sorted shallow copy, so the encoded JSON is stable across runs (python sorts too). */
+function sortedKeys(o: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const k of Object.keys(o).sort()) out[k] = o[k] as string;
+  return out;
+}
+
 function projectField(b: RowBuilder, f: TSField, owner: NodeRef, fileKey: string): void {
   const node = b.node([CAN, "TSField"], "id", f.id, prune({
     id: f.id, kind: "field", name: f.name, type: f.type ?? null, ...span(f), _module: fileKey,
   }));
   b.edge("TS_HAS_FIELD", owner, node);
+  for (const d of f.decorators ?? []) projectDecorator(b, node, d);
 }
 
 // ----------------------------------------------------------------------------------------------
