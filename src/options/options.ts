@@ -38,6 +38,26 @@ export interface AnalysisOptions {
   jobs: number;
   /** Restrict analysis to these files (project-relative or absolute). null ⇒ whole project. */
   targetFiles: string[] | null;
+  /**
+   * Restrict analysis to these PROGRAMS (#146) — each named by its SCOPE dir relative to
+   * `input` (`<root>` for the input's own program). null ⇒ every program. Ownership is still computed against ALL discovered programs and filtered afterwards,
+   * so a file owned by a deeper unselected tsconfig is excluded rather than reassigned.
+   */
+  programFilter: string[] | null;
+  /** Print the discovered programs (one per line) and exit, for shard orchestration. */
+  listPrograms?: boolean;
+  /** Persist this shard's graph IR (`graphs_ir.ndjson`) so a later wave-2 stitch can read it. */
+  emitIr?: boolean;
+  /**
+   * Skip the repository-artifact layer (artifacts/dependencies/unresolved_imports).
+   *
+   * Those sections are repo-scoped and level-free: they are derived from `--input`, not from the
+   * analysed programs, so a `--program` shard recomputes ALL of them. On vscode that is the
+   * difference between 28.75 GB and 39.16 GB for one shard, and under a full shard run it would
+   * be paid 92 times over for a result that is identical every time. An orchestrator computes
+   * them once and passes this on every other shard.
+   */
+  noRepoSections?: boolean;
   /** Skip test trees (default true). */
   skipTests: boolean;
   /** Force a clean rebuild instead of reusing the cache. */
