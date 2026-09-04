@@ -25,7 +25,7 @@
  * `backfillCallees` — NEVER written into `callee_signature` (the symbol table round-trips the
  * analysis cache; a persisted resolution would resurface on a warm run with tsc provenance).
  */
-import { Node, SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind, type ClassDeclaration, type ClassExpression } from "ts-morph";
 import { CALL_DEP, type TSCallEdge, type TSCallable, type TSCallsite, type TSExternalSymbol, forEachCallable } from "../schema";
 import { aliasedSymbolOf, computeSignatureForDecl, externalHomeOf, fileKeyOf, isCallableDecl, resolveCalleeSignature, symbolAt } from "../schema";
 import { callBodyKeys } from "../schema/l1Body";
@@ -44,6 +44,12 @@ export interface LinkerOutput {
 // ponytail: fixed small bounds; tune from the Joern ledger, not from flags (spec: no backend flag).
 const ALIAS_CHASE_LIMIT = 8; // hops through `const f = g` chains
 const CHA_FAN_LIMIT = 16; // max name-matched targets per T5 site
+
+type ClassLike = ClassDeclaration | ClassExpression;
+
+function isClassLike(node: Node): node is ClassLike {
+  return Node.isClassDeclaration(node) || Node.isClassExpression(node);
+}
 
 export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
   const { project, symbol_table, root, log } = ctx;
@@ -349,41 +355,59 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
   }
 
   // ---------------------------------------------------------------------------------------------
-  // T4c — `this.field(...)` through the constructor: a field assigned from a ctor parameter
-  // (parameter property or `this.f = param`) calls whatever function values the class's `new`
-  // sites passed at that position; a field assigned a function value in the ctor calls it
-  // directly. Candidates feed argsByTarget so the T4 rounds resolve the callbacks' OWN
-  // param-invoking sites (`write()` inside a registered migration callback). Bounded: direct
-  // ctor args only, no transitive flow.
+  // T4c — `this.field(...)` through instance property initializers and constructors. A field may
+  // have several direct or parameter-backed sources; preserve their union so an assignment does
+  // not overwrite an initializer candidate. Constructor overload signatures are skipped in favor
+  // of the body-bearing implementation. Bounded: direct constructor args only, no transitive flow.
   // ---------------------------------------------------------------------------------------------
-  const classFieldSources = new Map<Node, Map<string, { paramIndex?: number; direct?: string }>>();
-  const fieldSourcesOf = (cls: Node): Map<string, { paramIndex?: number; direct?: string }> => {
-    let m = classFieldSources.get(cls);
-    if (m) return m;
-    m = new Map();
-    const ctor = (cls as unknown as { getConstructors?: () => Node[] }).getConstructors?.()?.[0];
+  interface FieldSource {
+    paramIndex?: number;
+    direct?: string;
+  }
+  const classFieldSources = new Map<ClassLike, Map<string, FieldSource[]>>();
+  const fieldSourcesOf = (cls: ClassLike): Map<string, FieldSource[]> => {
+    let sources = classFieldSources.get(cls);
+    if (sources) return sources;
+    sources = new Map();
+    const addSource = (field: string, source: FieldSource): void => {
+      const values = sources?.get(field) ?? [];
+      const duplicate = values.some((value) =>
+        value.paramIndex === source.paramIndex && value.direct === source.direct
+      );
+      if (!duplicate) values.push(source);
+      sources?.set(field, values);
+    };
+
+    const properties = cls.getProperties();
+    for (const property of properties) {
+      if (!Node.isPropertyDeclaration(property) || property.isStatic()) continue;
+      const initializer = property.getInitializer();
+      const direct = initializer ? functionValueSig(initializer) : null;
+      if (direct) addSource(property.getName(), { direct });
+    }
+
+    const ctor = cls.getConstructors().find((candidate) => candidate.getBody() !== undefined);
     if (ctor) {
-      const params = (ctor as unknown as { getParameters: () => Node[] }).getParameters();
-      params.forEach((p, i) => {
-        const pp = p as unknown as { getName: () => string; getModifiers?: () => Node[] };
-        if ((pp.getModifiers?.() ?? []).length) m?.set(pp.getName(), { paramIndex: i });
+      const params = ctor.getParameters();
+      params.forEach((param, index) => {
+        if (param.isParameterProperty()) addSource(param.getName(), { paramIndex: index });
       });
-      const paramNames = new Map(params.map((p, i) => [(p as unknown as { getName: () => string }).getName(), i]));
-      ctor.forEachDescendant((d) => {
-        if (!Node.isBinaryExpression(d) || d.getOperatorToken().getKind() !== SyntaxKind.EqualsToken) return;
-        const lhs = d.getLeft();
+      const paramNames = new Map(params.map((param, index) => [param.getName(), index]));
+      ctor.forEachDescendant((descendant) => {
+        if (!Node.isBinaryExpression(descendant) || descendant.getOperatorToken().getKind() !== SyntaxKind.EqualsToken) return;
+        const lhs = descendant.getLeft();
         if (!Node.isPropertyAccessExpression(lhs) || lhs.getExpression().getKind() !== SyntaxKind.ThisKeyword) return;
-        const rhs = d.getRight();
-        const idx = Node.isIdentifier(rhs) ? paramNames.get(rhs.getText()) : undefined;
-        if (idx !== undefined) m?.set(lhs.getName(), { paramIndex: idx });
+        const rhs = descendant.getRight();
+        const index = Node.isIdentifier(rhs) ? paramNames.get(rhs.getText()) : undefined;
+        if (index !== undefined) addSource(lhs.getName(), { paramIndex: index });
         else {
           const direct = functionValueSig(rhs);
-          if (direct) m?.set(lhs.getName(), { direct });
+          if (direct) addSource(lhs.getName(), { direct });
         }
       });
     }
-    classFieldSources.set(cls, m);
-    return m;
+    classFieldSources.set(cls, sources);
+    return sources;
   };
   /** Function values an ARGUMENT node denotes — directly, or through one bounded parameter hop:
    * when the arg is a parameter of the function containing the call, the values passed for that
@@ -411,15 +435,17 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
   };
   let t4c = 0;
   for (const site of thisFieldSites.sort((a, b) => a.enclosing.signature.localeCompare(b.enclosing.signature) || a.bodyKey.localeCompare(b.bodyKey))) {
-    const cls = site.node.getAncestors().find((a) => Node.isClassDeclaration(a) || Node.isClassExpression(a));
-    const src = cls ? fieldSourcesOf(cls).get(site.fieldName) : undefined;
+    const cls = site.node.getAncestors().find(isClassLike);
+    const sources = cls ? fieldSourcesOf(cls).get(site.fieldName) : undefined;
     const candidates = new Set<string>();
-    if (src?.direct) candidates.add(src.direct);
-    if (src?.paramIndex !== undefined && cls) {
-      const clsSig = computeSignatureForDecl(cls, root);
-      for (const args of argsByTarget.get(`${clsSig}.constructor`) ?? []) {
-        const arg = args[src.paramIndex];
-        for (const fn of arg ? argFlowCandidates(arg) : []) candidates.add(fn);
+    for (const source of sources ?? []) {
+      if (source.direct) candidates.add(source.direct);
+      if (source.paramIndex !== undefined && cls) {
+        const clsSig = computeSignatureForDecl(cls, root);
+        for (const args of argsByTarget.get(`${clsSig}.constructor`) ?? []) {
+          const arg = args[source.paramIndex];
+          for (const fn of arg ? argFlowCandidates(arg) : []) candidates.add(fn);
+        }
       }
     }
     if (!candidates.size) {
