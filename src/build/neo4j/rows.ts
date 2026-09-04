@@ -111,14 +111,17 @@ export class RowBuilder {
 
   finish(): GraphRows {
     for (const e of this.deferred) if (this.keys.has(e.to.value)) this.edges.push(e);
-    const nodes = [...this.nodes.values()].sort((a, b) =>
-      `${a.labels[0]}\0${a.value}`.localeCompare(`${b.labels[0]}\0${b.value}`),
-    );
-    const edges = this.edges.sort((a, b) =>
-      `${a.type}\0${a.from.value}\0${a.to.value}`.localeCompare(
-        `${b.type}\0${b.from.value}\0${b.to.value}`,
-      ),
-    );
+    const nodes = [...this.nodes.values()]
+      .map((row) => ({ row, sortKey: `${row.labels[0]}\0${row.value}` }))
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+      .map(({ row }) => row);
+    const edges = this.edges
+      .map((row) => ({
+        row,
+        sortKey: `${row.type}\0${row.from.value}\0${row.to.value}`,
+      }))
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+      .map(({ row }) => row);
     return { nodes, edges };
   }
 }
