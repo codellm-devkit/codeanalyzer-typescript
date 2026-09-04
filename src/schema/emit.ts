@@ -138,7 +138,7 @@ export function finalizeAnalysis(
   // L3/L4 — grow body{} + cfg/cdg/ddg/summary on callables and param_in/param_out on the app.
   let k_limit: number | undefined;
   if (level >= 3 && pg) {
-    applyDataflow(root, pg, idBySig, callableBySig, level);
+    applyDataflow(root, pg, idBySig, callableBySig, level, opts.graphs);
     k_limit = pg.k_limit;
   }
 

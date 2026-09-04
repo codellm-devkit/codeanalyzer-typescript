@@ -1,7 +1,7 @@
 /**
- * The level-3 `program_graphs` contract — CFG / PDG (CDG+DDG) / SDG, per the cross-language
- * dataflow-graphs spec. Emitted as an optional top-level section of analysis.json, only at
- * `-a 3`, scoped by `--graphs`.
+ * The level-3 `program_graphs` compute IR — complete CFG / PDG (CDG+DDG) / SDG data per the
+ * cross-language dataflow-graphs spec. `--graphs` is applied only when this IR is attached to the
+ * analysis tree, so selecting DFG or SDG never removes the CFG node substrate those graphs need.
  *
  * Node identity is the invariant that makes everything joinable: every node is keyed by
  * `(signature, node_id)` where `signature` is the SAME signatureOf() key used by symbol_table

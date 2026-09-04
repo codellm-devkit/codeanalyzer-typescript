@@ -286,21 +286,14 @@ export async function buildProgramGraphs(
     const { summaries, ddg, sccCount, largest } = await composeWavefront(datas, callSites, extraction.pool, log);
     log.debug(`program graphs: ${sccCount} SCCs, largest ${largest}`);
 
-    // Emission per --graphs selector.
-    const wantCfg = opts.graphs.includes("cfg");
-    const wantPdg = opts.graphs.includes("pdg");
-    const wantDfg = opts.graphs.includes("dfg");
-    const wantSdg = opts.graphs.includes("sdg");
-
+    // Build the complete compute IR. Output selectors are applied only when this substrate is
+    // attached to the analysis tree; DDG, SDG, and body-node identity all depend on CFG nodes.
     const functions: Record<string, FunctionGraphs> = {};
     for (const [sig, data] of [...datas.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-      const fg: FunctionGraphs = {};
-      if (wantCfg) fg.cfg = { nodes: data.nodes, edges: data.edges };
-      if (wantPdg || wantDfg) {
-        const edges: PdgEdge[] = [];
-        if (wantPdg) edges.push(...data.cdg);
-        edges.push(...(ddg.get(sig) ?? []));
-        fg.pdg = {
+      const edges: PdgEdge[] = [...data.cdg, ...(ddg.get(sig) ?? [])];
+      functions[sig] = {
+        cfg: { nodes: data.nodes, edges: data.edges },
+        pdg: {
           edges: edges.sort(
             (a, b) =>
               a.source - b.source ||
@@ -308,12 +301,11 @@ export async function buildProgramGraphs(
               a.type.localeCompare(b.type) ||
               (a.var ?? "").localeCompare(b.var ?? ""),
           ),
-        };
-      }
-      functions[sig] = fg;
+        },
+      };
     }
 
-    const sdg_edges = wantSdg ? assembleSdg(datas, callSites, summaries) : [];
+    const sdg_edges = assembleSdg(datas, callSites, summaries);
 
     persistSummaries(opts, symbol_table, callables, summaries, log);
 

@@ -8,14 +8,14 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { analyze } from "../src/core";
+import { analyze, type AnalysisResult } from "../src/core";
 import { backwardSlice } from "../src/dataflow";
 import type { AnalysisOptions } from "../src/options";
-import type { CfgEdge, FunctionCfg, ProgramGraphs, SdgEdge } from "../src/schema";
+import { forEachCallable, type CfgEdge, type FunctionCfg, type GraphSelector, type ProgramGraphs, type SdgEdge, type TSCallable } from "../src/schema";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/dataflow-app");
 
-function options(level: 1 | 2 | 3, cacheDir: string, jobs: number): AnalysisOptions {
+function options(level: 1 | 2 | 3, cacheDir: string, jobs: number, graphs: GraphSelector[]): AnalysisOptions {
   return {
     input: FIXTURE,
     output: null,
@@ -26,7 +26,7 @@ function options(level: 1 | 2 | 3, cacheDir: string, jobs: number): AnalysisOpti
     neo4jPassword: "",
     neo4jDatabase: null,
     analysisLevel: level,
-    graphs: ["cfg", "dfg", "pdg", "sdg"],
+    graphs,
     graphFieldDepth: 3,
     jobs,
     targetFiles: null,
@@ -39,14 +39,29 @@ function options(level: 1 | 2 | 3, cacheDir: string, jobs: number): AnalysisOpti
   };
 }
 
-async function run(level: 1 | 2 | 3, jobs = 1): Promise<Awaited<ReturnType<typeof analyze>>> {
-  // returns the full AnalysisResult — the program-graph IR rides on it, not on the tree
+async function run(
+  level: 1 | 2 | 3,
+  jobs = 1,
+  graphs: GraphSelector[] = ["cfg", "dfg", "pdg", "sdg"],
+): Promise<AnalysisResult> {
+  // Returns the full AnalysisResult — the program-graph IR rides on it, not on the tree.
   const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-dataflow-test-"));
   try {
-    return await analyze(options(level, cacheDir, jobs));
+    return await analyze(options(level, cacheDir, jobs, graphs));
   } finally {
     fs.rmSync(cacheDir, { recursive: true, force: true });
   }
+}
+
+function callableOf(result: AnalysisResult, signature: string): TSCallable {
+  let found: TSCallable | undefined;
+  for (const mod of Object.values(result.internal.symbol_table)) {
+    forEachCallable(mod, (callable) => {
+      if (callable.signature === signature) found = callable;
+    });
+  }
+  if (!found) throw new Error(`no callable for ${signature}`);
+  return found;
 }
 
 const pg = (await run(3)).program_graphs as ProgramGraphs;
@@ -385,6 +400,22 @@ describe("determinism and gating", () => {
   test("schema_version and k_limit are stamped", () => {
     expect(pg.schema_version).toBe("1.0.0");
     expect(pg.k_limit).toBe(3);
+  });
+
+  test("--graphs selects attached fields without deleting compute dependencies", async () => {
+    const dfg = await run(3, 1, ["dfg"]);
+    const dfgCallable = callableOf(dfg, "src/flow.sumTo");
+    expect(dfg.program_graphs?.functions["src/flow.sumTo"]?.cfg?.nodes.length).toBeGreaterThan(0);
+    expect(dfgCallable.body["@entry"]).toBeDefined();
+    expect(dfgCallable.cfg).toBeUndefined();
+    expect(dfgCallable.cdg).toBeUndefined();
+    expect(dfgCallable.ddg?.length).toBeGreaterThan(0);
+
+    const cfg = await run(3, 1, ["cfg"]);
+    const cfgCallable = callableOf(cfg, "src/flow.sumTo");
+    expect(cfgCallable.cfg?.length).toBeGreaterThan(0);
+    expect(cfgCallable.cdg).toBeUndefined();
+    expect(cfgCallable.ddg).toBeUndefined();
   });
 });
 
