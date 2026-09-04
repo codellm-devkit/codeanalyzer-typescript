@@ -407,6 +407,38 @@ describe("parseDockerfileEnv — redefinition and dedup (#101 unit D)", () => {
     expect(keys.length).toBe(2);
   });
 
+  test("continued modern ENV instructions emit every quoted assignment with one logical span", () => {
+    const text = [
+      "FROM node:22",
+      "ENV FIRST=one \\",
+      '    SECOND="two words" \\',
+      "    THIRD=$FIRST",
+    ].join("\n");
+    const keys = Object.fromEntries(parseDockerfileEnv(text).map((key) => [key.key, key]));
+    expect(keys["FIRST"]?.value).toBe("one");
+    expect(keys["SECOND"]?.value).toBe("two words");
+    expect(keys["THIRD"]?.value).toBe("$FIRST");
+    expect(keys["THIRD"]?.references).toEqual(["env:FIRST"]);
+    expect(keys["FIRST"]?.span).toEqual({
+      start: [2, 1],
+      end: [4, 17],
+      bytes: [0, 0],
+    });
+  });
+
+  test("the escape directive and bare or assigned ARG forms are honored", () => {
+    const text = [
+      "# escape=`",
+      "ARG BARE",
+      "ARG FIRST=one `",
+      "    SECOND='two words'",
+    ].join("\n");
+    const keys = Object.fromEntries(parseDockerfileEnv(text).map((key) => [key.key, key]));
+    expect(keys["BARE"]?.value).toBeUndefined();
+    expect(keys["FIRST"]?.value).toBe("one");
+    expect(keys["SECOND"]?.value).toBe("two words");
+  });
+
   test("never throws, even on garbage input", () => {
     expect(() => parseDockerfileEnv("ENV \nARG\n\0\0binary garbage\nENV =nope\n")).not.toThrow();
   });
