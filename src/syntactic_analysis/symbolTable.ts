@@ -1,7 +1,8 @@
 import * as path from "node:path";
 import { Project, ts } from "ts-morph";
 import { buildModule } from "./builders";
-import { fileMeta, fileUnchanged } from "../utils";
+import { fileMeta, fileUnchanged, relPosix, sha256 } from "../utils";
+import type { CacheData } from "../utils/cache";
 import { discoverSourceFiles, resolveTargetFiles, type DiscoveredFile } from "./discovery";
 import type { Materialization, ProgramSpec } from "../build";
 import type { AnalysisOptions } from "../options";
@@ -16,6 +17,9 @@ export interface BuiltProgram {
   // The tsconfig this program was built from (null = default options) — the owning config for
   // every file in `fileKeys`. This is the file→program config map the L3 workers would thread.
   configPath: string | null;
+  /** Stable cache key and hash of the complete TypeScript compiler program. */
+  contextKey: string;
+  contextHash: string;
 }
 
 export interface SymbolTableResult {
@@ -25,6 +29,8 @@ export interface SymbolTableResult {
   files: DiscoveredFile[];
   // One entry per discovered program (deepest scope first, root last).
   programs: BuiltProgram[];
+  /** Context hashes persisted with cached modules and validated on the next run. */
+  programContexts: Record<string, string>;
 }
 
 /** Is `file` inside `dir` (or is `dir` the file's own directory)? */
@@ -46,7 +52,7 @@ function ownerProgram(absPath: string, programs: ProgramSpec[]): ProgramSpec {
 export function buildSymbolTable(
   opts: AnalysisOptions,
   mat: Materialization,
-  cached: Record<string, TSModule> | null,
+  cached: CacheData | null,
   log: Logger,
 ): SymbolTableResult {
   const root = opts.input;
@@ -65,6 +71,7 @@ export function buildSymbolTable(
   for (const f of allProjectFiles) assignment.get(ownerProgram(f.absPath, specs))!.push(f);
 
   const projectOf = new Map<ProgramSpec, Project>();
+  const contextOf = new Map<ProgramSpec, { key: string; hash: string }>();
   const programs: BuiltProgram[] = [];
   for (const s of specs) {
     const project = createProject(s.configPath);
@@ -78,8 +85,11 @@ export function buildSymbolTable(
         log.warn(`failed to load ${f.fileKey}: ${(e as Error).message}`);
       }
     }
+    const contextKey = s.configPath ? relPosix(root, s.configPath) : "<default>";
+    const contextHash = programContextHash(project);
     projectOf.set(s, project);
-    programs.push({ project, fileKeys, configPath: s.configPath });
+    contextOf.set(s, { key: contextKey, hash: contextHash });
+    programs.push({ project, fileKeys, configPath: s.configPath, contextKey, contextHash });
     log.info(`program: ${s.configPath ? path.relative(root, s.configPath) : "default"} (${files.length} files)`);
   }
 
@@ -87,12 +97,15 @@ export function buildSymbolTable(
   let built = 0;
   let fromCache = 0;
   for (const f of buildFiles) {
-    if (cached && !opts.eager && cached[f.fileKey] && fileUnchanged(f.absPath, cached[f.fileKey])) {
-      symbol_table[f.fileKey] = cached[f.fileKey];
+    const owner = ownerProgram(f.absPath, specs);
+    const context = contextOf.get(owner);
+    const contextMatches = context && cached?.program_contexts?.[context.key] === context.hash;
+    if (contextMatches && !opts.eager && cached?.symbol_table[f.fileKey] && fileUnchanged(f.absPath, cached.symbol_table[f.fileKey])) {
+      symbol_table[f.fileKey] = cached.symbol_table[f.fileKey];
       fromCache++;
       continue;
     }
-    const sf = projectOf.get(ownerProgram(f.absPath, specs))!.getSourceFile(f.absPath);
+    const sf = projectOf.get(owner)!.getSourceFile(f.absPath);
     if (!sf) continue;
     const mod = buildModule(sf as unknown as Node, root);
     const meta = fileMeta(f.absPath);
@@ -106,7 +119,18 @@ export function buildSymbolTable(
 
   // The root program is always last; its Project is the one legacy single-program consumers expect.
   const rootProject = projectOf.get(specs[specs.length - 1]!)!;
-  return { project: rootProject, symbol_table, files: buildFiles, programs };
+  const programContexts = Object.fromEntries(
+    programs.map((program) => [program.contextKey, program.contextHash]),
+  );
+  return { project: rootProject, symbol_table, files: buildFiles, programs, programContexts };
+}
+
+/** Hash every source file and compiler option that TypeScript admitted to this program. */
+function programContextHash(project: Project): string {
+  const files = project.getProgram().compilerObject.getSourceFiles()
+    .map((source) => `${source.fileName}\0${sha256(source.text)}`)
+    .sort();
+  return sha256(JSON.stringify({ compilerOptions: project.getCompilerOptions(), files }));
 }
 
 /** The fallback compiler options when the target has no tsconfig (shared with graph workers). */

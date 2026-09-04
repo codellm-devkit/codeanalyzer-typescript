@@ -6,6 +6,7 @@ import { ANALYZER_VERSION } from "./version";
 
 export interface CacheData {
   analyzer_version?: string;
+  program_contexts?: Record<string, string>;
   symbol_table: Record<string, TSModule>;
 }
 
@@ -30,7 +31,13 @@ export function loadCache(cacheDir: string): CacheData | null {
 export function saveCache(cacheDir: string, data: CacheData): void {
   try {
     fs.mkdirSync(cacheDir, { recursive: true });
-    fs.writeFileSync(cacheFilePath(cacheDir), JSON.stringify({ analyzer_version: ANALYZER_VERSION, ...data }));
+    fs.writeFileSync(
+      cacheFilePath(cacheDir),
+      JSON.stringify(
+        { analyzer_version: ANALYZER_VERSION, ...data },
+        (key, value: unknown) => key === "callee_signature" ? undefined : value,
+      ),
+    );
   } catch {
     /* caching is best-effort */
   }
