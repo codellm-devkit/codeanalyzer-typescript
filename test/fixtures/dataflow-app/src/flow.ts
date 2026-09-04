@@ -84,3 +84,26 @@ export function shadow(): number {
   }
   return x;
 }
+
+export function abruptFinally(values: number[]): number {
+  let seen = 0;
+  outer: for (const value of values) {
+    try {
+      if (value < 0) continue outer;
+      if (value === 0) break outer;
+      if (value === 1) return seen;
+      throw new Error("abrupt");
+    } finally {
+      seen += 1;
+    }
+  }
+  return seen;
+}
+
+export function overrideFinally(): number {
+  try {
+    return 1;
+  } finally {
+    return 2;
+  }
+}

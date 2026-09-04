@@ -48,14 +48,29 @@ interface Lowered {
   exits: Dangling[];
 }
 
+type CompletionTarget =
+  | { type: "edge"; target: number; kind: CfgEdgeKind }
+  | { type: "sink"; sink: Dangling[]; kind: CfgEdgeKind };
+
+interface FinallyRouter {
+  entry: number;
+  continuations: CompletionTarget[];
+  abruptParent: FinallyRouter | null;
+  exceptionParent: FinallyRouter | null;
+}
+
 interface LoopLabel {
   breaks: Dangling[];
   continueHeader: number | null;
 }
 
 interface LowerCtx {
-  /** Nearest enclosing handler node (catch node / finally entry) or EXIT. */
+  /** Nearest enclosing handler node or EXIT when no finally interception is required. */
   exceptionTarget: number;
+  /** Abrupt completions entering an enclosing finally before reaching their real destination. */
+  finallyRouter: FinallyRouter | null;
+  /** Exceptional completions use a separate router because a try's catch runs before finally. */
+  exceptionFinallyRouter: FinallyRouter | null;
   /** Break/continue sinks of the nearest enclosing loop/switch. */
   nearestBreaks: Dangling[] | null;
   nearestContinueHeader: number | null;
@@ -97,6 +112,8 @@ export function buildCfg(signature: string, fn: Node): FunctionCfgBuild | null {
   const lower = new Lowerer(idOf, addEdge, exitId);
   const ctx: LowerCtx = {
     exceptionTarget: exitId,
+    finallyRouter: null,
+    exceptionFinallyRouter: null,
     nearestBreaks: null,
     nearestContinueHeader: null,
     labels: new Map(),
@@ -217,26 +234,32 @@ class Lowerer {
 
   private leaf(s: Node, ctx: LowerCtx): Lowered {
     const id = this.idOf.get(s) as number;
-    this.exceptionEdgeIfThrows(s, id, ctx);
+    if (!Node.isThrowStatement(s)) this.exceptionEdgeIfThrows(s, id, ctx);
 
     if (Node.isReturnStatement(s)) {
-      this.addEdge(id, this.exitId, "return");
+      this.complete(id, { type: "edge", target: this.exitId, kind: "return" }, ctx.finallyRouter);
       return { entry: id, exits: [] };
     }
     if (Node.isThrowStatement(s)) {
-      this.addEdge(id, ctx.exceptionTarget, "exception");
+      this.complete(
+        id,
+        { type: "edge", target: ctx.exceptionTarget, kind: "exception" },
+        ctx.exceptionFinallyRouter,
+      );
       return { entry: id, exits: [] };
     }
     if (Node.isBreakStatement(s)) {
       const lbl = s.getLabel()?.getText();
       const sink = lbl ? ctx.labels.get(lbl)?.breaks : ctx.nearestBreaks;
-      sink?.push({ from: id, kind: "break" });
+      if (sink) this.complete(id, { type: "sink", sink, kind: "break" }, ctx.finallyRouter);
       return { entry: id, exits: [] };
     }
     if (Node.isContinueStatement(s)) {
       const lbl = s.getLabel()?.getText();
       const header = lbl ? (ctx.labels.get(lbl)?.continueHeader ?? null) : ctx.nearestContinueHeader;
-      if (header !== null) this.addEdge(id, header, "continue");
+      if (header !== null) {
+        this.complete(id, { type: "edge", target: header, kind: "continue" }, ctx.finallyRouter);
+      }
       return { entry: id, exits: [] };
     }
     // Plain statement: the outgoing normal edge carries the suspend/resume kind when the
@@ -362,24 +385,27 @@ class Lowerer {
     const cc = s.getCatchClause();
     const fin = s.getFinallyBlock();
 
-    // Lower the finally region first so try/catch know their exceptional continuation.
-    let finLowered: Lowered | null = null;
-    if (fin) {
-      finLowered = this.statements(fin.getStatements(), ctx);
-      // A finally region may re-raise (it runs on the exceptional path too): over-approximate by
-      // edging every finally exit to the outer handler as well.
-      if (finLowered.entry !== null) {
-        for (const d of finLowered.exits) this.addEdge(d.from, ctx.exceptionTarget, "exception");
-      }
-    }
-    const afterCatchTarget = finLowered?.entry ?? ctx.exceptionTarget;
+    // Lower the finally region first so try/catch can route every completion through its entry.
+    const finLowered = fin ? this.statements(fin.getStatements(), ctx) : null;
+    const router: FinallyRouter | null = finLowered?.entry != null
+      ? {
+          entry: finLowered.entry,
+          continuations: [],
+          abruptParent: ctx.finallyRouter,
+          exceptionParent: ctx.exceptionFinallyRouter,
+        }
+      : null;
 
     const exits: Dangling[] = [];
     let catchEntry: number | null = null;
     if (cc) {
       const catchId = this.idOf.get(cc) as number; // binds the exception variable (a def, stage 3)
       catchEntry = catchId;
-      const catchCtx: LowerCtx = { ...ctx, exceptionTarget: afterCatchTarget };
+      const catchCtx: LowerCtx = {
+        ...ctx,
+        finallyRouter: router,
+        exceptionFinallyRouter: router,
+      };
       const catchBody = this.statements(cc.getBlock().getStatements(), catchCtx);
       if (catchBody.entry !== null) {
         this.addEdge(catchId, catchBody.entry, "fallthrough");
@@ -389,16 +415,18 @@ class Lowerer {
       }
     }
 
-    const tryCtx: LowerCtx = { ...ctx, exceptionTarget: catchEntry ?? afterCatchTarget };
+    const tryCtx: LowerCtx = {
+      ...ctx,
+      exceptionTarget: catchEntry ?? ctx.exceptionTarget,
+      finallyRouter: router,
+      exceptionFinallyRouter: catchEntry === null ? router : null,
+    };
     const tryBody = this.statements(s.getTryBlock().getStatements(), tryCtx);
     if (tryBody.entry !== null) this.routeThroughFinally(tryBody.exits, finLowered, exits);
-    else if (finLowered?.entry != null) this.routeThroughFinally([], finLowered, exits);
 
+    if (router && finLowered) this.flushFinally(router, finLowered.exits);
     const entry = tryBody.entry ?? catchEntry ?? finLowered?.entry ?? null;
-    if (tryBody.entry === null && finLowered?.entry !== null && finLowered) {
-      // Empty try block: control passes straight to finally.
-      exits.push(...finLowered.exits);
-    }
+    if (tryBody.entry === null && finLowered?.entry != null) exits.push(...finLowered.exits);
     return { entry, exits };
   }
 
@@ -412,9 +440,35 @@ class Lowerer {
     }
   }
 
+  private complete(from: number, target: CompletionTarget, router: FinallyRouter | null): void {
+    if (router) {
+      this.addEdge(from, router.entry, target.kind);
+      router.continuations.push(target);
+      return;
+    }
+    this.deliver(from, target);
+  }
+
+  private flushFinally(router: FinallyRouter, exits: Dangling[]): void {
+    for (const completion of router.continuations) {
+      const parent = completion.kind === "exception" ? router.exceptionParent : router.abruptParent;
+      for (const exit of exits) this.complete(exit.from, completion, parent);
+    }
+  }
+
+  private deliver(from: number, target: CompletionTarget): void {
+    if (target.type === "edge") this.addEdge(from, target.target, target.kind);
+    else target.sink.push({ from, kind: target.kind });
+  }
+
   /** Over-approximate exceptional flow: calls / new / await / tagged templates may throw. */
   exceptionEdgeIfThrows(expr: Node, nodeId: number, ctx: LowerCtx): void {
-    if (mayThrow(expr)) this.addEdge(nodeId, ctx.exceptionTarget, "exception");
+    if (!mayThrow(expr)) return;
+    this.complete(
+      nodeId,
+      { type: "edge", target: ctx.exceptionTarget, kind: "exception" },
+      ctx.exceptionFinallyRouter,
+    );
   }
 }
 
