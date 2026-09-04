@@ -69,6 +69,7 @@ export function buildCallGraph(
   root: string,
   log: Logger,
   phantoms: boolean,
+  callExprIndex: ReadonlyMap<string, Node>,
   only?: Set<string>,
 ): CallGraphResult {
   // 1. The node universe: every callable signature in the WHOLE symbol table. Edges may only target
@@ -85,8 +86,7 @@ export function buildCallGraph(
     forEachCallable(mod, (c) => callables.push(c));
   }
 
-  // 2. Index call/new expression AST nodes by full span so we can match recorded call sites.
-  const callExprIndex = indexCallExpressions(project);
+  // 2. The orchestrator shares this full-span AST index with the def-use linker for this program.
 
   // 3. Class metadata + subtype index (for RTA expansion), built from the symbol table.
   const classMeta = new Map<string, ClassMeta>();

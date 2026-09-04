@@ -31,7 +31,7 @@ import { aliasedSymbolOf, computeSignatureForDecl, externalHomeOf, fileKeyOf, is
 import { callBodyKeys } from "../schema/l1Body";
 import type { CallGraphContext } from "./provider";
 import type { CallGraphResult } from "./callGraph";
-import { inInstancePropInit, indexCallExpressions } from "./callGraph";
+import { inInstancePropInit } from "./callGraph";
 
 /** Per-call-site resolutions for the sanctioned `callee: null→id` refinement: callerSig → bodyKey → calleeSig. */
 export type LinkerResolutions = Map<string, Map<string, string>>;
@@ -46,7 +46,7 @@ const ALIAS_CHASE_LIMIT = 8; // hops through `const f = g` chains
 const CHA_FAN_LIMIT = 16; // max name-matched targets per T5 site
 
 export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
-  const { project, symbol_table, root, log } = ctx;
+  const { project, symbol_table, root, log, callExprIndex } = ctx;
 
   // The signature universe (full table — cross-program targets resolve) + the name→sigs CHA index.
   const allSignatures = new Set<string>();
@@ -69,7 +69,6 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
   }
   callables.sort((a, b) => a.signature.localeCompare(b.signature));
 
-  const callExprIndex = indexCallExpressions(project);
   /** The callee expression of a call/new/tagged-template node. */
   const calleeExprOf = (node: Node): Node =>
     Node.isTaggedTemplateExpression(node) ? node.getTag() : (node as unknown as { getExpression: () => Node }).getExpression();

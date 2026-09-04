@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import { buildProgramGraphs, startExtraction } from "./dataflow";
-import { type LinkerResolutions, mergeCallGraphs, runDefuseLinker, tscProvider } from "./semantic_analysis";
+import { type LinkerResolutions, indexCallExpressions, mergeCallGraphs, runDefuseLinker, tscProvider } from "./semantic_analysis";
 import { loadCache, saveCache } from "./utils";
 import { materialize } from "./build";
 import { inventoryArtifacts } from "./artifacts";
@@ -53,6 +53,7 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
     for (const prog of programs) {
       const ctx = {
         project: prog.project,
+        callExprIndex: indexCallExpressions(prog.project),
         symbol_table,
         root: opts.input,
         log,
