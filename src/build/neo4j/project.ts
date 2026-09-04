@@ -97,10 +97,21 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
     }
   }
   {
-    const lockIds = Object.values(root.artifacts ?? {})
-      .filter((a) => /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|bun\.lock|yarn\.lock|pnpm-lock\.yaml)$/.test(a.path))
-      .map((a) => a.id)
-      .sort();
+    const parsedLocks: Record<string, true> = {
+      "package-lock.json": true,
+      "npm-shrinkwrap.json": true,
+      "bun.lock": true,
+    };
+    const lockByManifest = new Map<string, string>();
+    for (const art of Object.values(root.artifacts ?? {}).sort((a, b) => a.path.localeCompare(b.path))) {
+      const parts = art.path.split("/");
+      const base = parts[parts.length - 1];
+      if (!base || parsedLocks[base] !== true) continue;
+      parts[parts.length - 1] = "package.json";
+      const manifest = root.artifacts?.[parts.join("/")];
+      if (manifest) lockByManifest.set(manifest.id, art.id);
+    }
+
     const seen = new Set<string>();
     for (const d of root.dependencies ?? []) {
       const pkgId = purlNpm(d.name);
@@ -109,10 +120,10 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
         spec: d.spec || null, kind: d.kind, direct: d.direct, extras: d.extras.length ? d.extras : null,
         prov: d.prov.length ? d.prov : null,
       }), d.kind);
-      if (d.locked_version) {
-        for (const lockId of lockIds) {
-          const k = `LOCKS\0${lockId}\0${pkgId}`;
-          if (seen.has(k)) continue;
+      const lockId = d.direct ? lockByManifest.get(d.declared_in) : d.declared_in;
+      if (d.locked_version && lockId) {
+        const k = `LOCKS\0${lockId}\0${pkgId}`;
+        if (!seen.has(k)) {
           seen.add(k);
           b.edge("LOCKS", { label: "Artifact", keyProp: "id", value: lockId }, pkgRef, prune({ version: d.locked_version }));
         }
