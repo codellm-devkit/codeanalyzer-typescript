@@ -84,3 +84,15 @@ export function shadow(): number {
   }
   return x;
 }
+
+export function labeledBlock(flag: boolean): number {
+  let result = 0;
+  exit: {
+    if (flag) {
+      result = 1;
+      break exit;
+    }
+    result = 2;
+  }
+  return result;
+}

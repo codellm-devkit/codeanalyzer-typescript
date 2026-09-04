@@ -153,6 +153,17 @@ describe("CFG gate", () => {
     expect(kinds("src/flow.pickDay", (e) => e.kind === "break")).toHaveLength(2);
   });
 
+  test("break targets every labeled statement, not only labeled loops", () => {
+    const cfg = cfgOf("src/flow.labeledBlock");
+    const edge = cfg.edges.find((candidate) => candidate.kind === "break");
+    expect(edge).toBeDefined();
+    const source = cfg.nodes[edge?.source ?? -1];
+    const target = cfg.nodes[edge?.target ?? -1];
+    const moduleSource = fs.readFileSync(path.join(FIXTURE, "src/flow.ts"), "utf8");
+    expect(moduleSource.slice(source?.start_offset, source?.end_offset)).toContain("break exit");
+    expect(moduleSource.slice(target?.start_offset, target?.end_offset)).toContain("return result");
+  });
+
   test("await suspends via an await_resume edge (fetchTotal)", () => {
     expect(kinds("src/susp.fetchTotal")).toContainEqual({ source: 2, target: 3, kind: "await_resume" });
   });
