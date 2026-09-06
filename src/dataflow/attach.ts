@@ -17,7 +17,7 @@
  *   param→contracted out of the L3 CFG; '@formal_in:N' at L4, statement→'line:col'.
  */
 
-import type { CfgEdge, GraphNode, PdgEdge, ProgramGraphs } from "../schema/graphs";
+import type { CfgEdge, FunctionGraphs, GraphNode, PdgEdge, ProgramGraphs } from "../schema/graphs";
 import type { TSApplication, TSCallable, TSParamEdge } from "../schema";
 import { globalOrdinal, stampBodyIds } from "../schema/ids";
 
@@ -141,18 +141,18 @@ function emitL4(root: TSApplication, pg: ProgramGraphs, info: Map<string, LocalI
     for (const [nodeId, n] of li.paramN) c.body[`@formal_in:${n}`] = { kind: "formal_in", of: li.paramName.get(nodeId) };
     if (li.exitId >= 0) c.body["@formal_out"] = { kind: "formal_out", of: "$ret" };
     if (!c.summary) c.summary = [];
-    // return/global → EXIT ddg edges re-target @formal_out (syntactic routing; L4-placed vertex).
+    const ddg = c.ddg as Array<{ src: string; dst: string; var?: string; prov: string[] }>;
     for (const e of fg.pdg?.edges ?? []) {
-      if (e.type === "DDG" && e.target === li.exitId) {
-        (c.ddg as Array<{ src: string; dst: string; var?: string; prov: string[] }>).push({
-          src: l3(li, e.source),
-          dst: "@formal_out",
-          var: e.var,
-          prov: ["reaching-defs"],
-        });
-      }
+      if (e.type !== "DDG") continue;
+      // return/global → EXIT ddg edges re-target @formal_out (syntactic routing; L4-placed vertex).
+      if (e.target === li.exitId) ddg.push({ src: l3(li, e.source), dst: "@formal_out", var: e.var, prov: ["reaching-defs"] });
+      // #81 (python #115 parity): `formal_in:n → first-use` — the same dependence L3 carries as
+      // `@entry → stmt` (a param folds onto @entry below L4), re-sourced from the port so a walk that
+      // enters through param_in does not dead-end at formal_in. Both edges stay: L3 keeps @entry.
+      const n = li.paramN.get(e.source);
+      if (n !== undefined && e.target !== li.exitId) ddg.push({ src: `@formal_in:${n}`, dst: l3(li, e.target), var: e.var, prov: ["reaching-defs"] });
     }
-    (c.ddg as Array<{ src: string; dst: string; var?: string; prov: string[] }>)?.sort?.(cmpDdg);
+    ddg.sort(cmpDdg);
   }
 
   // Cross-function SDG edges → param_in/param_out (app) + summary (callable) + actual vertices.
@@ -172,6 +172,7 @@ function emitL4(root: TSApplication, pg: ProgramGraphs, info: Map<string, LocalI
         const n = callee.paramN.get(e.target.node);
         if (n === undefined) continue;
         root.param_in.push({ src: fq(caller.canId, ain), dst: fq(callee.canId, `@formal_in:${n}`) });
+        bindDefsToActualIn(caller, pg.functions[e.source.signature], e.source.node, L, i);
       } else if (callee) {
         // global read: rides in at the callee entry, carrying the global path.
         root.param_in.push({ src: fq(caller.canId, L), dst: fq(callee.canId, "@entry"), var: e.var });
@@ -186,6 +187,9 @@ function emitL4(root: TSApplication, pg: ProgramGraphs, info: Map<string, LocalI
         const aout = `${L}/actual_out`;
         caller.callable.body[aout] = { kind: "actual_out", of: "$ret", parent: L };
         root.param_out.push({ src: fq(callee.canId, "@formal_out"), dst: fq(caller.canId, aout) });
+        // #81: `actual_out → callsite` — the return value flows into the statement that made the
+        // call; the caller's existing `L → use` edges carry it onward. Python's class exactly.
+        pushDdg(caller.callable, { src: aout, dst: L, var: "$ret", prov: ["reaching-defs"] });
       } else {
         // global write: flows back from the callee formal-out to the caller's callsite.
         root.param_out.push({ src: fq(callee.canId, "@formal_out"), dst: fq(caller.canId, L), var: e.var });
@@ -210,13 +214,63 @@ function emitL4(root: TSApplication, pg: ProgramGraphs, info: Map<string, LocalI
     }
   }
 
-  // Determinism: sort the application-scope lists + each callable's summary.
+  // Determinism: sort the application-scope lists + each callable's summary and ddg (deduped:
+  // the binding classes above can be reached from more than one sdg edge).
   root.param_in.sort(cmpEdgeVar);
   root.param_out.sort(cmpEdgeVar);
   for (const li of info.values()) {
     const s = li.callable.summary as Array<{ src: string; dst: string; var?: string }> | undefined;
     if (s) s.sort(cmpEdgeVar);
+    const d = li.callable.ddg as Array<{ src: string; dst: string; var?: string; prov?: string[] }> | undefined;
+    if (d) {
+      const uniq = dedupe(d, (e) => `${e.src}\0${e.dst}\0${e.var ?? ""}\0${(e.prov ?? []).join(",")}`);
+      d.length = 0;
+      d.push(...uniq.sort(cmpDdg));
+    }
   }
+}
+
+type DdgRow = { src: string; dst: string; var?: string; prov: string[] };
+function pushDdg(c: TSCallable, row: DdgRow): void {
+  ((c.ddg ??= []) as DdgRow[]).push(row);
+}
+
+/**
+ * #81: `def stmt → actual_in:k` — argument binding at the call site. The intra-callable ddg says
+ * which variables reach the call statement L (`X → L`, var v); the call site's own argument text
+ * says which of them feeds argument k. Bound when v's head identifier appears as a whole word in
+ * `arguments[k]`. A param reaching L binds from its port (`@formal_in:n`), the way l3() would fold
+ * it onto @entry. Text matching is the ceiling here (no per-argument AST at this stage): a name
+ * that is both a local and a property (`f(o.v)` with a local `v`) over-binds; a value threaded only
+ * through a helper call inside the argument still binds, which is the reaching-defs reading.
+ */
+function bindDefsToActualIn(caller: LocalIds, fg: FunctionGraphs | undefined, callNode: number, L: string, k: number): void {
+  const args = argumentTextsAt(caller, fg, callNode);
+  const text = args?.[k];
+  if (text === undefined) return;
+  for (const e of fg?.pdg?.edges ?? []) {
+    if (e.type !== "DDG" || e.target !== callNode || !e.var) continue;
+    const head = /^[A-Za-z_$][\w$]*/.exec(e.var)?.[0];
+    if (!head || !new RegExp(`(^|[^\\w$])${head.replace(/\$/g, "\\$")}(?![\\w$])`).test(text)) continue;
+    const n = caller.paramN.get(e.source);
+    const src = n !== undefined ? `@formal_in:${n}` : caller.stmtLocal.get(e.source);
+    if (!src) continue;
+    pushDdg(caller.callable, { src, dst: `${L}/actual_in:${k}`, var: e.var, prov: ["reaching-defs"] });
+  }
+}
+
+/** The recorded call site (INTERNAL `call_sites`, still on the callable during this pass) that sits inside CFG node `callNode`. */
+function argumentTextsAt(caller: LocalIds, fg: FunctionGraphs | undefined, callNode: number): string[] | undefined {
+  const node = fg?.cfg?.nodes.find((x) => x.id === callNode);
+  const sites = (caller.callable as unknown as { call_sites?: Array<{ start_line: number; start_column: number; end_line: number; end_column: number; arguments: string[] }> }).call_sites ?? [];
+  if (!node) return undefined;
+  const inside = sites.filter((s) =>
+    (s.start_line > node.start_line || (s.start_line === node.start_line && s.start_column >= node.start_column)) &&
+    (s.end_line < node.end_line || (s.end_line === node.end_line && s.end_column <= node.end_column)));
+  // several calls in one statement (`f(g(x))`): the OUTERMOST is the one whose arguments PARAM_IN
+  // describes for this statement; pick the earliest start, longest span.
+  inside.sort((a, b) => a.start_line - b.start_line || a.start_column - b.start_column || (b.end_line - a.end_line) || (b.end_column - a.end_column));
+  return inside[0]?.arguments;
 }
 
 // ----------------------------------------------------------------------------------------------
