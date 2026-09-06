@@ -343,3 +343,10 @@ authority; the code and tests pin each one.
   false`), not with `--no-repo-sections` as the plan first said: that flag lives on an unmerged branch, and
   `--no-artifact-text` produces the exact shape (`source: ""`) the fallback must handle. A missing
   `pages/api` default export is COUNTED under `<fileKey>#default`, never silent.
+- **Call rules have the same two tiers as decorators** (#167). `frameworks.<x>.calls` is gated on
+  `detect:` and matched on the import-table-resolved callee (`app.on` → `electron.app.on`), default
+  `certain`; `heuristics.calls` matches the written spelling at `heuristic`. This is what lets a
+  non-web ruleset ship: `app.on(...)` is on every EventEmitter, so an ungated rule would be a false
+  positive on every Express app. Shipped non-web rules: electron, commander, worker_threads,
+  `process.on`. Open: a "calls matched by no rule" report counter, which would make unclaimed
+  non-web roots visible at the cost of noise on every `console.log`.
