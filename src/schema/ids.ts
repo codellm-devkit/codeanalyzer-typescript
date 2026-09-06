@@ -83,3 +83,25 @@ export function memberKey(sig: string, accessorKind?: string | null): string {
   if (accessorKind === "setter") return `${seg}#set`;
   return seg;
 }
+
+/**
+ * The GLOBAL ordinal id of a body node from its LOCAL key (#164; python #176/#180 parity):
+ * synthetic keys (`@entry`, `@formal_in:0`) already carry the `@`; positional keys (`15:2`,
+ * `15:2/actual_in:0`) get one. This is the :TSBodyNode merge key AND `TSBodyNode.id` — the one
+ * implementation both projections share, so a JSON-side node and its graph node join on one string
+ * without recomposing the id.
+ */
+export function globalOrdinal(callableId: string, localKey: string): string {
+  return localKey.startsWith("@") ? `${callableId}${localKey}` : `${callableId}@${localKey}`;
+}
+
+/**
+ * Stamp `id` on every body node and every parameter of one callable (#164). Idempotent; each body
+ * emitter calls it after writing its nodes (L1 `populateL1Body`, L3/L4 `applyDataflow`).
+ * `parameters[i].id` is the L4 `formal_in` vertex that carries the parameter — a forward
+ * reference below level 4, by design.
+ */
+export function stampBodyIds(c: { id: string; body?: Record<string, { id?: string }>; parameters?: Array<{ id?: string }> }): void {
+  for (const [key, node] of Object.entries(c.body ?? {})) node.id = globalOrdinal(c.id, key);
+  (c.parameters ?? []).forEach((p, i) => { p.id = globalOrdinal(c.id, `@formal_in:${i}`); });
+}

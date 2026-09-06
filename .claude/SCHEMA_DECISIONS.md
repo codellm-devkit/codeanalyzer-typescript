@@ -154,3 +154,12 @@ same chain crossing one call boundary via the SDG param/summary edges). Neither 
 an unresolved read is `reason: "non-literal"` (key never closes on one literal) or
 `reason: "undefined-key"` (a literal key matching no declared `ConfigKey`) — first-class in
 `config_reads`, never silently dropped.
+
+## Body-node and parameter ids (2026-09-06, #164 — python #176/#180 parity)
+
+| # | Concept | Decision | Rationale |
+|---|---|---|---|
+| I1 | **`TSBodyNode.id`** = `<callable-id>@<local>` on every body node, every level | the same string the Neo4j projection merges `:TSBodyNode` on, stamped into the tree by `stampBodyIds` after each emitter (L1 `populateL1Body`; L3/L4 at the end of `applyDataflow`) | a JSON consumer names a statement without recomposing the join key; python's `vocabulary.md` now promises it |
+| I2 | **`TSCallableParameter.id`** = `<callable-id>@formal_in:<i>`, present at EVERY level | a forward reference below L4 to the vertex that carries the parameter; at L4 `body["@formal_in:i"].id === parameters[i].id` and `.of === parameters[i].name` | python emits it at every level for the same reason; consumers key parameter flow on it before L4 exists |
+| I3 | **One definition**: `globalOrdinal` in `src/schema/ids.ts`; `project.ts` and `attach.ts` delegate | the rule used to live in two private `fq` copies | two copies of a join key drift; the agreement test pins JSON `id` == graph merge key |
+| I4 | **`SCHEMA_VERSION` unmoved** (2.0.0) | additive fields; no label/relationship/property change in the graph | #144: one version until every analyzer re-baselines together |
