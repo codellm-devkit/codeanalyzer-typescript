@@ -19,42 +19,138 @@ import { keyNode } from "./configKeys";
 import type { TSConfigKey, TSSpan } from "../schema";
 
 const DOCKER_LINE = /^\s*(ENV|ARG)\s+(.*)$/i;
+const ESCAPE_DIRECTIVE = /^\s*#\s*escape\s*=\s*([\\`])\s*$/i;
 
 // POSIX-shell variable-name grammar (python v1.3.0's _ENV_KEY_NAME, adopted verbatim): gates
 // which compose list-form leaves are real env-var declarations vs. junk.
 const ENV_KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/**
- * Line-based, never throws — a line that doesn't match is just skipped, never a reason to mark
- * the whole Dockerfile "partial". `ENV K=V` and the legacy `ENV K V` both occur; ARG may be bare
- * (`ARG X`, no default). A key redefined on a later line (a real Dockerfile pattern — e.g. `ARG
- * VERSION` then `ENV VERSION=$VERSION`: same bare name, but ARG/ENV land in different namespaces
- * so that particular pair never collides) keeps the LAST occurrence's value, matching Docker's
- * own build-time override semantics — keyed by `namespace:name` in a Map so at most one
- * TSConfigKey per (namespace, key) ever comes out of one Dockerfile.
- */
+interface DockerInstruction {
+  text: string;
+  startLine: number;
+  endLine: number;
+  endColumn: number;
+  escape: string;
+}
+
+function logicalDockerInstructions(text: string): DockerInstruction[] {
+  const instructions: DockerInstruction[] = [];
+  const lines = text.split("\n");
+  let escape = "\\";
+  let active = false;
+  let logical = "";
+  let startLine = 1;
+
+  lines.forEach((line, index) => {
+    const directive = ESCAPE_DIRECTIVE.exec(line);
+    if (!active && directive) {
+      escape = directive[1] as string;
+      return;
+    }
+    if (!active) {
+      active = true;
+      startLine = index + 1;
+    }
+
+    const trimmed = line.trimEnd();
+    let escapes = 0;
+    for (let i = trimmed.length - 1; i >= 0 && trimmed[i] === escape; i--) escapes++;
+    const continued = escapes % 2 === 1;
+    logical += continued ? trimmed.slice(0, -1) : line;
+    if (continued) return;
+
+    instructions.push({
+      text: logical,
+      startLine,
+      endLine: index + 1,
+      endColumn: line.length + 1,
+      escape,
+    });
+    active = false;
+    logical = "";
+  });
+
+  if (active) {
+    const endLine = lines.length;
+    instructions.push({
+      text: logical,
+      startLine,
+      endLine,
+      endColumn: (lines[endLine - 1]?.length ?? 0) + 1,
+      escape,
+    });
+  }
+  return instructions;
+}
+
+function dockerWords(text: string, escape: string): string[] {
+  const words: string[] = [];
+  let current = "";
+  let quote: "'" | '"' | null = null;
+  let escaped = false;
+  const push = (): void => {
+    if (!current) return;
+    words.push(current);
+    current = "";
+  };
+
+  for (const char of text) {
+    if (escaped) {
+      current += char;
+      escaped = false;
+    } else if (char === escape && quote !== "'") {
+      escaped = true;
+    } else if (quote) {
+      if (char === quote) quote = null;
+      else current += char;
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (/\s/.test(char)) {
+      push();
+    } else {
+      current += char;
+    }
+  }
+  if (escaped) current += escape;
+  push();
+  return words;
+}
+
+/** Parse logical ENV/ARG instructions with Docker quoting and escape continuations. */
 export function parseDockerfileEnv(text: string): TSConfigKey[] {
   const byKey = new Map<string, TSConfigKey>();
-  text.split("\n").forEach((line, i) => {
-    const m = DOCKER_LINE.exec(line);
-    if (!m) return;
-    const directive = (m[1] as string).toUpperCase();
-    const rest = (m[2] as string).trim();
-    const span: TSSpan = { start: [i + 1, 1], end: [i + 1, line.length + 1], bytes: [0, 0] };
-    const eq = rest.indexOf("=");
-    const [name, raw] = eq > 0 ? [rest.slice(0, eq), rest.slice(eq + 1)] : (() => {
-      const sp = rest.indexOf(" ");
-      return sp > 0 ? [rest.slice(0, sp), rest.slice(sp + 1)] : [rest, ""];
-    })();
-    const key = (name as string).trim();
-    if (!key) return; // a bare "ENV " line with nothing after it — no name to mint
-    let value = (raw as string).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
+  for (const instruction of logicalDockerInstructions(text)) {
+    const match = DOCKER_LINE.exec(instruction.text);
+    if (!match) continue;
+    const directive = (match[1] as string).toUpperCase();
+    const words = dockerWords((match[2] as string).trim(), instruction.escape);
+    if (words.length === 0) continue;
+    const span: TSSpan = {
+      start: [instruction.startLine, 1],
+      end: [instruction.endLine, instruction.endColumn],
+      bytes: [0, 0],
+    };
     const namespace = directive === "ENV" ? "env" : "dockerfile";
-    byKey.set(`${namespace}:${key}`, keyNode(key, namespace, value, span)); // later line wins
-  });
+    const assignments: Array<[string, string | undefined]> = [];
+
+    if (directive === "ENV" && !words[0]?.includes("=")) {
+      assignments.push([words[0] as string, words.slice(1).join(" ")]);
+    } else {
+      for (const word of words) {
+        const equals = word.indexOf("=");
+        if (equals < 0) {
+          if (directive === "ARG") assignments.push([word, undefined]);
+          continue;
+        }
+        assignments.push([word.slice(0, equals), word.slice(equals + 1)]);
+      }
+    }
+
+    for (const [name, value] of assignments) {
+      if (!ENV_KEY_NAME.test(name)) continue;
+      byKey.set(`${namespace}:${name}`, keyNode(name, namespace, value, span));
+    }
+  }
   return [...byKey.values()];
 }
 
