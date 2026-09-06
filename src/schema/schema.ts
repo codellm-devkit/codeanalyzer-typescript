@@ -74,8 +74,12 @@ export interface TSComment {
 }
 
 export interface TSDecorator {
-  name: string; // locally written name, e.g. "Get"
-  qualified_name?: string; // checker-resolved FQN when available
+  name: string; // the decorator as WRITTEN, e.g. "Get" or "http.route" (python parity)
+  // Import-table resolution of `name` (#151), e.g. "@nestjs/common.Get" — the module specifier kept
+  // verbatim, aliases mapped back to the exported name. ABSENT when the head is not an imported
+  // binding: a same-file declaration, a global, or a spelling nothing in the module can name. The
+  // checker is not consulted; there is no resolved-FQN tier above this.
+  qualified_name?: string;
   positional_arguments: string[]; // raw source fragments
   keyword_arguments: Record<string, string>; // object-literal args flattened to key→source
   start_line: number;

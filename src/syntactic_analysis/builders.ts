@@ -31,6 +31,7 @@ import {
 } from "../schema";
 import { computeSignatureForDecl } from "../schema";
 import { memberKey } from "../schema/ids";
+import { importTable, resolveWritten } from "./importResolver";
 
 // ----------------------------------------------------------------------------------------------
 // dynamic-getter helpers
@@ -146,6 +147,20 @@ function jsDocsOf(node: Node): TSComment[] {
   });
 }
 
+// One import table per SourceFile: decoratorsOf runs per node, and a file's imports do not change
+// between its nodes. Keyed on the ts-morph wrapper, which is cached on the SourceFile for the
+// program's lifetime, so the WeakMap follows it.
+const importTables = new WeakMap<object, Map<string, string>>();
+function importTableOf(node: Node): Map<string, string> {
+  const sf = node.getSourceFile();
+  let t = importTables.get(sf);
+  if (!t) {
+    t = importTable(buildImports(sf as unknown as Node));
+    importTables.set(sf, t);
+  }
+  return t;
+}
+
 function decoratorsOf(node: Node): TSDecorator[] {
   const ds = (node as unknown as { getDecorators?: () => Node[] }).getDecorators?.();
   if (!ds || !ds.length) return [];
@@ -175,10 +190,15 @@ function decoratorsOf(node: Node): TSDecorator[] {
         }
       }
     }
-    const qualified = dec.getFullName();
+    // `name` is the decorator as WRITTEN (`http.route`, not `route`) — python parity, and the only
+    // place the spelling survives when resolution fails. `qualified_name` is the import-table
+    // resolution or ABSENT (#151): the checker is not consulted, and `getFullName()` was never a
+    // resolved name despite the field's old comment claiming so.
+    const written = dec.getFullName();
+    const qualified = resolveWritten(importTableOf(node), written);
     return {
-      name: dec.getName(),
-      ...(qualified != null ? { qualified_name: qualified } : {}),
+      name: written,
+      ...(qualified !== undefined ? { qualified_name: qualified } : {}),
       positional_arguments: positional,
       keyword_arguments: keyword,
       ...span(d),
