@@ -4,9 +4,9 @@
  * Patterns are dotted names: `{a,b}` alternates (a `*` inside an alternative keeps its meaning),
  * `*` matches ONE dotless segment, everything else is literal, and the match is anchored.
  */
-import { forEachCallable, type TSCallable, type TSCallsite, type TSDecorator, type TSEntrypoint, type TSModule } from "../schema";
+import { forEachCallable, type TSCallable, type TSCallsite, type TSDecorator, type TSEntrypoint, type TSModule, type TSType } from "../schema";
 import { callBodyKeys } from "../schema/l1Body";
-import type { ArgSpec, CallRule, DecoratorRule } from "./rules";
+import type { ArgSpec, BaseRule, CallRule, DecoratorRule } from "./rules";
 
 export class PatternError extends Error {}
 
@@ -184,4 +184,56 @@ function resolveHandler(site: TSCallsite, rule: CallRule, callables: readonly TS
     return inside[0];
   }
   return undefined;
+}
+
+/**
+ * Base-class tier: a rule matches when ANY base of the class — resolved through the import
+ * table, else as written — matches `rule.match`. `transitive: true` also walks the bases of
+ * every in-project ancestor reachable through `extends_ids` (an external ancestor has no node,
+ * so the walk stops there); a `seen` set guards cycles. `dispatch:` only ever fires for a name
+ * the class itself DEFINES as a method — `cls.callables` is keyed by plain method name
+ * (`memberKey`, confirmed against a fixture: `get` → key `"get"`), so `Object.keys` is the
+ * intersection, no `Object.values(...).map(c => c.name)` fallback needed.
+ *
+ * `resolve` takes the OWNER of the base spelling, not just `cls`: a transitive ancestor's
+ * `base_classes` is WRITTEN in *that ancestor's own file*, so it can only be resolved through
+ * that file's own import table — `cls`'s table has no binding for a name it never imports.
+ */
+export function entrypointsFromBases(
+  cls: TSType,
+  framework: string,
+  rules: readonly BaseRule[],
+  resolve: (written: string, owner: TSType) => string,
+  typeById: Map<string, TSType>,
+): { classEps: TSEntrypoint[]; methodEps: Map<string, TSEntrypoint[]> } {
+  const classEps: TSEntrypoint[] = [];
+  const methodEps = new Map<string, TSEntrypoint[]>();
+  const directBases = (t: TSType): string[] => (t.base_classes ?? []).map((b) => resolve(b, t));
+  const allBases = (transitive: boolean): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    const stack: TSType[] = [cls];
+    while (stack.length) {
+      const t = stack.pop()!;
+      if (seen.has(t.id)) continue;
+      seen.add(t.id);
+      out.push(...directBases(t));
+      if (transitive) for (const id of t.extends_ids ?? []) { const p = typeById.get(id); if (p) stack.push(p); }
+    }
+    return out;
+  };
+  const defined = new Set(Object.keys(cls.callables ?? {}));
+  for (const rule of rules) {
+    if (!allBases(rule.transitive).some((b) => matchPattern(rule.match, b))) continue;
+    classEps.push({ framework, confidence: rule.confidence, rule: rule.id, ruleset: rule.origin, evidence: cls.signature, http_methods: [] });
+    for (const name of rule.dispatch) {
+      if (!defined.has(name)) continue;
+      const ep: TSEntrypoint = {
+        framework, confidence: rule.confidence, rule: `${rule.id}.dispatch`, ruleset: rule.origin,
+        evidence: cls.signature, http_methods: HTTP_VERBS.has(name.toLowerCase()) ? [name.toUpperCase()] : [], via: cls.id,
+      };
+      (methodEps.get(name) ?? methodEps.set(name, []).get(name)!).push(ep);
+    }
+  }
+  return { classEps, methodEps };
 }
