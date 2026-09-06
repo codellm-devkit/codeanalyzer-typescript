@@ -71,8 +71,15 @@ describe("decorator matcher", () => {
   });
 
   test("heuristic tier runs last and never doubles a node a framework rule claimed", async () => {
-    const n = byName(rootOf(await analyze(opts(fixture({ "src/u.ts": NEST })))));
-    expect(n.show?.entrypoints?.length).toBe(1); // nestjs.verb only — no heuristic.http-verb on top
+    // A genuine tier collision: `mine.get` resolves (import-table) to `mine.verb` (a user framework
+    // rule) AND, as WRITTEN, matches the shipped `heuristic.http-verb` pattern. Without the
+    // `if (node.entrypoints.length === 0)` guard in pipeline.ts, this node would carry both records.
+    const dir = fixture({ "src/c.ts": 'import * as mine from "mine";\nexport class C { @mine.get(\'/x\') m(): string { return \'\'; } }' });
+    const rules = path.join(dir, "r.yml");
+    fs.writeFileSync(rules, "version: 1\nframeworks:\n  mine:\n    detect: [mine]\n    decorators:\n      - id: mine.verb\n        match: \"mine.{get,post}\"\n        route: {from: positional, index: 0}\n        methods: {from: match_suffix}\n");
+    const n = byName(rootOf(await analyze(opts(dir, { entrypointRules: [rules] } as Partial<AnalysisOptions>))));
+    expect(n.m?.entrypoints).toEqual([{ framework: "mine", confidence: "certain", rule: "mine.verb", ruleset: `user:${rules}`,
+      evidence: "mine.get", route: "/x", http_methods: ["GET"] }]);
   });
 
   test("heuristic tier: written spelling, no framework needed, keyword methods", async () => {
