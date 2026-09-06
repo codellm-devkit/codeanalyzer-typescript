@@ -125,6 +125,7 @@ function merge(out: RuleSet, data: Raw, origin: string): void {
     if (!isMap(body)) throw new RulesError(`${origin}: framework \`${name}\` must be a mapping`);
     const bad = Object.keys(body).filter((k) => !FRAMEWORK_KEYS.has(k));
     if (bad.length) throw new RulesError(`${origin}: framework \`${name}\`: unknown key(s): ${bad.join(", ")}`);
+    if (body.detect !== undefined && !Array.isArray(body.detect)) throw new RulesError(`${origin}: framework \`${name}\`: \`detect\` must be a list`);
     const fw = (out.frameworks[name] ??= { name, detect: [], decorators: [], bases: [], files: [] });
     fw.detect = [...new Set([...fw.detect, ...list(body.detect).map(String)])].sort();
     for (const raw of list(body.decorators)) fw.decorators.push(decoratorRule(raw, origin));
@@ -174,9 +175,12 @@ function match(raw: Raw, origin: string): string {
   }
   return m;
 }
-function argSpec(v: unknown): ArgSpec | undefined {
+const ARG_FROM: ReadonlySet<string> = new Set(["positional", "keyword", "match_suffix", "export_name"]);
+function argSpec(v: unknown, field: string, origin: string): ArgSpec | undefined {
   if (!isMap(v)) return undefined;
-  const spec: ArgSpec = { from: String(v.from) as ArgSpec["from"] };
+  const from = String(v.from);
+  if (!ARG_FROM.has(from)) throw new RulesError(`${origin}: \`${field}.from\` must be one of positional, keyword, match_suffix, export_name — got ${JSON.stringify(v.from)}`);
+  const spec: ArgSpec = { from: from as ArgSpec["from"] };
   if (typeof v.index === "number") spec.index = v.index;
   if (typeof v.name === "string") spec.name = v.name;
   if (Array.isArray(v.default)) spec.default = v.default.map(String);
@@ -189,11 +193,15 @@ function asRaw(raw: unknown, origin: string): Raw {
 function decoratorRule(raw0: unknown, origin: string): DecoratorRule {
   const raw = asRaw(raw0, origin);
   return { id: String(require(raw, "id", origin)), match: match(raw, origin), confidence: confidence(raw, origin),
-           route: argSpec(raw.route), methods: argSpec(raw.methods), origin };
+           route: argSpec(raw.route, "route", origin), methods: argSpec(raw.methods, "methods", origin), origin };
 }
 function callRule(raw0: unknown, origin: string): CallRule {
   const raw = asRaw(raw0, origin);
-  return { ...decoratorRule(raw, origin), handler: argSpec(raw.handler) ?? { from: "positional", index: -1 } };
+  // `resolveHandler` (matching.ts) only ever reads a positional argument index; a `handler` spec
+  // naming any other `from` would load clean and then silently resolve nothing.
+  const handler = argSpec(raw.handler, "handler", origin) ?? { from: "positional", index: -1 };
+  if (handler.from !== "positional") throw new RulesError(`${origin}: \`handler.from\` must be positional — got ${JSON.stringify(handler.from)}`);
+  return { ...decoratorRule(raw, origin), handler };
 }
 function baseRule(raw0: unknown, origin: string): BaseRule {
   const raw = asRaw(raw0, origin);
@@ -205,7 +213,7 @@ function fileRule(raw0: unknown, origin: string): FileRule {
   const exports = list(require(raw, "exports", origin)).map(String);
   if (!exports.length) throw new RulesError(`${origin}: file rule ${JSON.stringify(raw.id)} needs a non-empty \`exports\``);
   return { id: String(require(raw, "id", origin)), match: String(require(raw, "match", origin)), exports,
-           confidence: confidence(raw, origin), methods: argSpec(raw.methods), origin };
+           confidence: confidence(raw, origin), methods: argSpec(raw.methods, "methods", origin), origin };
 }
 function manifestRule(raw0: unknown, origin: string): ManifestRule {
   const raw = asRaw(raw0, origin);

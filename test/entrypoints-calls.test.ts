@@ -71,4 +71,43 @@ describe("calls: heuristic tier (Express shape)", () => {
     for (const m of Object.values(root.symbol_table)) forEachCallable(m, (c) => { if (c.name === "named") named = c.entrypoints ?? []; });
     expect(named.length).toBe(2);
   });
+
+  test("http_methods excludes non-HTTP tokens: use/all are filtered by python's seven (Important 1)", async () => {
+    const src = [
+      'import express from "express";',
+      "const app = express();",
+      "export function mw(req: unknown, res: unknown, next: unknown): void {}",
+      "app.use(mw);",
+      "app.all('/x', mw);",
+    ].join("\n");
+    const root = rootOf(await analyze(opts(fixture(src))));
+    let mw: unknown[] = [];
+    for (const m of Object.values(root.symbol_table)) forEachCallable(m, (c) => { if (c.name === "mw") mw = c.entrypoints ?? []; });
+    expect(mw).toEqual([
+      expect.objectContaining({ evidence: "app.use", http_methods: [] }),
+      expect.objectContaining({ evidence: "app.all", route: "/x", http_methods: [] }),
+    ]);
+  });
+
+  test("via for a chained call sharing a start position uses callBodyKeys, not the raw line:col (Important 2)", async () => {
+    // `router.get('/a',named).get('/b',named)` inside a callable: both the inner call
+    // (`router.get`) and the outer chained call (`router.get('/a',named).get`) start at the same
+    // token — exactly the case callBodyKeys disambiguates with `/2`.
+    const src = [
+      'import express from "express";',
+      "const router = express.Router();",
+      "export function named(req: unknown, res: unknown): void {}",
+      "function setup() {",
+      "  router.get('/a',named).get('/b',named);",
+      "}",
+    ].join("\n");
+    const root = rootOf(await analyze(opts(fixture(src))));
+    let named: Array<{ via?: string; evidence?: string }> = [];
+    for (const m of Object.values(root.symbol_table)) forEachCallable(m, (c) => { if (c.name === "named") named = (c.entrypoints ?? []) as typeof named; });
+    expect(named).toHaveLength(2);
+    const byEvidence = Object.fromEntries(named.map((e) => [e.evidence, e.via]));
+    expect(byEvidence["router.get('/a',named).get"]).toMatch(/^can:\/\/typescript\/c\/src\/app\.ts\/setup@5:\d+$/);
+    expect(byEvidence["router.get"]).toMatch(/^can:\/\/typescript\/c\/src\/app\.ts\/setup@5:\d+\/2$/);
+    expect(byEvidence["router.get('/a',named).get"]).not.toBe(byEvidence["router.get"]);
+  });
 });
