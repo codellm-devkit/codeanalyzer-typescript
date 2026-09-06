@@ -9,7 +9,7 @@
 import { forEachCallable, forEachType, type AnalysisInternal, type TSCallable, type TSEntrypointReport, type TSType } from "../schema";
 import { importTable, resolveWritten } from "../syntactic_analysis/importResolver";
 import { detectedFrameworks, knownHeads, unnameable } from "./detect";
-import { entrypointsFromBases, entrypointsFromCalls, entrypointsFromDecorators } from "./matching";
+import { entrypointsFromBases, entrypointsFromCalls, entrypointsFromDecorators, entrypointsFromFiles } from "./matching";
 import { EMPTY_RULES, type RuleSet } from "./rules";
 
 export function detectEntrypoints(app: AnalysisInternal, rules: RuleSet = EMPTY_RULES): TSEntrypointReport {
@@ -64,6 +64,21 @@ export function detectEntrypoints(app: AnalysisInternal, rules: RuleSet = EMPTY_
           }
         }
       });
+    }
+
+    // File-convention tier (#161; TS/JS-only, no python analog): per module, per detected
+    // framework's `files:` rules, matched against the module's own file key — BEFORE the decorator
+    // tiers, same as bases above, so a file-rule claim counts as framework-claimed for
+    // never-doubles (`visit`'s `entrypoints.length === 0` gate on the heuristic decorator tier).
+    for (const [fileKey, mod] of Object.entries(app.symbol_table)) {
+      for (const name of frameworks) {
+        const fileRules = rules.frameworks[name]!.files;
+        if (!fileRules.length) continue;
+        for (const { target, ep } of entrypointsFromFiles(mod, fileKey, name, fileRules)) {
+          (target.entrypoints ??= []).push(ep);
+          target.is_entrypoint = target.entrypoints.length > 0;
+        }
+      }
     }
 
     // Framework tier (matches `qualified_name`), then the heuristic tier LAST (matches `name` as

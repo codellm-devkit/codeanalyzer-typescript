@@ -6,7 +6,7 @@
  */
 import { forEachCallable, type TSCallable, type TSCallsite, type TSDecorator, type TSEntrypoint, type TSModule, type TSType } from "../schema";
 import { callBodyKeys } from "../schema/l1Body";
-import type { ArgSpec, BaseRule, CallRule, DecoratorRule } from "./rules";
+import type { ArgSpec, BaseRule, CallRule, DecoratorRule, FileRule } from "./rules";
 
 export class PatternError extends Error {}
 
@@ -236,4 +236,83 @@ export function entrypointsFromBases(
     }
   }
   return { classEps, methodEps };
+}
+
+/**
+ * File-convention tier (#161; python has no analog — TS/JS-only). `match:` is a GLOB (`**` = any
+ * path prefix incl. none, `*` = within one segment, `{a,b}` alternation) tested against the
+ * module's project-relative POSIX file key, not a dotted name — so this gets its own tiny glob
+ * engine rather than reusing `compilePattern`.
+ */
+const globCache = new Map<string, RegExp>();
+export function globToRegExp(glob: string): RegExp {
+  const hit = globCache.get(glob);
+  if (hit) return hit;
+  let out = "";
+  let i = 0;
+  while (i < glob.length) {
+    const ch = glob[i]!;
+    if (glob.startsWith("**/", i)) { out += "(?:.*/)?"; i += 3; }
+    else if (glob.startsWith("**", i)) { out += ".*"; i += 2; }
+    else if (ch === "*") { out += "[^/]*"; i++; }
+    else if (ch === "{") {
+      const j = glob.indexOf("}", i);
+      if (j < 0) throw new PatternError(`unclosed '{' in ${JSON.stringify(glob)}`);
+      out += `(?:${glob.slice(i + 1, j).split(",").map((a) => a.trim().replace(/[.+?^$()|[\]\\]/g, "\\$&")).join("|")})`;
+      i = j + 1;
+    } else { out += ch.replace(/[.+?^$()|[\]\\/]/g, "\\$&"); i++; }
+  }
+  const re = new RegExp(`^${out}$`);
+  globCache.set(glob, re);
+  return re;
+}
+
+/**
+ * A convention, not a contract (#161): strips the glob's literal prefix directory only when it is
+ * `app/` (Next.js app router routes have no other segment worth keeping); `pages/api/...` keeps
+ * its `/api/...` tail since that's the actual served path. Drops the extension and a trailing
+ * `/route` or `/+server` segment; always anchors with a leading `/`; the app root `app/route.ts`
+ * → `/`. `app/users/route.ts` → `/users`; `pages/api/hello.ts` → `/api/hello`;
+ * `src/routes/x/+server.ts` → `/src/routes/x`.
+ */
+export function routeFromFileKey(fileKey: string, glob: string): string {
+  const literalPrefix = glob.split(/[*{]/, 1)[0]!; // "app/", "pages/api/", or "" (no literal prefix)
+  const rest = fileKey.startsWith(literalPrefix) ? fileKey.slice(literalPrefix.length) : fileKey;
+  const noExt = rest.replace(/\.(tsx|ts|jsx|js|mjs|cjs)$/, "");
+  const noTail = noExt.replace(/\/?(route|\+server)$/, "");
+  const prefixDir = literalPrefix.replace(/^app\//, "/").replace(/^pages\//, "/").replace(/\/$/, "");
+  return prefixDir + (noTail ? `/${noTail}` : "") || "/";
+}
+
+/**
+ * File-convention matcher: a rule matches when the module's file key matches its glob. Per name in
+ * `exports`, `"default"` resolves to the exported callable whose declaration text starts with
+ * `export default` (`TSModule.exports` never records these — see `l1Body`/builder notes); any
+ * other name resolves to the exported callable of that exact name. A name with no matching
+ * callable simply yields nothing — a route file legitimately exports only some verbs.
+ */
+export function entrypointsFromFiles(
+  mod: TSModule,
+  fileKey: string,
+  framework: string,
+  rules: readonly FileRule[],
+): Array<{ target: TSCallable; ep: TSEntrypoint }> {
+  const out: Array<{ target: TSCallable; ep: TSEntrypoint }> = [];
+  for (const rule of rules) {
+    if (!globToRegExp(rule.match).test(fileKey)) continue;
+    for (const exp of rule.exports) {
+      const target = Object.values(mod.functions).find((c) => c.is_exported && (exp === "default"
+        ? mod.source.slice(c.span.bytes[0], c.span.bytes[1]).trimStart().startsWith("export default")
+        : c.name === exp));
+      if (!target) continue;
+      out.push({
+        target,
+        ep: {
+          framework, confidence: rule.confidence, rule: rule.id, ruleset: rule.origin, evidence: fileKey,
+          route: routeFromFileKey(fileKey, rule.match), http_methods: methodsOf([], {}, rule.methods, exp),
+        },
+      });
+    }
+  }
+  return out;
 }
