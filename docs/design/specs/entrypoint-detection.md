@@ -86,7 +86,7 @@ part that cannot be ported.
 | --- | --- | --- |
 | NestJS | `@Controller`, `@Get`, `@Post`, `@Injectable` | decorator (python has it) |
 | Angular | `@Component`, `@NgModule`, route arrays | decorator (python has it) |
-| Express / Koa / Fastify | `app.get('/p', handler)` — a CALL, not a decorator | **call-site** |
+| Express / Koa / Fastify | `app.get('/p', handler)` — a CALL, not a decorator | **call-site** (`heuristics.calls`) |
 | Next.js, Remix, SvelteKit | `pages/api/*.ts`, `app/**/route.ts`, `+server.ts` | **file convention** |
 | AWS Lambda / serverless | an exported binding named `handler` | **export name** |
 | CLI tools, npm packages | `bin` / `main` in package.json | **manifest** |
@@ -110,16 +110,145 @@ Two consequences worth deciding explicitly:
 
 Better positioned than python was at the same point:
 
-- **Decorators are structured and checker-resolved** (#143, shipped in v1.2.0). `TSDecorator`
-  carries `qualified_name`, the direct analog of the Jedi definition path python matches on, plus
-  `positional_arguments` and `keyword_arguments` — which is exactly what `route: {from: positional,
-  index: 0}` and `methods: {from: keyword, ...}` need. NestJS and Angular fall straight out.
+- **Decorators are structured** (#143, shipped in v1.2.0): `TSDecorator` carries
+  `positional_arguments` and `keyword_arguments`, which is exactly what `route: {from: positional,
+  index: 0}` and `methods: {from: keyword, ...}` consume. **But they are not resolved** — see
+  "Correction: `qualified_name` is syntactic" below. An earlier draft of this spec, and the #143
+  PR description, called `qualified_name` the analog of the Jedi definition path. That was wrong.
 - **Heritage is resolved** — `extends_ids`/`implements_ids` are `can://` ids, so python's
   `transitive: true` base matching is a graph walk here rather than a name match.
 - **The framework gate has two ready sources** — `TSImport` per module and `TSDependency` from the
   artifact layer (which already records `provides_imports`, and `direct` to distinguish declared
   dependencies from lockfile transitives). Python had to parse manifests by regex; TypeScript does
   not.
+
+## Python 1.4.1 delta, and what it means here
+
+codeanalyzer-python 1.4.1 (#182, #185; design in its #177) changed the entrypoint pass in four
+ways. Each is propagated below, and one of them exposed a defect in the TypeScript decorator
+capture that has to be fixed first.
+
+### Correction: `qualified_name` is syntactic
+
+`TSDecorator.qualified_name` is documented as "checker-resolved FQN when available". It is not.
+It is ts-morph's `Decorator.getFullName()` — the **written expression text** — and the builder
+never consults the checker (`src/syntactic_analysis/builders.ts:178`). Measured:
+
+| decorator as written | `qualified_name` emitted | resolution possible? |
+| --- | --- | --- |
+| `@Controller` from `@nestjs/common`, `--no-build` | `Controller` | no (not installed) |
+| `@http.route` via `import * as http` | `http.route` | no |
+| `@HttpGet` via `import { Get as HttpGet } from "./decorators"` | `HttpGet` | **yes, trivially** |
+
+The last row is decisive: even when the checker could resolve it, the field is the alias as
+typed. So TypeScript has no decorator resolution at all, and `qualified_name` is a second copy of
+`name` with dots.
+
+Two consequences. For entrypoints, every decorator match would be heuristic-grade regardless of
+what a rule claims. For #143, the Neo4j `:TSDecorator` node merges on `qualified_name || name`, so a
+project's local `@Get` and NestJS's `@Get` collapse into **one** node today.
+
+**Fix (its own PR, ahead of the decorator matcher):** `qualified_name` becomes the import-table
+resolution when the decorator's head is an imported binding, and is **absent** otherwise —
+python's exact rule, "Jedi, else the import table, else `None`", minus the Jedi step TypeScript
+does not have. The written spelling stays in `name`. This is a `fix`, not a breaking change — the
+field was documented as resolved and never was — but it changes emitted values, so it ships alone
+and says so.
+
+### The import-table resolver
+
+Derived from `TSImport` (`module`, `name`, `alias`, `import_kind`), per module:
+
+| import | written | resolves to |
+| --- | --- | --- |
+| `import { Get } from "@nestjs/common"` | `Get` | `@nestjs/common.Get` |
+| `import { Get as HttpGet } from "@nestjs/common"` | `HttpGet` | `@nestjs/common.Get` |
+| `import * as http from "some-lib"` | `http.route` | `some-lib.route` |
+| `import express from "express"` | `express.Router` | `express.default.Router` |
+
+Package specifiers are kept verbatim — that is the spelling a rule names. Relative specifiers stay
+relative; a rule for an in-project decorator is a user rule and can name the relative path.
+
+In python this resolver is the *fallback* behind Jedi (every `--no-venv` run). In TypeScript it is
+the **primary** mechanism: there is no checker path to fall back from, and building one is out of
+scope — the import table already answers the question framework rules ask.
+
+### The heuristic tier
+
+Python added a top-level `heuristics:` block: framework-independent decorator rules matched on the
+**written** spelling, no resolution, that run on every node regardless of `frameworks_detected`,
+carry `confidence: heuristic` (forced by the loader), run **last**, and never add a record to a
+node a framework rule already claimed. Its two shipped rules:
+
+```yaml
+heuristics:
+  decorators:
+    - id: heuristic.http-route
+      match: "{route,*.route,*.*.route}"
+      route: {from: positional, index: 0}
+      methods: {from: keyword, name: methods}
+    - id: heuristic.http-verb
+      match: "{*,*.*}.{get,post,put,patch,delete,head,options,websocket}"
+      route: {from: positional, index: 0}
+      methods: {from: match_suffix}
+```
+
+This is the same mechanism the earlier draft of this spec arrived at independently for the
+call-site matcher ("a syntactic L1 match at `confidence: heuristic`"). Python only needed it for
+decorators. Express is a call, so TypeScript needs it for calls too. **Decision: one block, one set
+of semantics, two matcher kinds.**
+
+```yaml
+heuristics:
+  decorators: [...]   # python's two rules, verbatim
+  calls:
+    - id: heuristic.http-verb-call
+      match: "{*,*.*}.{get,post,put,patch,delete,all,use}"
+      route: {from: positional, index: 0}
+      methods: {from: match_suffix}
+      handler: {from: positional, index: last}   # the callable the request reaches
+```
+
+A `calls:` rule matches a call expression's callee as written (`app.get`, `router.post`). The
+entrypoint record attaches to the **handler** callable — the thing invoked from outside — which
+since #92 is a first-class node even when it is an inline arrow. `evidence` is the callee spelling;
+`via` is the id of the module-scope call node, since that is what dispatches here. `use` is
+included deliberately: middleware is reachable from outside just as a route is, and a consumer
+that wants only routes filters on `http_methods`.
+
+`calls:` is a cross-language vocabulary change. Python's loader rejects unknown keys by design
+("fails loudly instead of loading clean and doing nothing", `rules.py:22`), so a shared rules file
+with `calls:` is a hard error there until python accepts it as known-but-unused. Tracked in a
+python issue (see "Cross-repo").
+
+### The unresolved counter
+
+Python's report now counts every decorator and base-class spelling that neither the resolver nor
+the import table can name, excluding what is nameable without either: a builtin, a class declared
+in the module, or a name whose head is an imported binding. It is "the counter that makes silence
+visible; it was never written before" (`pipeline.py`).
+
+Ported with one substitution: JS globals in place of python builtins — a fixed list (`Object`,
+`Error`, `Promise`, `Array`, `Map`, `Set`, `Function`, `Symbol`, `Date`, `RegExp`, and the
+`*Error` family), not `globalThis` at analysis time. Subscripts and generics are stripped before the
+check, as python strips `Generic[T]`. Reported as `unresolved: { "<spelling>": n }`.
+
+### Report to Neo4j
+
+Python projects the report onto its Application node as `entrypoint_frameworks: string[]` and
+`entrypoint_report_json: string` (sorted-key JSON, since Neo4j has no map type). Mirror exactly, on
+`:TSApplication`. Additive; `SCHEMA_VERSION` unmoved.
+
+### Not propagated
+
+- **odoo** rules — no TypeScript counterpart.
+- **`route` may be a list** (odoo's `@http.route(["/a", "/b"])`) — the first string wins. Harmless
+  to support; not a shipped TypeScript rule needs it, so it is loader behaviour, not a design point.
+
+### Cross-repo
+
+One python issue: accept `heuristics.calls` in `rules.py`'s loader as a known key that python does
+not act on, so one rules file loads in both analyzers. Filed alongside this amendment.
 
 ## Why #72 needs reframing
 
@@ -151,18 +280,20 @@ or close it in favour of a new issue.
 
 Tracking follows PR granularity; file each just-in-time.
 
-1. Schema + Neo4j projection + the level-free post-pass skeleton, emitting an empty report. Lands
-   the contract; provably additive.
+0. **Fix `qualified_name`** — import-table resolution or absent. Its own PR, first: it changes
+   emitted values and corrects #143's node-merge collapse, independently of entrypoints.
+1. Schema + Neo4j projection (including the report on `:TSApplication`) + the level-free post-pass
+   skeleton, emitting an empty report. Lands the contract; provably additive.
 2. Stage-0 framework gate over `TSImport` ∪ `TSDependency`, with the report's
-   `frameworks_detected`.
-3. Rules file format + loader + `--entrypoint-rules`, with the decorator matcher. Ships NestJS and
-   Angular, which is the majority of decorator-declared TypeScript entrypoints.
+   `frameworks_detected`, and the unresolved counter.
+3. Rules file format + loader + `--entrypoint-rules`, with the decorator matcher AND the
+   `heuristics:` block (`decorators:` + `calls:`). Ships NestJS, Angular, and heuristic Express in
+   one unit, because the heuristic tier is the same loader and the same match engine.
 4. Base-class matcher over resolved heritage, with `dispatch:` and `via:`.
-5. Call-site, file-convention and manifest matchers — the TypeScript-specific ones, each with its
-   own confidence grading.
+5. File-convention and manifest matchers — the remaining TypeScript-specific ones.
 
-Units 1-3 are independently useful: a NestJS or Angular codebase gets correct, gated, reported
-entrypoints without any of the TypeScript-specific matchers existing.
+Units 0-3 are independently useful: a NestJS, Angular or Express codebase gets correct, gated,
+reported entrypoints without file-convention or manifest matching existing.
 
 ## Open questions
 
