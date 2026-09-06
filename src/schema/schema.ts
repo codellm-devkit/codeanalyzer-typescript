@@ -381,6 +381,8 @@ export interface TSModule {
   content_hash?: string;
   last_modified?: number;
   file_size?: number;
+  /** INTERNAL (#72 unit 3): top-level call sites, for the `calls:` entrypoint tier. Stripped by emit.ts. */
+  call_sites?: TSCallsite[];
 }
 
 // ----------------------------------------------------------------------------------------------
