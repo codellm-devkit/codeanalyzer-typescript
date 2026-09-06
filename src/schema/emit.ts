@@ -65,6 +65,7 @@ function stripInternal(root: TSApplication): void {
     // a full re-upsert. codeanalyzer-python keeps it for the same reason (schema/py_schema.py).
     delete mod["last_modified"];
     delete mod["file_size"];
+    delete mod["call_sites"];
     for (const fn of Object.values((mod["functions"] as Record<string, Record<string, unknown>>) ?? {})) stripCallable(fn);
     for (const t of Object.values((mod["types"] as Record<string, Record<string, unknown>>) ?? {})) stripType(t);
   }

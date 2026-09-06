@@ -1114,6 +1114,16 @@ export function buildModule(sf: Node, root: string): TSModule {
   // schema-v2: retain the whole file text once on the module; every node's text slices off it.
   const source = (sf as unknown as { getFullText: () => string }).getFullText();
   const endLc = sf.getSourceFile().getLineAndColumnAtPos(source.length);
+  // Module-scope call sites (#72 unit 3): the same body walker `buildCallable` uses, run over the
+  // whole file. `namedBoundary` already stops it at every nested function/class/namespace — those
+  // own their own call sites — so a no-op onNestedCallable/onNestedClass is exactly "don't descend".
+  const call_sites: TSCallsite[] = [];
+  walkBody(sf, {
+    onCall: (n) => call_sites.push(buildCallsite(n)),
+    onConfigAccess: () => {},
+    onNestedCallable: () => {},
+    onNestedClass: () => {},
+  });
   return {
     id: "",
     kind: "module",
@@ -1125,5 +1135,6 @@ export function buildModule(sf: Node, root: string): TSModule {
     ...buckets,
     is_tsx: filePath.endsWith(".tsx"),
     is_declaration_file: (sf as unknown as { isDeclarationFile: () => boolean }).isDeclarationFile(),
+    call_sites,
   };
 }

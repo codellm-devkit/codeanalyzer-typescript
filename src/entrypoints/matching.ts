@@ -4,8 +4,8 @@
  * Patterns are dotted names: `{a,b}` alternates (a `*` inside an alternative keeps its meaning),
  * `*` matches ONE dotless segment, everything else is literal, and the match is anchored.
  */
-import type { TSDecorator, TSEntrypoint } from "../schema";
-import type { ArgSpec, DecoratorRule } from "./rules";
+import { forEachCallable, type TSCallable, type TSCallsite, type TSDecorator, type TSEntrypoint, type TSModule } from "../schema";
+import type { ArgSpec, CallRule, DecoratorRule } from "./rules";
 
 export class PatternError extends Error {}
 
@@ -123,4 +123,57 @@ export function entrypointsFromDecorators(
     }
   }
   return out;
+}
+
+const INLINE = /^(async\s*)?(\(|function\b|[A-Za-z_$][\w$]*\s*=>)/;
+
+/**
+ * Calls tier (python parity): a module-scope call (`app.get('/p', handler)`) whose written
+ * receiver.method matches a `heuristics.calls` rule attaches the record to the HANDLER argument's
+ * callable, not to the call site itself — the call site has no `entrypoints` of its own.
+ */
+export function entrypointsFromCalls(
+  mod: TSModule,
+  rules: readonly CallRule[],
+  unresolved: (key: string) => void,
+): Array<{ target: TSCallable; ep: TSEntrypoint }> {
+  const out: Array<{ target: TSCallable; ep: TSEntrypoint }> = [];
+  const callables: TSCallable[] = [];
+  // Every call in the file: module-scope (mod.call_sites, this task) plus each callable's own
+  // (already captured by buildCallable, independent of this task) — a nested `app.delete(...)`
+  // inside a function is a call site on THAT callable, not on the module.
+  const sites: TSCallsite[] = [...(mod.call_sites ?? [])];
+  forEachCallable(mod, (c) => { callables.push(c); sites.push(...c.call_sites); });
+  for (const site of sites) {
+    const written = site.receiver_expr ? `${site.receiver_expr}.${site.method_name}` : site.method_name;
+    for (const rule of rules) {
+      if (!matchPattern(rule.match, written)) continue;
+      const target = resolveHandler(site, rule, callables);
+      if (!target) { unresolved(written); continue; }
+      const ep: TSEntrypoint = {
+        framework: "heuristic", confidence: rule.confidence, rule: rule.id, ruleset: rule.origin, evidence: written,
+        http_methods: methodsOf(site.arguments, {}, rule.methods, written),
+        via: `${mod.id}@${site.start_line}:${site.start_column}`,
+      };
+      const route = routeOf(site.arguments, rule.route);
+      if (route !== undefined) ep.route = route;
+      out.push({ target, ep });
+    }
+  }
+  return out;
+}
+
+function resolveHandler(site: TSCallsite, rule: CallRule, callables: readonly TSCallable[]): TSCallable | undefined {
+  const idx = rule.handler.index ?? -1;
+  const raw = site.arguments[idx < 0 ? site.arguments.length + idx : idx]?.trim();
+  if (!raw) return undefined;
+  if (/^[A-Za-z_$][\w$]*$/.test(raw)) return callables.find((c) => c.name === raw);
+  if (INLINE.test(raw)) {
+    const inside = callables.filter((c) => c.name === "(anonymous)" &&
+      (c.span.start[0] > site.start_line || (c.span.start[0] === site.start_line && c.span.start[1] >= site.start_column)) &&
+      (c.span.start[0] < site.end_line || (c.span.start[0] === site.end_line && c.span.start[1] <= site.end_column)));
+    inside.sort((a, b) => a.span.start[0] - b.span.start[0] || a.span.start[1] - b.span.start[1]);
+    return inside[0];
+  }
+  return undefined;
 }

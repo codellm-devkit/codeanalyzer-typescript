@@ -8,7 +8,7 @@
  */
 import { forEachCallable, forEachType, type AnalysisInternal, type TSCallable, type TSEntrypointReport, type TSType } from "../schema";
 import { detectedFrameworks, knownHeads, unnameable } from "./detect";
-import { entrypointsFromDecorators } from "./matching";
+import { entrypointsFromCalls, entrypointsFromDecorators } from "./matching";
 import { EMPTY_RULES, type RuleSet } from "./rules";
 
 export function detectEntrypoints(app: AnalysisInternal, rules: RuleSet = EMPTY_RULES): TSEntrypointReport {
@@ -49,6 +49,16 @@ export function detectEntrypoints(app: AnalysisInternal, rules: RuleSet = EMPTY_
     for (const mod of Object.values(app.symbol_table)) {
       forEachCallable(mod, (c) => visit(c));
       forEachType(mod, (t) => { if (t.kind === "class") visit(t); });
+    }
+
+    // Calls tier (python parity): module-scope `app.get('/p', handler)` shapes attach to the
+    // HANDLER, last, and never double a node a FRAMEWORK rule already claimed.
+    for (const mod of Object.values(app.symbol_table)) {
+      for (const { target, ep } of entrypointsFromCalls(mod, rules.heuristics.calls, bump)) {
+        if ((target.entrypoints ?? []).some((e) => e.framework !== "heuristic")) continue;
+        (target.entrypoints ??= []).push(ep);
+        target.is_entrypoint = true;
+      }
     }
   } catch (e) {
     report.errors.push((e as Error).message);
