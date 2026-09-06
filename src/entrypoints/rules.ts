@@ -62,6 +62,8 @@ export interface Framework {
   decorators: DecoratorRule[];
   bases: BaseRule[];
   files: FileRule[];
+  /** Framework-tier call rules (#167): gated on `detect:`, matched on the import-table-RESOLVED callee, default `certain`. */
+  calls: CallRule[];
 }
 
 export interface RuleSet {
@@ -88,7 +90,7 @@ const CONFIDENCE: ReadonlySet<string> = new Set(["declared", "certain", "heurist
 // loudly instead of loading clean and doing nothing.
 const TOP_LEVEL = new Set(["version", "frameworks", "heuristics", "manifest", "disable"]);
 const HEURISTIC_KEYS = new Set(["decorators", "calls"]);
-const FRAMEWORK_KEYS = new Set(["detect", "decorators", "bases", "files"]);
+const FRAMEWORK_KEYS = new Set(["detect", "decorators", "bases", "files", "calls"]);
 
 type Raw = Record<string, unknown>;
 
@@ -126,11 +128,13 @@ function merge(out: RuleSet, data: Raw, origin: string): void {
     const bad = Object.keys(body).filter((k) => !FRAMEWORK_KEYS.has(k));
     if (bad.length) throw new RulesError(`${origin}: framework \`${name}\`: unknown key(s): ${bad.join(", ")}`);
     if (body.detect !== undefined && !Array.isArray(body.detect)) throw new RulesError(`${origin}: framework \`${name}\`: \`detect\` must be a list`);
-    const fw = (out.frameworks[name] ??= { name, detect: [], decorators: [], bases: [], files: [] });
+    const fw = (out.frameworks[name] ??= { name, detect: [], decorators: [], bases: [], files: [], calls: [] });
     fw.detect = [...new Set([...fw.detect, ...list(body.detect).map(String)])].sort();
     for (const raw of list(body.decorators)) fw.decorators.push(decoratorRule(raw, origin));
     for (const raw of list(body.bases)) fw.bases.push(baseRule(raw, origin));
     for (const raw of list(body.files)) fw.files.push(fileRule(raw, origin));
+    // NOT forced heuristic: a framework call rule is gated and resolved, so it earns its confidence.
+    for (const raw of list(body.calls)) fw.calls.push(callRule(raw, origin));
   }
 
   const heuristics = data.heuristics ?? {};
@@ -146,6 +150,7 @@ function merge(out: RuleSet, data: Raw, origin: string): void {
     fw.decorators = fw.decorators.filter((r) => !disabled.has(r.id));
     fw.bases = fw.bases.filter((r) => !disabled.has(r.id));
     fw.files = fw.files.filter((r) => !disabled.has(r.id));
+    fw.calls = fw.calls.filter((r) => !disabled.has(r.id));
   }
   out.heuristics.decorators = out.heuristics.decorators.filter((r) => !disabled.has(r.id));
   out.heuristics.calls = out.heuristics.calls.filter((r) => !disabled.has(r.id));

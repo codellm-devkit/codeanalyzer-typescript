@@ -135,10 +135,18 @@ const INLINE = /^(async\s*)?(\(|function\b|[A-Za-z_$][\w$]*\s*=>)/;
  * receiver.method matches a `heuristics.calls` rule attaches the record to the HANDLER argument's
  * callable, not to the call site itself — the call site has no `entrypoints` of its own.
  */
+/**
+ * Two tiers, like decorators (#167): the FRAMEWORK tier passes `resolve` and matches the
+ * import-table-resolved callee (`app.on` → `electron.app.on`), so `app.on` in an Express app cannot
+ * register as Electron; the HEURISTIC tier passes none and matches the written spelling. A callee
+ * the resolver cannot name is skipped by the framework tier — never matched on its written form.
+ */
 export function entrypointsFromCalls(
   mod: TSModule,
   rules: readonly CallRule[],
   unresolved: (key: string) => void,
+  framework = "heuristic",
+  resolve?: (written: string) => string | undefined,
 ): Array<{ target: TSCallable; ep: TSEntrypoint }> {
   const out: Array<{ target: TSCallable; ep: TSEntrypoint }> = [];
   const callables: TSCallable[] = [];
@@ -156,13 +164,15 @@ export function entrypointsFromCalls(
   });
   for (const { owner, key, site } of sites) {
     const written = site.receiver_expr ? `${site.receiver_expr}.${site.method_name}` : site.method_name;
+    const candidate = resolve ? resolve(written) : written;
+    if (candidate === undefined) continue; // framework tier: an unresolvable callee is not a match
     for (const rule of rules) {
-      if (!matchPattern(rule.match, written)) continue;
+      if (!matchPattern(rule.match, candidate)) continue;
       const target = resolveHandler(site, rule, callables);
-      if (!target) { unresolved(written); continue; }
+      if (!target) { unresolved(candidate); continue; }
       const ep: TSEntrypoint = {
-        framework: "heuristic", confidence: rule.confidence, rule: rule.id, ruleset: rule.origin, evidence: written,
-        http_methods: methodsOf(site.arguments, {}, rule.methods, written),
+        framework, confidence: rule.confidence, rule: rule.id, ruleset: rule.origin, evidence: candidate,
+        http_methods: methodsOf(site.arguments, {}, rule.methods, candidate),
         via: `${owner}${key}`,
       };
       const route = routeOf(site.arguments, rule.route);
