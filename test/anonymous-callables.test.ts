@@ -123,6 +123,32 @@ describe("anonymous callables are first-class (issue #92)", () => {
     expect(reaches.has(callKey)).toBe(true);
   });
 
+  test("class property calls preserve initializer and constructor-assignment candidates", () => {
+    const holder = mod.types["CallbackHolder"]?.callables?.["run"];
+    if (!holder) throw new Error("CallbackHolder.run is missing");
+    const targets = root.call_graph
+      .filter((edge) => edge.src === holder.id)
+      .map((edge) => edge.dst);
+    expect(targets).toContain((fns["initializedCallback"] as TSCallable).id);
+    expect(targets).toContain((fns["assignedCallback"] as TSCallable).id);
+
+    const callbackCall = Object.values(holder.body).find(
+      (node) => node.kind === "call" && node.method_name === "callback",
+    );
+    expect(callbackCall?.callee).toBeNull();
+  });
+
+  test("parameter properties and body-bearing constructor overloads resolve callbacks", () => {
+    const assignedId = (fns["assignedCallback"] as TSCallable).id;
+    for (const className of ["ParameterHolder", "OverloadedHolder"]) {
+      const run = mod.types[className]?.callables?.["run"];
+      if (!run) throw new Error(`${className}.run is missing`);
+      expect(root.call_graph).toContainEqual(
+        expect.objectContaining({ src: run.id, dst: assignedId }),
+      );
+    }
+  });
+
   test("no call-graph endpoint dangles", () => {
     expect(dangling).toEqual([]);
   });
