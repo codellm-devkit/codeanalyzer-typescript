@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { analyze } from "./core";
 import { parseArgs } from "./cli";
+import { RulesError } from "./entrypoints";
 import { emit, emitSchema } from "./utils";
 
 async function main(): Promise<void> {
@@ -14,6 +15,11 @@ async function main(): Promise<void> {
     const result = await analyze(opts);
     await emit(result.application, opts);
   } catch (e) {
+    if (e instanceof RulesError) {
+      // A user configuration error, not an analyzer bug: no stack trace, no "FATAL".
+      process.stderr.write(`[codeanalyzer-ts] ${e.message}\n`);
+      process.exit(1);
+    }
     const err = e as Error;
     process.stderr.write(`[codeanalyzer-ts] FATAL ${err.stack ?? err.message}\n`);
     process.exit(1);

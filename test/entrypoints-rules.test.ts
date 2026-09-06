@@ -45,6 +45,14 @@ describe("rules loader", () => {
     expect(() => loadRules([tmp("version: 1\nframeworks:\n  x:\n    decorators:\n      - id: x.a\n        match: '{a'\n")])).toThrow(RulesError);
     expect(() => loadRules([tmp("version: 1\nframeworks:\n  x:\n    decorators:\n      - {id: x.a, match: a, confidence: maybe}\n")])).toThrow(/confidence/);
     expect(() => loadRules([tmp("version: 1\nheuristics:\n  bogus: []\n")])).toThrow(/unknown heuristics key/);
+    // ArgSpec.from is validated, not passed through String() unchecked: a typo must not load clean
+    // and silently yield [] / positional-last (#issue-157 unit 3, Important 3).
+    expect(() => loadRules([tmp("version: 1\nframeworks:\n  x:\n    decorators:\n      - {id: x.a, match: a, methods: {from: match_sufix}}\n")])).toThrow(/from/);
+    expect(() => loadRules([tmp("version: 1\nheuristics:\n  calls:\n    - {id: h.a, match: a, handler: {from: keyword}}\n")])).toThrow(/handler/);
+  });
+
+  test("`detect` must be a list, not a bare scalar (Minor 1)", () => {
+    expect(() => loadRules([tmp("version: 1\nframeworks:\n  x:\n    detect: \"@x/y\"\n")])).toThrow(/`detect` must be a list/);
   });
 
   test("--entrypoint-rules is repeatable and lands in options", () => {
