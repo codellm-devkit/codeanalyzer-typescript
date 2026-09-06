@@ -6,7 +6,8 @@
  * No I/O: the writers (cypher snapshot / bolt incremental) consume the returned `GraphRows`.
  *
  * The graph is a second projection of the SAME v2 envelope the JSON path emits (finalizeAnalysis),
- * so JSON and graph never diverge. Every project-owned node carries `_module` (its owning file key,
+ * so JSON and graph never diverge. Every project-owned node passes `_module` (its owning file key)
+ * to the RowBuilder, which lifts it OFF the graph into NodeRow.module for the incremental diff (#140);
  * for the incremental writer's per-module isolation); shared nodes (External) carry none.
  */
 

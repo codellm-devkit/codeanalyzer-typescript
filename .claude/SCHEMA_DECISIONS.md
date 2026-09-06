@@ -163,3 +163,13 @@ an unresolved read is `reason: "non-literal"` (key never closes on one literal) 
 | I2 | **`TSCallableParameter.id`** = `<callable-id>@formal_in:<i>`, present at EVERY level | a forward reference below L4 to the vertex that carries the parameter; at L4 `body["@formal_in:i"].id === parameters[i].id` and `.of === parameters[i].name` | python emits it at every level for the same reason; consumers key parameter flow on it before L4 exists |
 | I3 | **One definition**: `globalOrdinal` in `src/schema/ids.ts`; `project.ts` and `attach.ts` delegate | the rule used to live in two private `fq` copies | two copies of a join key drift; the agreement test pins JSON `id` == graph merge key |
 | I4 | **`SCHEMA_VERSION` unmoved** (2.0.0) | additive fields; no label/relationship/property change in the graph | #144: one version until every analyzer re-baselines together |
+
+## Prefix-scoped destructive statements (2026-09-06, #140 — org spec `2026-09-02-prune-scope-on-can-id-prefix.md`)
+
+| # | Concept | Decision | Rationale |
+|---|---|---|---|
+| P1 | **Every destructive statement scopes on the `can://` id prefix**: the node by equality, descendants by `id + '/'` | `--eager` purge, per-module purge, orphan prune (bolt) and the snapshot wipe (cypher) | `_module` was application-blind: two apps sharing a file key deleted each other's nodes. A bare `STARTS WITH id` is wrong too — it also matches `…/foo.tsx` under `…/foo.ts`, and `appXtra` under `app` |
+| P2 | **`_module` retired from the graph**; `NodeRow.module` keeps the grouping in memory | the incremental diff is keyed by module id inside the app prefixes | the property carried no scope; the id carries language, app and file |
+| P3 | **Markers `TSCanNode` / `JSCanNode`** on every `can://<lang>/` id, with a range index on `id` each | index anchors only; anchor label chosen from the id's own namespace | property indexes are label-scoped; `STARTS WITH` seeks only on a range index. Two markers because this analyzer emits two namespaces. `CanNode` stays until #95 |
+| P4 | **Empty application refused** (`applicationPrefixes` throws) | on any push: the diff itself is app-scoped | `STARTS WITH ''` matches the whole store |
+| P5 | **`SCHEMA_VERSION` stays 2.0.0** despite a removed property | supersedes #140's "MAJOR bump" goal | #144 / python #186: one version until every analyzer re-baselines together |

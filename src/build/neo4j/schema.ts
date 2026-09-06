@@ -40,7 +40,10 @@ export interface RelType {
 }
 
 /** Labels layered onto a node in addition to its primary/specific label. */
-export const MARKER_LABELS = [] as const;
+// One per language namespace this analyzer emits (#140): `TSCanNode` on every `can://typescript/`
+// id, `JSCanNode` on every `can://javascript/` id. Index anchors for the prefix-scoped destructive
+// statements — they carry no safety claim of their own. Alongside `CanNode` until #95 retires it.
+export const MARKER_LABELS = ["TSCanNode", "JSCanNode"] as const;
 
 /** The namespace prefix every specific node label and relationship type carries at 2.0.0 (#66). */
 export const TS_PREFIX = "TS";
@@ -49,7 +52,9 @@ export const TS_PREFIX = "TS";
 const CAN = "CanNode";
 const SPAN = { start_line: "integer", end_line: "integer" } as const;
 /** Every can://-keyed node carries these. */
-const COMMON = { id: "string", kind: "string", _module: "string" } as const;
+// `_module` is gone from the graph (#140): scope is the `can://` id prefix. The writer keeps the
+// grouping in memory (NodeRow.module).
+const COMMON = { id: "string", kind: "string" } as const;
 
 export const NODE_LABELS: NodeLabel[] = [
   {
@@ -91,7 +96,7 @@ export const NODE_LABELS: NodeLabel[] = [
     // A decorator APPLICATION's shared target (#82, python `:PyDecorator` parity). Merged on the
     // resolved `qualified_name` when the checker supplies one, so `@Get` and `@Get(':id')` land on
     // one node instead of two. Per-application facts (the arguments) ride on TS_DECORATED_BY, not
-    // here: this node is shared across modules, carries no `_module`, and is never pruned, so
+    // here: this node is shared across modules, lives outside every `can://<lang>/` prefix, and is never pruned, so
     // anything application-specific on it would accumulate across every project in the database.
     label: "TSDecorator",
     mergeLabel: "TSDecorator",
@@ -265,9 +270,10 @@ export const INDEXES: readonly string[] = [
   // Mirrors python's `py_code_fts` — a declaration's text is only useful in the graph if it is searchable.
   "CREATE FULLTEXT INDEX ts_code_fts IF NOT EXISTS FOR (c:TSCallable) ON EACH [c.code]",
   "CREATE INDEX cannode_kind IF NOT EXISTS FOR (n:CanNode) ON (n.kind)",
-  // Backs the bolt writer's per-module edge-delete + vanished-decl sweep, which anchor on
-  // `(:CanNode {_module})` — without this they would scan the whole node store.
-  "CREATE INDEX cannode_module IF NOT EXISTS FOR (n:CanNode) ON (n._module)",
+  // Back every destructive statement (#140): `id STARTS WITH $prefix` seeks on a range index only
+  // when anchored on a label that has one. `STARTS WITH` is index-backed; CONTAINS/ENDS WITH are not.
+  "CREATE INDEX tscannode_id IF NOT EXISTS FOR (n:TSCanNode) ON (n.id)",
+  "CREATE INDEX jscannode_id IF NOT EXISTS FOR (n:JSCanNode) ON (n.id)",
 ];
 
 export interface SchemaDocument {

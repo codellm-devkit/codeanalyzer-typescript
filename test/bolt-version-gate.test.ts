@@ -16,8 +16,9 @@ describe("--eager purge is scoped to this analyzer AND this app (#116)", () => {
   // so that predicate described THEIR nodes exactly: pointing cants at a shared database deleted
   // the python and java graphs. It only failed loudly because the delete exhausted transaction
   // memory and rolled back.
-  test("anchors on :CanNode, so a sibling analyzer's nodes can never match", () => {
-    expect(EAGER_PURGE).toContain("MATCH (n:CanNode)");
+  test("anchors on this analyzer's own marker and a /-terminated prefix, so no sibling or sibling-app node can match (#140)", () => {
+    expect(EAGER_PURGE).toContain("MATCH (n:TSCanNode)");
+    expect(EAGER_PURGE).toContain("STARTS WITH $prefix");
     // The lethal shape: reaching nodes by the ABSENCE of our own marker.
     expect(EAGER_PURGE).not.toContain("NOT n:CanNode");
     expect(EAGER_PURGE).not.toContain("_module IS NOT NULL");
