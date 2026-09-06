@@ -55,6 +55,12 @@ describe("rules loader", () => {
     expect(() => loadRules([tmp("version: 1\nframeworks:\n  x:\n    detect: \"@x/y\"\n")])).toThrow(/`detect` must be a list/);
   });
 
+  test("a file rule's glob is validated at load, not at detection time (Minor 4)", () => {
+    expect(() => loadRules([tmp(
+      "version: 1\nframeworks:\n  x:\n    files:\n      - {id: x.a, match: \"app/**/{route.ts\", exports: [default]}\n",
+    )])).toThrow(RulesError);
+  });
+
   test("--entrypoint-rules is repeatable and lands in options", () => {
     const o = parseArgs(["-i", ".", "--entrypoint-rules", "a.yml", "--entrypoint-rules", "b.yml"]);
     expect(o.entrypointRules).toEqual(["a.yml", "b.yml"]);

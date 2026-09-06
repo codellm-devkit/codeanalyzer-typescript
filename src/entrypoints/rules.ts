@@ -79,7 +79,7 @@ export const EMPTY_RULES: RuleSet = { frameworks: {}, heuristics: { decorators: 
 // --- loader (Task 3) --------------------------------------------------------------------------
 import * as fs from "node:fs";
 import { parse as parseYaml } from "yaml";
-import { PatternError, validatePattern } from "./matching";
+import { PatternError, globToRegExp, validatePattern } from "./matching";
 import SHIPPED_YAML from "./rules.yml" with { type: "text" };
 
 const CONFIDENCE: ReadonlySet<string> = new Set(["declared", "certain", "heuristic"]);
@@ -212,7 +212,12 @@ function fileRule(raw0: unknown, origin: string): FileRule {
   const raw = asRaw(raw0, origin);
   const exports = list(require(raw, "exports", origin)).map(String);
   if (!exports.length) throw new RulesError(`${origin}: file rule ${JSON.stringify(raw.id)} needs a non-empty \`exports\``);
-  return { id: String(require(raw, "id", origin)), match: String(require(raw, "match", origin)), exports,
+  const matchGlob = String(require(raw, "match", origin));
+  try { globToRegExp(matchGlob); } catch (e) {
+    if (e instanceof PatternError) throw new RulesError(`${origin}: file rule ${JSON.stringify(raw.id ?? raw)}: ${e.message}`);
+    throw e;
+  }
+  return { id: String(require(raw, "id", origin)), match: matchGlob, exports,
            confidence: confidence(raw, origin), methods: argSpec(raw.methods, "methods", origin), origin };
 }
 function manifestRule(raw0: unknown, origin: string): ManifestRule {

@@ -286,27 +286,60 @@ export function routeFromFileKey(fileKey: string, glob: string): string {
   return prefixDir + (noTail ? `/${noTail}` : "") || "/";
 }
 
+const DEFAULT_NAMED_EXPORT = /^\s*export\s+default\s+([A-Za-z_$][\w$]*)\s*;?\s*$/m;
+const DEFAULT_EXPORT_TOKEN = /export\s+default\s+/g;
+
+/**
+ * Two spellings the direct-declaration check above misses (findings, unit 5 review): `export
+ * default handler;` naming a callable declared elsewhere (the identifier need not itself be
+ * `is_exported`), and `export default (…) => {}`/`export default async (…) => {}` whose anonymous
+ * callable's span starts right after the `export default ` token, not at `export`.
+ */
+function resolveDefaultExport(mod: TSModule): TSCallable | undefined {
+  const named = mod.source.match(DEFAULT_NAMED_EXPORT);
+  if (named) {
+    const target = Object.values(mod.functions).find((c) => c.name === named[1]);
+    if (target) return target;
+  }
+  DEFAULT_EXPORT_TOKEN.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = DEFAULT_EXPORT_TOKEN.exec(mod.source))) {
+    const end = m.index + m[0].length;
+    const target = Object.values(mod.functions).find((c) => c.name === "(anonymous)" && c.span.bytes[0] === end);
+    if (target) return target;
+  }
+  return undefined;
+}
+
 /**
  * File-convention matcher: a rule matches when the module's file key matches its glob. Per name in
  * `exports`, `"default"` resolves to the exported callable whose declaration text starts with
- * `export default` (`TSModule.exports` never records these — see `l1Body`/builder notes); any
- * other name resolves to the exported callable of that exact name. A name with no matching
- * callable simply yields nothing — a route file legitimately exports only some verbs.
+ * `export default` (`TSModule.exports` never records these — see `l1Body`/builder notes); failing
+ * that, `resolveDefaultExport` tries the `export default <name>;` and anonymous-inline spellings.
+ * Any other name resolves to the exported callable of that exact name. A name with no matching
+ * callable yields nothing for that name — a route file legitimately exports only some verbs — EXCEPT
+ * `"default"`, whose continued absence is counted via `unresolved` so a missed default export isn't
+ * silent.
  */
 export function entrypointsFromFiles(
   mod: TSModule,
   fileKey: string,
   framework: string,
   rules: readonly FileRule[],
+  unresolved: (key: string) => void,
 ): Array<{ target: TSCallable; ep: TSEntrypoint }> {
   const out: Array<{ target: TSCallable; ep: TSEntrypoint }> = [];
   for (const rule of rules) {
     if (!globToRegExp(rule.match).test(fileKey)) continue;
     for (const exp of rule.exports) {
-      const target = Object.values(mod.functions).find((c) => c.is_exported && (exp === "default"
+      let target = Object.values(mod.functions).find((c) => c.is_exported && (exp === "default"
         ? mod.source.slice(c.span.bytes[0], c.span.bytes[1]).trimStart().startsWith("export default")
         : c.name === exp));
-      if (!target) continue;
+      if (!target && exp === "default") target = resolveDefaultExport(mod);
+      if (!target) {
+        if (exp === "default") unresolved(`${fileKey}#default`);
+        continue;
+      }
       out.push({
         target,
         ep: {
@@ -322,13 +355,24 @@ export function entrypointsFromFiles(
 /**
  * Manifest tier (#161; python has no analog): `package.json` is read from the artifact layer
  * (keyed by repo-relative path — the artifact record for the root manifest is always `"package.json"`),
- * falling back to disk when the artifact layer has no record (e.g. repo sections skipped).
+ * falling back to disk when the artifact layer has no record OR recorded an empty `source`
+ * (`--no-artifact-text` stores `""`, not absence — `||`, not `??`, so that case still falls
+ * through to disk instead of silently disabling this whole tier).
+ *
+ * Returns `undefined` when there is no manifest text at all (nothing to report), or `{ error:
+ * true }` when text existed but did not parse as a JSON object (a malformed manifest — counted by
+ * the caller, not swallowed).
  */
-function manifestOf(app: AnalysisInternal, input: string): Record<string, unknown> | undefined {
+function manifestOf(app: AnalysisInternal, input: string): { pkg: Record<string, unknown> } | { error: true } | undefined {
   const text = app.artifacts?.["package.json"]?.source
-    ?? (() => { try { return fs.readFileSync(path.join(input, "package.json"), "utf8"); } catch { return undefined; } })();
+    || (() => { try { return fs.readFileSync(path.join(input, "package.json"), "utf8"); } catch { return undefined; } })();
   if (!text) return undefined;
-  try { const j = JSON.parse(text); return typeof j === "object" && j ? (j as Record<string, unknown>) : undefined; } catch { return undefined; }
+  try {
+    const j = JSON.parse(text);
+    return typeof j === "object" && j ? { pkg: j as Record<string, unknown> } : { error: true };
+  } catch {
+    return { error: true };
+  }
 }
 
 const EXTS = ["", ".ts", ".tsx", ".js", ".mjs", ".cjs"];
@@ -354,8 +398,10 @@ export function entrypointsFromManifest(
   unresolved: (key: string) => void,
 ): Array<{ target: TSCallable; ep: TSEntrypoint }> {
   const out: Array<{ target: TSCallable; ep: TSEntrypoint }> = [];
-  const pkg = manifestOf(app, input);
-  if (!pkg) return out;
+  const result = manifestOf(app, input);
+  if (!result) return out;
+  if ("error" in result) { unresolved("package.json"); return out; }
+  const pkg = result.pkg;
   for (const rule of rules) {
     const raw = pkg[rule.field];
     const paths: string[] = typeof raw === "string" ? [raw]
@@ -365,7 +411,7 @@ export function entrypointsFromManifest(
       const key = moduleForPath(app, p);
       const mod = key ? app.symbol_table[key] : undefined;
       if (!mod) { unresolved(`package.json#${rule.field}:${p}`); continue; }
-      const free = new Map(Object.values(mod.functions ?? {}).map((c) => [c.name, c] as const));
+      const free = new Map(Object.values(mod.functions).map((c) => [c.name, c] as const));
       let hit = false;
       for (const site of mod.call_sites ?? []) {
         if (site.receiver_expr) continue;

@@ -43,6 +43,31 @@ describe("manifest matcher", () => {
     expect(root.entrypoint_report.unresolved).toEqual({ "package.json#main:dist/nope.js": 1 });
   });
 
+  // Important 1 (unit 5 review): `--no-artifact-text` stores `source: ""` on the artifact record,
+  // not absence — `manifestOf`'s old `??` fallback treated "" as present and never fell through to
+  // disk, silently disabling this whole tier. Same fixture/assertion as the first test above, run
+  // with text capture off.
+  test("--no-artifact-text still resolves the manifest tier via the disk fallback", async () => {
+    const dir = fixture({
+      "package.json": JSON.stringify({ name: "x", main: "dist/index.js", bin: { cli: "./dist/cli.js" } }),
+      "src/index.ts": "export function boot(): void {}\nboot();\nconsole.log('x');",
+      "src/cli.ts": "import { boot } from './index';\nfunction run(): void { boot(); }\nrun();",
+      "src/lib.ts": "export function unused(): void {}",
+    });
+    const root = rootOf(await analyze(opts(dir, { artifactText: false })));
+    const eps = collect(root);
+    expect(eps.boot).toEqual([{ framework: "manifest", confidence: "declared", rule: "manifest.main", ruleset: "shipped",
+      evidence: "package.json#main", http_methods: [], via: expect.stringMatching(/src\/index\.ts$/) }]);
+  });
+
+  // Minor 3: a manifest that exists but fails to parse is counted, not silently dropped.
+  test("a malformed package.json is counted as unresolved, and the pass otherwise completes", async () => {
+    const dir = fixture({ "package.json": "{ not json", "src/a.ts": "export const x = 1;" });
+    const root = rootOf(await analyze(opts(dir)));
+    expect(root.entrypoint_report.unresolved).toEqual({ "package.json": 1 });
+    expect(root.entrypoint_report.errors).toEqual([]);
+  });
+
   // Amendment (noRepoSections doesn't exist on this branch): call entrypointsFromManifest directly
   // to exercise the disk-fallback path used when the artifact layer hasn't captured package.json.
   // Uses `res.internal` (the live tree) rather than the wire application: `call_sites` is

@@ -53,6 +53,43 @@ describe("file-convention matcher", () => {
     expect(root.entrypoint_report.frameworks_detected).toEqual(["nextjs"]);
   });
 
+  // Important 2 (unit 5 review): two `pages/api` default-export spellings the direct-declaration
+  // check misses. (a) a named function declared separately, then `export default handler;`.
+  test("pages/api: `export default <name>;` naming a separately-declared function (path a)", async () => {
+    const dir = fixture({
+      "package.json": JSON.stringify({ name: "x", dependencies: { next: "^14.0.0" } }),
+      "pages/api/named.ts": "function handler() {}\nexport default handler;",
+    });
+    const root = rootOf(await analyze(opts(dir)));
+    const eps: Record<string, unknown[]> = {};
+    for (const [key, m] of Object.entries(root.symbol_table)) forEachCallable(m, (c) => { eps[`${key}:${c.name}`] = c.entrypoints ?? []; });
+    expect(eps["pages/api/named.ts:handler"]?.[0]).toMatchObject({ rule: "nextjs.pages-api", route: "/api/named" });
+  });
+
+  // (b) an anonymous inline default export — the callable's span starts right after `default `.
+  test("pages/api: `export default async (req, res) => {}` inline anonymous handler (path b)", async () => {
+    const dir = fixture({
+      "package.json": JSON.stringify({ name: "x", dependencies: { next: "^14.0.0" } }),
+      "pages/api/inline.ts": "export default async (req: unknown, res: unknown) => {};",
+    });
+    const root = rootOf(await analyze(opts(dir)));
+    const eps: Record<string, unknown[]> = {};
+    for (const [key, m] of Object.entries(root.symbol_table)) forEachCallable(m, (c) => { eps[`${key}:${c.name}`] = c.entrypoints ?? []; });
+    const hits = Object.entries(eps).filter(([k, v]) => k.startsWith("pages/api/inline.ts:") && (v as unknown[]).length > 0);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]![1][0]).toMatchObject({ rule: "nextjs.pages-api", route: "/api/inline" });
+  });
+
+  // (c) no default export at all: the miss is counted, not silent.
+  test("pages/api with no default export counts as unresolved (path c)", async () => {
+    const dir = fixture({
+      "package.json": JSON.stringify({ name: "x", dependencies: { next: "^14.0.0" } }),
+      "pages/api/x.ts": "export function notDefault(): void {}",
+    });
+    const root = rootOf(await analyze(opts(dir)));
+    expect(root.entrypoint_report.unresolved["pages/api/x.ts#default"]).toBe(1);
+  });
+
   test("without the dependency, the same files register nothing", async () => {
     const dir = fixture({ "app/users/route.ts": "export function GET(): void {}" });
     const root = rootOf(await analyze(opts(dir)));

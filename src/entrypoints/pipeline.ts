@@ -75,7 +75,7 @@ export function detectEntrypoints(app: AnalysisInternal, opts: AnalysisOptions, 
       for (const name of frameworks) {
         const fileRules = rules.frameworks[name]!.files;
         if (!fileRules.length) continue;
-        for (const { target, ep } of entrypointsFromFiles(mod, fileKey, name, fileRules)) {
+        for (const { target, ep } of entrypointsFromFiles(mod, fileKey, name, fileRules, bump)) {
           (target.entrypoints ??= []).push(ep);
           target.is_entrypoint = target.entrypoints.length > 0;
         }
