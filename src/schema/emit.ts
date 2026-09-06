@@ -100,7 +100,7 @@ export function finalizeAnalysis(
   populateL1Body(app);
   resolveHeritageIds(app, idBySig);
   // Level-free, after heritage: unit 4 matches on resolved extends_ids.
-  const entrypoint_report = detectEntrypoints(app, rules);
+  const entrypoint_report = detectEntrypoints(app, opts, rules);
 
   const root: TSApplication = {
     id: appId,

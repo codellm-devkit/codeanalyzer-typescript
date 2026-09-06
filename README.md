@@ -190,6 +190,8 @@ Options:
                                  binding (default: repo files only)
   --no-artifact-text             keep the artifact inventory but drop captured
                                  raw text
+  --entrypoint-rules <yaml...>   extra entrypoint rules file(s), merged with the
+                                 shipped set; repeatable
   -c, --cache-dir <dir>          cache/intermediate directory
   -v, --verbose                  increase verbosity (repeatable)
   -h, --help                     display help for command

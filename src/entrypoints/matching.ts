@@ -4,9 +4,11 @@
  * Patterns are dotted names: `{a,b}` alternates (a `*` inside an alternative keeps its meaning),
  * `*` matches ONE dotless segment, everything else is literal, and the match is anchored.
  */
-import { forEachCallable, type TSCallable, type TSCallsite, type TSDecorator, type TSEntrypoint, type TSModule, type TSType } from "../schema";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { forEachCallable, type AnalysisInternal, type TSCallable, type TSCallsite, type TSDecorator, type TSEntrypoint, type TSModule, type TSType } from "../schema";
 import { callBodyKeys } from "../schema/l1Body";
-import type { ArgSpec, BaseRule, CallRule, DecoratorRule } from "./rules";
+import type { ArgSpec, BaseRule, CallRule, DecoratorRule, FileRule, ManifestRule } from "./rules";
 
 export class PatternError extends Error {}
 
@@ -236,4 +238,194 @@ export function entrypointsFromBases(
     }
   }
   return { classEps, methodEps };
+}
+
+/**
+ * File-convention tier (#161; python has no analog — TS/JS-only). `match:` is a GLOB (`**` = any
+ * path prefix incl. none, `*` = within one segment, `{a,b}` alternation) tested against the
+ * module's project-relative POSIX file key, not a dotted name — so this gets its own tiny glob
+ * engine rather than reusing `compilePattern`.
+ */
+const globCache = new Map<string, RegExp>();
+export function globToRegExp(glob: string): RegExp {
+  const hit = globCache.get(glob);
+  if (hit) return hit;
+  let out = "";
+  let i = 0;
+  while (i < glob.length) {
+    const ch = glob[i]!;
+    if (glob.startsWith("**/", i)) { out += "(?:.*/)?"; i += 3; }
+    else if (glob.startsWith("**", i)) { out += ".*"; i += 2; }
+    else if (ch === "*") { out += "[^/]*"; i++; }
+    else if (ch === "{") {
+      const j = glob.indexOf("}", i);
+      if (j < 0) throw new PatternError(`unclosed '{' in ${JSON.stringify(glob)}`);
+      out += `(?:${glob.slice(i + 1, j).split(",").map((a) => a.trim().replace(/[.+?^$()|[\]\\]/g, "\\$&")).join("|")})`;
+      i = j + 1;
+    } else { out += ch.replace(/[.+?^$()|[\]\\/]/g, "\\$&"); i++; }
+  }
+  const re = new RegExp(`^${out}$`);
+  globCache.set(glob, re);
+  return re;
+}
+
+/**
+ * A convention, not a contract (#161): strips the glob's literal prefix directory only when it is
+ * `app/` (Next.js app router routes have no other segment worth keeping); `pages/api/...` keeps
+ * its `/api/...` tail since that's the actual served path. Drops the extension and a trailing
+ * `/route` or `/+server` segment; always anchors with a leading `/`; the app root `app/route.ts`
+ * → `/`. `app/users/route.ts` → `/users`; `pages/api/hello.ts` → `/api/hello`;
+ * `src/routes/x/+server.ts` → `/src/routes/x`.
+ */
+export function routeFromFileKey(fileKey: string, glob: string): string {
+  const literalPrefix = glob.split(/[*{]/, 1)[0]!; // "app/", "pages/api/", or "" (no literal prefix)
+  const rest = fileKey.startsWith(literalPrefix) ? fileKey.slice(literalPrefix.length) : fileKey;
+  const noExt = rest.replace(/\.(tsx|ts|jsx|js|mjs|cjs)$/, "");
+  const noTail = noExt.replace(/\/?(route|\+server)$/, "");
+  const prefixDir = literalPrefix.replace(/^app\//, "/").replace(/^pages\//, "/").replace(/\/$/, "");
+  return prefixDir + (noTail ? `/${noTail}` : "") || "/";
+}
+
+const DEFAULT_NAMED_EXPORT = /^\s*export\s+default\s+([A-Za-z_$][\w$]*)\s*;?\s*$/m;
+const DEFAULT_EXPORT_TOKEN = /export\s+default\s+/g;
+
+/**
+ * Two spellings the direct-declaration check above misses (findings, unit 5 review): `export
+ * default handler;` naming a callable declared elsewhere (the identifier need not itself be
+ * `is_exported`), and `export default (…) => {}`/`export default async (…) => {}` whose anonymous
+ * callable's span starts right after the `export default ` token, not at `export`.
+ */
+function resolveDefaultExport(mod: TSModule): TSCallable | undefined {
+  const named = mod.source.match(DEFAULT_NAMED_EXPORT);
+  if (named) {
+    const target = Object.values(mod.functions).find((c) => c.name === named[1]);
+    if (target) return target;
+  }
+  DEFAULT_EXPORT_TOKEN.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = DEFAULT_EXPORT_TOKEN.exec(mod.source))) {
+    const end = m.index + m[0].length;
+    const target = Object.values(mod.functions).find((c) => c.name === "(anonymous)" && c.span.bytes[0] === end);
+    if (target) return target;
+  }
+  return undefined;
+}
+
+/**
+ * File-convention matcher: a rule matches when the module's file key matches its glob. Per name in
+ * `exports`, `"default"` resolves to the exported callable whose declaration text starts with
+ * `export default` (`TSModule.exports` never records these — see `l1Body`/builder notes); failing
+ * that, `resolveDefaultExport` tries the `export default <name>;` and anonymous-inline spellings.
+ * Any other name resolves to the exported callable of that exact name. A name with no matching
+ * callable yields nothing for that name — a route file legitimately exports only some verbs — EXCEPT
+ * `"default"`, whose continued absence is counted via `unresolved` so a missed default export isn't
+ * silent.
+ */
+export function entrypointsFromFiles(
+  mod: TSModule,
+  fileKey: string,
+  framework: string,
+  rules: readonly FileRule[],
+  unresolved: (key: string) => void,
+): Array<{ target: TSCallable; ep: TSEntrypoint }> {
+  const out: Array<{ target: TSCallable; ep: TSEntrypoint }> = [];
+  for (const rule of rules) {
+    if (!globToRegExp(rule.match).test(fileKey)) continue;
+    for (const exp of rule.exports) {
+      let target = Object.values(mod.functions).find((c) => c.is_exported && (exp === "default"
+        ? mod.source.slice(c.span.bytes[0], c.span.bytes[1]).trimStart().startsWith("export default")
+        : c.name === exp));
+      if (!target && exp === "default") target = resolveDefaultExport(mod);
+      if (!target) {
+        if (exp === "default") unresolved(`${fileKey}#default`);
+        continue;
+      }
+      out.push({
+        target,
+        ep: {
+          framework, confidence: rule.confidence, rule: rule.id, ruleset: rule.origin, evidence: fileKey,
+          route: routeFromFileKey(fileKey, rule.match), http_methods: methodsOf([], {}, rule.methods, exp),
+        },
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Manifest tier (#161; python has no analog): `package.json` is read from the artifact layer
+ * (keyed by repo-relative path — the artifact record for the root manifest is always `"package.json"`),
+ * falling back to disk when the artifact layer has no record OR recorded an empty `source`
+ * (`--no-artifact-text` stores `""`, not absence — `||`, not `??`, so that case still falls
+ * through to disk instead of silently disabling this whole tier).
+ *
+ * Returns `undefined` when there is no manifest text at all (nothing to report), or `{ error:
+ * true }` when text existed but did not parse as a JSON object (a malformed manifest — counted by
+ * the caller, not swallowed).
+ */
+function manifestOf(app: AnalysisInternal, input: string): { pkg: Record<string, unknown> } | { error: true } | undefined {
+  const text = app.artifacts?.["package.json"]?.source
+    || (() => { try { return fs.readFileSync(path.join(input, "package.json"), "utf8"); } catch { return undefined; } })();
+  if (!text) return undefined;
+  try {
+    const j = JSON.parse(text);
+    return typeof j === "object" && j ? { pkg: j as Record<string, unknown> } : { error: true };
+  } catch {
+    return { error: true };
+  }
+}
+
+const EXTS = ["", ".ts", ".tsx", ".js", ".mjs", ".cjs"];
+/** `dist/index.js` → the module `src/index.ts` (or `index.ts`, or as written) — whichever the symbol table has. */
+function moduleForPath(app: AnalysisInternal, declared: string): string | undefined {
+  const rel = declared.replace(/\\/g, "/").replace(/^\.\//, "");
+  const stem = rel.replace(/\.(tsx|ts|jsx|js|mjs|cjs)$/, "");
+  const bases = [stem, stem.replace(/^(dist|out|build|lib)\//, "src/"), stem.replace(/^(dist|out|build|lib)\//, "")];
+  for (const b of bases) for (const ext of EXTS) if (app.symbol_table[b + ext]) return b + ext;
+  return undefined;
+}
+
+/**
+ * Manifest tier: a `main`/`bin` entry names a FILE, and "what runs when that file is executed" is
+ * its module-scope calls (python has no analog — an npm-specific convention). Not a "heuristic"
+ * framework — `never-doubles` (pipeline.ts calls tier) does not apply: a callable can legitimately
+ * be both a framework handler AND a manifest-declared root, so this pushes unconditionally.
+ */
+export function entrypointsFromManifest(
+  app: AnalysisInternal,
+  input: string,
+  rules: readonly ManifestRule[],
+  unresolved: (key: string) => void,
+): Array<{ target: TSCallable; ep: TSEntrypoint }> {
+  const out: Array<{ target: TSCallable; ep: TSEntrypoint }> = [];
+  const result = manifestOf(app, input);
+  if (!result) return out;
+  if ("error" in result) { unresolved("package.json"); return out; }
+  const pkg = result.pkg;
+  for (const rule of rules) {
+    const raw = pkg[rule.field];
+    const paths: string[] = typeof raw === "string" ? [raw]
+      : raw && typeof raw === "object" ? Object.values(raw as Record<string, unknown>).filter((v): v is string => typeof v === "string")
+      : [];
+    for (const p of paths) {
+      const key = moduleForPath(app, p);
+      const mod = key ? app.symbol_table[key] : undefined;
+      if (!mod) { unresolved(`package.json#${rule.field}:${p}`); continue; }
+      const free = new Map(Object.values(mod.functions).map((c) => [c.name, c] as const));
+      let hit = false;
+      for (const site of mod.call_sites ?? []) {
+        if (site.receiver_expr) continue;
+        const target = free.get(site.method_name);
+        if (!target) continue;
+        hit = true;
+        out.push({
+          target,
+          ep: { framework: "manifest", confidence: rule.confidence, rule: rule.id, ruleset: rule.origin,
+            evidence: `package.json#${rule.field}`, http_methods: [], via: mod.id },
+        });
+      }
+      if (!hit) unresolved(`package.json#${rule.field}:${p}`);
+    }
+  }
+  return out;
 }
