@@ -192,6 +192,16 @@ Options:
                                  raw text
   --entrypoint-rules <yaml...>   extra entrypoint rules file(s), merged with the
                                  shipped set; repeatable
+  --program <tsconfig...>        restrict the run to these programs, named by
+                                 scope dir relative to --input ('<root>' for the
+                                 root program); repeatable
+  --list-programs                list the discovered programs, one per line, and
+                                 exit
+  --emit-ir                      persist this shard's graph IR for a later
+                                 cross-shard stitch
+  --no-repo-sections             skip artifacts/dependencies/unresolved_imports
+                                 (repo-scoped; compute them once per repository,
+                                 not once per shard)
   -c, --cache-dir <dir>          cache/intermediate directory
   -v, --verbose                  increase verbosity (repeatable)
   -h, --help                     display help for command
