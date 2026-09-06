@@ -25,7 +25,7 @@ import type { ProgramGraphs } from "./graphs";
 import { assignIds } from "./assignIds";
 import { populateL1Body } from "./l1Body";
 import { resolveHeritageIds } from "./heritage";
-import { detectEntrypoints } from "./entrypoints";
+import { detectEntrypoints } from "../entrypoints";
 import { homeExternals, homeSynthesized } from "./homing";
 import { backfillCallees, reidentifyCallGraph } from "./l2Callees";
 import { applyDataflow } from "../dataflow/attach";
