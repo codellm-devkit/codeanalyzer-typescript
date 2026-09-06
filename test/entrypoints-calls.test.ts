@@ -52,6 +52,9 @@ describe("calls: heuristic tier (Express shape)", () => {
     expect(byName["(anonymous)"]?.[0]).toMatchObject({ evidence: "app.post", route: "/b", http_methods: ["POST"] });
     // via is the module-scope call node id
     expect((byName.named?.[0] as { via?: string }).via).toMatch(/^can:\/\/typescript\/c\/src\/app\.ts@5:\d+$/);
+    // via for a call site owned by a callable (app.delete inside setup()) names THAT callable, not the module
+    const deleteRecord = byName.named?.find((e) => (e as { evidence?: string }).evidence === "app.delete") as { via?: string } | undefined;
+    expect(deleteRecord?.via).toMatch(/^can:\/\/typescript\/c\/src\/app\.ts\/setup@10:\d+$/);
   });
 
   test("an unresolvable handler is counted, not fabricated", async () => {
