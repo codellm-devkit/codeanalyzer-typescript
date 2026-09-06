@@ -96,6 +96,9 @@ export interface TSTypeParameter {
 
 export interface TSCallableParameter {
   name: string;
+  // `<callable-id>@formal_in:<i>` — the L4 formal_in vertex carrying this parameter (#164; python
+  // #176 parity). Stamped per-run by stampBodyIds; a forward reference below level 4.
+  id?: string;
   type?: string;
   default_value?: string;
   is_optional: boolean;
@@ -160,6 +163,9 @@ export interface TSConfigAccess {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSBodyNode {
+  // The GLOBAL ordinal id `<callable-id>@<local>` — the same value :TSBodyNode merges on (#164;
+  // python #176 parity). Stamped per-run by stampBodyIds after each body emitter writes.
+  id?: string;
   kind: string; // "call" | "config_access" | "statement" | "entry" | "exit" | "formal_in" | "actual_in" | …
   span?: TSSpan;
   callee?: string | null; // `call` nodes: null at L1, refined to an id at L2 (the one sanctioned null)

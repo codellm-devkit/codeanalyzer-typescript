@@ -14,6 +14,7 @@
 
 import type { AnalysisInternal, TSBodyNode, TSCallable, TSCallsite, TSModule } from "./schema";
 import { forEachCallable } from "./schema";
+import { stampBodyIds } from "./ids";
 
 /**
  * The body key of each call site, in recording order: `line:col`, disambiguated `/2`, `/3`, …
@@ -77,6 +78,7 @@ function resetCallable(c: TSCallable): void {
   delete c.cdg;
   delete c.ddg;
   delete c.summary;
+  stampBodyIds(c); // #164: ids ride the tree, not just the projection
 }
 
 export function populateL1Body(app: AnalysisInternal): void {

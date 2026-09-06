@@ -19,6 +19,7 @@
 
 import type { CfgEdge, GraphNode, PdgEdge, ProgramGraphs } from "../schema/graphs";
 import type { TSApplication, TSCallable, TSParamEdge } from "../schema";
+import { globalOrdinal, stampBodyIds } from "../schema/ids";
 
 interface LocalIds {
   canId: string;
@@ -69,7 +70,7 @@ function l3(li: LocalIds, nodeId: number): string {
  * id, then matches the remainder OR the remainder without its leading `@`.
  */
 function fq(callableId: string, bodyKey: string): string {
-  return bodyKey.startsWith("@") ? `${callableId}${bodyKey}` : `${callableId}@${bodyKey}`;
+  return globalOrdinal(callableId, bodyKey); // single definition lives in schema/ids.ts (#164)
 }
 
 function spanOf(n: GraphNode): { start: [number, number]; end: [number, number]; bytes: [number, number] } {
@@ -250,6 +251,9 @@ export function applyDataflow(
   }
 
   if (level >= 4) emitL4(root, pg, info);
+  // #164: every emitter above wrote body nodes (L3 statements; L4 formal/actual vertices, some into
+  // CALLER bodies) — stamp once over every callable, idempotently, so `id` is present on all of them.
+  for (const c of callableBySig.values()) stampBodyIds(c);
 }
 
 // ----------------------------------------------------------------------------------------------

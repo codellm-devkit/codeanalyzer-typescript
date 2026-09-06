@@ -11,7 +11,7 @@
  */
 
 import type { TSAnalysis, TSApplication, TSBodyNode, TSCallable, TSDecorator, TSEntrypoint, TSEntrypointReport, TSField, TSModule, TSType } from "../../schema";
-import { purlNpm } from "../../schema/ids";
+import { globalOrdinal, purlNpm } from "../../schema/ids";
 import { SCHEMA_VERSION } from "./schema";
 import { type GraphRows, type NodeRef, type Props, RowBuilder, prune } from "./rows";
 
@@ -21,7 +21,7 @@ const ref = (id: string): NodeRef => ({ label: CAN, keyProp: "id", value: id });
 
 /** Fully-qualify a callable-local body key (mirrors dataflow.ts § fq — the SDK-shared rule). */
 function fq(callableId: string, localKey: string): string {
-  return localKey.startsWith("@") ? `${callableId}${localKey}` : `${callableId}@${localKey}`;
+  return globalOrdinal(callableId, localKey); // single definition lives in schema/ids.ts (#164)
 }
 
 const KIND_LABEL: Record<string, string> = {
