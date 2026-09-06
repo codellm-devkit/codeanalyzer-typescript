@@ -141,10 +141,11 @@ export function entrypointsFromCalls(
   const callables: TSCallable[] = [];
   // Every call in the file: module-scope (mod.call_sites, this task) plus each callable's own
   // (already captured by buildCallable, independent of this task) — a nested `app.delete(...)`
-  // inside a function is a call site on THAT callable, not on the module.
-  const sites: TSCallsite[] = [...(mod.call_sites ?? [])];
-  forEachCallable(mod, (c) => { callables.push(c); sites.push(...c.call_sites); });
-  for (const site of sites) {
+  // inside a function is a call site on THAT callable, not on the module. `via` names whichever
+  // one OWNS the site, not always the module.
+  const sites: Array<{ owner: string; site: TSCallsite }> = (mod.call_sites ?? []).map((site) => ({ owner: mod.id, site }));
+  forEachCallable(mod, (c) => { callables.push(c); for (const site of c.call_sites) sites.push({ owner: c.id, site }); });
+  for (const { owner, site } of sites) {
     const written = site.receiver_expr ? `${site.receiver_expr}.${site.method_name}` : site.method_name;
     for (const rule of rules) {
       if (!matchPattern(rule.match, written)) continue;
@@ -153,7 +154,7 @@ export function entrypointsFromCalls(
       const ep: TSEntrypoint = {
         framework: "heuristic", confidence: rule.confidence, rule: rule.id, ruleset: rule.origin, evidence: written,
         http_methods: methodsOf(site.arguments, {}, rule.methods, written),
-        via: `${mod.id}@${site.start_line}:${site.start_column}`,
+        via: `${owner}@${site.start_line}:${site.start_column}`,
       };
       const route = routeOf(site.arguments, rule.route);
       if (route !== undefined) ep.route = route;
