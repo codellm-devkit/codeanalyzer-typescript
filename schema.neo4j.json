@@ -1,7 +1,10 @@
 {
   "schema_version": "2.0.0",
   "generator": "codeanalyzer-typescript",
-  "marker_labels": [],
+  "marker_labels": [
+    "TSCanNode",
+    "JSCanNode"
+  ],
   "node_labels": [
     {
       "label": "TSApplication",
@@ -73,7 +76,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "name": "string",
         "is_tsx": "boolean",
         "is_declaration_file": "boolean",
@@ -89,7 +91,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "signature": "string",
         "name": "string",
         "base_classes": "string[]",
@@ -111,7 +112,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "signature": "string",
         "name": "string",
         "base_classes": "string[]",
@@ -129,7 +129,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "signature": "string",
         "name": "string",
         "is_const": "boolean",
@@ -147,7 +146,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "signature": "string",
         "name": "string",
         "aliased_type": "string",
@@ -165,7 +163,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "signature": "string",
         "name": "string",
         "is_exported": "boolean",
@@ -182,7 +179,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "signature": "string",
         "name": "string",
         "return_type": "string",
@@ -210,7 +206,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "name": "string",
         "type": "string",
         "start_line": "integer",
@@ -224,7 +219,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "of": "string",
         "parent": "string",
         "callee": "string",
@@ -239,7 +233,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "name": "string",
         "module": "string"
       }
@@ -251,7 +244,6 @@
       "properties": {
         "id": "string",
         "kind": "string",
-        "_module": "string",
         "signature": "string",
         "name": "string",
         "return_type": "string",
@@ -573,6 +565,7 @@
     "CREATE INDEX callable_name IF NOT EXISTS FOR (c:TSCallable) ON (c.name)",
     "CREATE FULLTEXT INDEX ts_code_fts IF NOT EXISTS FOR (c:TSCallable) ON EACH [c.code]",
     "CREATE INDEX cannode_kind IF NOT EXISTS FOR (n:CanNode) ON (n.kind)",
-    "CREATE INDEX cannode_module IF NOT EXISTS FOR (n:CanNode) ON (n._module)"
+    "CREATE INDEX tscannode_id IF NOT EXISTS FOR (n:TSCanNode) ON (n.id)",
+    "CREATE INDEX jscannode_id IF NOT EXISTS FOR (n:JSCanNode) ON (n.id)"
   ]
 }

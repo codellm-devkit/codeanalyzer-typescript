@@ -28,6 +28,51 @@ export interface NodeRow {
   keyProp: string;
   value: string;
   props: Props;
+  /**
+   * The owning module's file key, for the incremental writer's per-module diff. IN MEMORY ONLY
+   * (#140): it used to be emitted as `_module` and every destructive statement matched on it, which
+   * is application-blind — two apps sharing a file key deleted each other's nodes. Scope now comes
+   * from the `can://` id prefix; this field only groups rows.
+   */
+  module?: string;
+}
+
+/**
+ * The marker labels (#140): one per language namespace this analyzer emits, on every node keyed by
+ * a `can://<lang>/` id. They are INDEX ANCHORS, nothing more — Neo4j property indexes are
+ * label-scoped, so `id STARTS WITH $p` needs a label to seek on. Safety comes from the prefix, which
+ * carries language, application and module.
+ */
+export const TS_CAN_PREFIX = "can://typescript/";
+export const JS_CAN_PREFIX = "can://javascript/";
+export const TS_MARKER = "TSCanNode";
+export const JS_MARKER = "JSCanNode";
+
+/** The marker for a `can://` id, or null for ids outside both language namespaces (artifacts, packages). */
+export function markerFor(id: string): string | null {
+  if (id.startsWith(TS_CAN_PREFIX)) return TS_MARKER;
+  if (id.startsWith(JS_CAN_PREFIX)) return JS_MARKER;
+  return null;
+}
+
+/**
+ * The prefix that matches a node's descendants and nothing else. The separator is the point:
+ * `can://typescript/app/src/foo.ts` is also a prefix of `can://typescript/app/src/foo.tsx`, so
+ * descendants match on `id + '/'` and the node itself by equality.
+ */
+export function descendantPrefix(canId: string): string {
+  return `${canId}/`;
+}
+
+/**
+ * The scope of every destructive statement: this application's two namespaces,
+ * `can://typescript/<app>/` and `can://javascript/<app>/`. Refuses a missing or empty application:
+ * `STARTS WITH ''` would match every node in the database.
+ */
+export function applicationPrefixes(appId: string | null | undefined): { ts: string; js: string } {
+  const name = appId?.startsWith(TS_CAN_PREFIX) ? appId.slice(TS_CAN_PREFIX.length) : "";
+  if (!name) throw new Error("neo4j: refusing a destructive statement without an application id");
+  return { ts: descendantPrefix(`${TS_CAN_PREFIX}${name}`), js: descendantPrefix(`${JS_CAN_PREFIX}${name}`) };
 }
 
 export interface EdgeRow {
@@ -77,12 +122,19 @@ export class RowBuilder {
    */
   node(labels: string[], keyProp: string, value: string, props: Props): NodeRef {
     const id = `${labels[0]}\0${value}`;
+    // `_module` is lifted off the graph (#140): it groups rows for the incremental diff and is
+    // never emitted. The marker label rides every `can://<lang>/` id, as an index anchor.
+    const { _module, ...rest } = props as Props & { _module?: unknown };
+    const module = typeof _module === "string" ? _module : undefined;
+    const marker = keyProp === "id" ? markerFor(value) : null;
+    const allLabels = marker && !labels.includes(marker) ? [...labels, marker] : [...labels];
     const existing = this.nodes.get(id);
     if (existing) {
-      Object.assign(existing.props, props);
-      for (const l of labels) if (!existing.labels.includes(l)) existing.labels.push(l);
+      Object.assign(existing.props, rest);
+      for (const l of allLabels) if (!existing.labels.includes(l)) existing.labels.push(l);
+      if (module !== undefined) existing.module = module;
     } else {
-      this.nodes.set(id, { labels: [...labels], keyProp, value, props });
+      this.nodes.set(id, { labels: allLabels, keyProp, value, props: rest, ...(module !== undefined ? { module } : {}) });
     }
     this.keys.add(value);
     return { label: labels[0], keyProp, value };

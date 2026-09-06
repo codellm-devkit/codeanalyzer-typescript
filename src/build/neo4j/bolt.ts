@@ -20,7 +20,7 @@
 
 import type { Logger } from "../../utils";
 import type { EdgeRow, GraphRows, NodeRow, Prop } from "./rows";
-import { chunk } from "./rows";
+import { JS_MARKER, TS_MARKER, applicationPrefixes, chunk, descendantPrefix, markerFor } from "./rows";
 import { CONSTRAINTS, INDEXES, SCHEMA_VERSION } from "./schema";
 
 export interface BoltConfig {
@@ -30,7 +30,6 @@ export interface BoltConfig {
   database: string | null;
 }
 
-const DESCENDANTS = "[:TS_DECLARES|TS_HAS_METHOD|TS_HAS_FIELD|TS_HAS_BODY_NODE*1..]";
 const BATCH = 1000;
 
 /** #68: a DB written by a different schema version must be fully re-upserted, not hash-diffed —
@@ -52,9 +51,36 @@ export function shouldForceFullUpsert(dbVersion: string | null, producerVersion:
  * Batched, because deleting a whole application in one transaction exhausts
  * `dbms.memory.transaction.total.max` on a modestly-sized server (#116, measured at 2.7 GiB).
  */
-export const EAGER_PURGE =
-  "MATCH (n:CanNode) WHERE n.id STARTS WITH $prefix " +
-  "CALL { WITH n DETACH DELETE n } IN TRANSACTIONS OF 5000 ROWS";
+/**
+ * `--eager` purge (#140): everything under this application's prefix, per language namespace,
+ * anchored on that namespace's marker so the prefix predicate seeks an index. `$prefix` is the
+ * `/`-terminated descendant prefix from `applicationPrefixes`, never a bare app id — a bare id also
+ * matches `can://typescript/appXtra/...`.
+ */
+export const EAGER_PURGE = eagerPurge(TS_MARKER);
+export const EAGER_PURGE_JS = eagerPurge(JS_MARKER);
+function eagerPurge(marker: string): string {
+  return `MATCH (n:${marker}) WHERE n.id STARTS WITH $prefix CALL { WITH n DETACH DELETE n } IN TRANSACTIONS OF 5000 ROWS`;
+}
+/** The per-module purge (#140): the module by equality, its subtree by `/`-prefix; `$keys` survive. */
+function purgeModuleEdges(marker: string): string {
+  return `MATCH (x:${marker}) WHERE x.id = $mid OR x.id STARTS WITH $pre MATCH (x)-[r]->() DELETE r`;
+}
+function purgeModuleStale(marker: string): string {
+  return `MATCH (x:${marker}) WHERE (x.id = $mid OR x.id STARTS WITH $pre) AND NOT x.id IN $keys DETACH DELETE x`;
+}
+/** The orphan prune (#140): modules inside this app's prefix that the run no longer emits, with their subtrees. */
+function pruneVanished(marker: string): string {
+  return (
+    `MATCH (m:TSModule:${marker}) WHERE m.id STARTS WITH $prefix AND NOT m.id IN $present ` +
+    `CALL { WITH m MATCH (x:${marker}) WHERE x.id = m.id OR x.id STARTS WITH m.id + '/' DETACH DELETE x } ` +
+    `IN TRANSACTIONS OF 1000 ROWS RETURN count(DISTINCT m) AS pruned`
+  );
+}
+/** The TSModule row of one module's group carries the module's `can://` id and its content_hash. */
+function moduleRow(nodes: NodeRow[]): NodeRow | undefined {
+  return nodes.find((n) => n.labels.includes("TSModule"));
+}
 
 export async function boltWriter(
   rows: GraphRows,
@@ -80,7 +106,7 @@ export async function boltWriter(
     const shared: NodeRow[] = [];
     const moduleOf = new Map<string, string>(); // node value → owning module
     for (const n of rows.nodes) {
-      const m = n.props._module;
+      const m = n.module;
       if (typeof m === "string") {
         bucket(byModule, m).push(n);
         moduleOf.set(n.value, m);
@@ -93,6 +119,10 @@ export async function boltWriter(
     // app's :Application (by id) — an unscoped `MATCH (a:Application)` could read a foreign analyzer's
     // node in a shared database and misjudge the version. Absent id → null → forces (safe default).
     const appId = rows.nodes.find((n) => n.labels[0] === "Application")?.value ?? null;
+    // Every scoped statement below — the diff, the purges, the prune — needs the application's
+    // prefixes, and applicationPrefixes refuses an empty one (#140). project() always emits the
+    // Application row, so this only trips on a hand-built GraphRows.
+    const prefixes = applicationPrefixes(appId);
     let dbSchemaVersion: string | null = null;
     if (appId !== null) {
       await withSession(session, async (s) => {
@@ -114,21 +144,35 @@ export async function boltWriter(
 
     // --eager: drop this application's own nodes and rebuild. Without it the push only ever adds
     // and updates -- managing the database's lifetime is the operator's call, not the analyzer's.
-    if (eager && appId !== null) {
-      await withSession(session, (s) => s.run(EAGER_PURGE, { prefix: appId }));
-      log.info(`neo4j(bolt): --eager, purged the existing graph for ${appId}`);
+    if (eager) {
+      await withSession(session, async (s) => {
+        await s.run(EAGER_PURGE, { prefix: prefixes.ts });
+        await s.run(EAGER_PURGE_JS, { prefix: prefixes.js });
+      });
+      log.info(`neo4j(bolt): --eager, purged the existing graph under ${prefixes.ts} and ${prefixes.js}`);
     }
 
     // 3. diff content_hash.
     const dbHash = new Map<string, string | null>();
     await withSession(session, async (s) => {
-      const res = await s.run("MATCH (m:TSModule) RETURN m._module AS k, m.content_hash AS h");
+      // Keyed by module ID inside this application's prefixes (#140): a file key alone collides
+      // across applications; the id carries language, application and file.
+      const res = await s.run(
+        "MATCH (m:TSModule) WHERE m.id STARTS WITH $ts OR m.id STARTS WITH $js RETURN m.id AS k, m.content_hash AS h",
+        { ts: prefixes.ts, js: prefixes.js },
+      );
       for (const rec of res.records) dbHash.set(rec.get("k"), rec.get("h"));
     });
+    const moduleIdOf = new Map<string, string>(); // file key → the module's can:// id
     const changed = new Set<string>();
     for (const [m, nodes] of byModule) {
+      const mid = moduleRow(nodes)?.value;
+      if (!mid || !(mid.startsWith(prefixes.ts) || mid.startsWith(prefixes.js))) {
+        throw new Error(`neo4j: module ${m} has no can:// id under ${prefixes.ts} / ${prefixes.js}; refusing to scope a purge on it`);
+      }
+      moduleIdOf.set(m, mid);
       const rowHash = hashOf(nodes, m);
-      if (forceAll || !dbHash.has(m) || rowHash === undefined || rowHash !== dbHash.get(m)) changed.add(m);
+      if (forceAll || !dbHash.has(mid) || rowHash === undefined || rowHash !== dbHash.get(mid)) changed.add(m);
     }
     log.info(
       `neo4j(bolt): ${byModule.size} modules (${changed.size} changed), ${shared.length} shared nodes, ` +
@@ -147,13 +191,15 @@ export async function boltWriter(
       // operator's call (#116). Anchored on :CanNode either way, so a sibling analyzer's nodes
       // sharing this `_module` key are never in scope.
       if (eager) {
+        // The module by equality, its subtree by `/`-prefix, anchored on the module's own
+        // language marker (#140). Application-scoped by construction: the id carries the app.
+        const mid = moduleIdOf.get(m)!;
+        const marker = markerFor(mid)!;
+        const params = { mid, pre: descendantPrefix(mid), keys };
         await withSession(session, async (s) => {
           await s.executeWrite(async (tx: any) => {
-            await tx.run(`MATCH (x:CanNode {_module: $m})-[r]->() DELETE r`, { m });
-            await tx.run(
-              `MATCH (x:CanNode {_module: $m}) WHERE x.id IS NULL OR NOT x.id IN $keys DETACH DELETE x`,
-              { m, keys },
-            );
+            await tx.run(purgeModuleEdges(marker), params);
+            await tx.run(purgeModuleStale(marker), params);
           });
         });
       }
@@ -169,20 +215,18 @@ export async function boltWriter(
 
     // 7. orphan prune — only safe on a full run (a targeted run can't tell deleted from untargeted).
     // appId === null would make `STARTS WITH ""` match every node in the store.
-    if (fullRun && eager && appId !== null) {
-      const present = [...byModule.keys()];
+    if (fullRun && eager) {
+      // Scoped on this app's prefixes and the module's own marker (#140); a second TypeScript app
+      // in the same database, whose modules are all "not in $present", is outside the prefix.
+      const present = [...moduleIdOf.values()];
+      let pruned = 0;
       await withSession(session, async (s) => {
-        // Anchored on :CanNode AND this app's id prefix, same as EAGER_PURGE. `MATCH (m:TSModule)`
-        // alone would reach a SECOND TypeScript application in the same database -- every one of
-        // its modules is "not in this app's $present" -- and any 1.x twin-labelled node too (#116).
-        const res = await s.run(
-          `MATCH (m:TSModule:CanNode) WHERE m.id STARTS WITH $prefix AND NOT m._module IN $present ` +
-            `OPTIONAL MATCH (m)-${DESCENDANTS}->(x) DETACH DELETE x, m RETURN count(DISTINCT m) AS pruned`,
-          { present, prefix: appId },
-        );
-        const pruned = res.records[0]?.get("pruned") ?? 0;
-        log.info(`neo4j(bolt): pruned ${pruned} vanished module(s)`);
+        for (const [marker, prefix] of [[TS_MARKER, prefixes.ts], [JS_MARKER, prefixes.js]] as const) {
+          const res = await s.run(pruneVanished(marker), { present, prefix });
+          pruned += Number(res.records[0]?.get("pruned") ?? 0);
+        }
       });
+      log.info(`neo4j(bolt): pruned ${pruned} vanished module(s)`);
     } else {
       log.info("neo4j(bolt): orphan pruning skipped (use --eager to remove vanished modules)");
     }
@@ -257,8 +301,8 @@ function bucket<K, V>(map: Map<K, V[]>, key: K): V[] {
 }
 
 function hashOf(nodes: NodeRow[], _fileKey: string): string | undefined {
-  // Every node in `nodes` shares the same _module; the Module row (labels include "TSModule") carries the hash.
-  const mod = nodes.find((n) => n.labels.includes("TSModule"));
+  // Every node in `nodes` shares one owning module; its TSModule row carries the hash.
+  const mod = moduleRow(nodes);
   const h = mod?.props.content_hash;
   return typeof h === "string" ? h : undefined;
 }

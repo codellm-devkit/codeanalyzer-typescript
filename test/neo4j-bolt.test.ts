@@ -151,20 +151,50 @@ containerSuite("neo4j bolt writer", () => {
 
       const rows = project(finalizeAnalysis(app, result.program_graphs ?? null, opts).application);
 
+      // #140: nodes are found by id prefix now, never by a `_module` property.
+      const appId = rows.nodes.find((n) => n.labels[0] === "Application")!.value;
+      const victimId = `${appId}/${victim}`;
+      const victimCount = () => num("MATCH (n:TSCanNode) WHERE n.id = $mid OR n.id STARTS WITH $pre RETURN count(n)", { mid: victimId, pre: `${victimId}/` });
+
       // Default push: deletion is the operator's call, so the vanished module's nodes stay.
       await boltWriter(rows, cfg, log, true, false);
-      expect(await num("MATCH (n {_module:$m}) RETURN count(n)", { m: victim })).toBeGreaterThan(0);
+      expect(await victimCount()).toBeGreaterThan(0);
 
       // --eager: purge this application and rebuild, so the vanished module goes.
       await boltWriter(rows, cfg, log, true, true);
-      expect(await num("MATCH (n {_module:$m}) RETURN count(n)", { m: victim })).toBe(0);
+      expect(await victimCount()).toBe(0);
 
-      // The surviving module-scoped graph matches the reduced projection. (Shared :TSExternal
-      // nodes are MERGE-only and intentionally never pruned, so we compare only _module-tagged nodes.)
-      const moduleScoped = rows.nodes.filter((n) => "_module" in n.props).length;
-      expect(await num("MATCH (n) WHERE n._module IS NOT NULL RETURN count(n)")).toBe(moduleScoped);
+      // The surviving module-owned graph matches the reduced projection. Shared nodes
+      // (:TSExternal — MERGE-only, never pruned) sit under the app prefix too, so exclude them.
+      const moduleOwned = rows.nodes.filter((n) => n.module !== undefined).length;
+      expect(await num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $pre AND NOT n:TSExternal RETURN count(n)", { pre: `${appId}/` })).toBe(moduleOwned);
     },
     120_000,
+  );
+
+  test(
+    "a second application in the same language, with colliding module paths, survives every purge (#140)",
+    async () => {
+      // Same fixture, two application names — every file key collides. `saX` is chosen so that
+      // `can://typescript/sa` is a string prefix of `can://typescript/saX`: the boundary case.
+      const a = project((await analyze(optsFor({ appName: "sa" }))).application);
+      const b = project((await analyze(optsFor({ appName: "saX" }))).application);
+      const under = (app: string) => num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $p RETURN count(n)", { p: `can://typescript/${app}/` });
+
+      await boltWriter(a, cfg, log, true, true);
+      const a0 = await under("sa");
+      expect(a0).toBeGreaterThan(0);
+      await boltWriter(b, cfg, log, true, true); // saX's --eager purge + prune must not touch sa
+      expect(await under("sa")).toBe(a0);
+      const b0 = await under("saX");
+      expect(b0).toBeGreaterThan(0);
+      await boltWriter(a, cfg, log, true, true); // sa's --eager purge + prune must not touch saX (prefix boundary)
+      expect(await under("saX")).toBe(b0);
+      expect(await under("sa")).toBe(a0);
+      // and nothing carries the retired property
+      expect(await num("MATCH (n) WHERE n._module IS NOT NULL RETURN count(n)")).toBe(0);
+    },
+    180_000,
   );
 
   test(

@@ -93,9 +93,18 @@ describe("neo4j schema conformance", () => {
     expect(onDisk).toBe(fresh);
   });
 
-  test("2.0.0 does not advertise never-populated surfaces (issues #55/#60)", () => {
+  test("2.0.0 does not advertise never-populated surfaces (issues #55/#60)", async () => {
     const doc = buildSchemaDocument();
-    expect(doc.marker_labels.length).toBe(0);
+    // #140: the two marker labels ARE populated — one per language namespace this analyzer emits.
+    // Prove each is emitted by a real projection, so this stays a "no dead surface" check.
+    expect([...doc.marker_labels]).toEqual(["TSCanNode", "JSCanNode"]);
+    const projectOf = async (fixture: string) => {
+      const o = { input: path.resolve(import.meta.dir, "fixtures", fixture), appName: "mk", analysisLevel: 1, eager: true,
+                  noBuild: true, emit: "neo4j", entrypointRules: null } as unknown as AnalysisOptions;
+      return project((await analyze(o)).application);
+    };
+    expect((await projectOf("sample-app")).nodes.some((n) => n.labels.includes("TSCanNode"))).toBe(true);
+    expect((await projectOf("unresolvable-js-app")).nodes.some((n) => n.labels.includes("JSCanNode"))).toBe(true);
     const allProps = doc.node_labels.flatMap((n) => Object.keys(n.properties));
     for (const dead of ["framework", "detection_source", "route_path", "http_methods", "entrypoint_count", "accessed_symbols_json"]) {
       expect(allProps, `dead property still advertised: ${dead}`).not.toContain(dead);

@@ -9,6 +9,7 @@
 
 import * as fs from "node:fs";
 import type { EdgeRow, GraphRows, NodeRow, Props } from "./rows";
+import { JS_MARKER, TS_CAN_PREFIX, TS_MARKER, applicationPrefixes } from "./rows";
 import { cypherMap, cypherValue } from "./rows";
 import { CONSTRAINTS, INDEXES } from "./schema";
 
@@ -38,7 +39,7 @@ function* cypherBlocks(rows: GraphRows, appId: string): Generator<string> {
 
   yield "";
   yield "// ── wipe this project's prior subgraph (external targets are shared) ──";
-  yield wipe(appId);
+  yield wipe(rows, appId);
 
   yield "";
   yield "// ── nodes ──";
@@ -50,13 +51,22 @@ function* cypherBlocks(rows: GraphRows, appId: string): Generator<string> {
   yield "";
 }
 
-function wipe(appId: string): string {
-  const id = cypherValue(appId);
+function wipe(rows: GraphRows, appIdArg: string): string {
+  // Scoped on the `can://` id prefix per namespace (#140), not on a relationship walk from the
+  // Application node: the prefix reaches every node the app owns — including ones a walk would
+  // miss — and nothing another app owns, even one whose file keys collide. The id comes from the
+  // rows' own Application node (the argument is a fallback for callers that pass the bare name);
+  // rows with no application id get NO destructive statement — refused visibly, never `STARTS
+  // WITH ''`.
+  const appId = rows.nodes.find((n) => n.labels[0] === "Application")?.value ?? appIdArg;
+  if (!appId.startsWith(TS_CAN_PREFIX)) {
+    return "// no can:// application id in these rows — no wipe emitted (#140 refuses an unscoped delete)";
+  }
+  const { ts, js } = applicationPrefixes(appId);
   return [
-    `MATCH (a:Application {id: ${id}})`,
-    "OPTIONAL MATCH (a)-[:TS_HAS_MODULE]->(m:TSModule)",
-    "OPTIONAL MATCH (m)-[:TS_DECLARES|TS_HAS_METHOD|TS_HAS_FIELD|TS_HAS_BODY_NODE*1..]->(x)",
-    "DETACH DELETE x, m, a;",
+    `MATCH (x:${TS_MARKER}) WHERE x.id STARTS WITH ${cypherValue(ts)} DETACH DELETE x;`,
+    `MATCH (x:${JS_MARKER}) WHERE x.id STARTS WITH ${cypherValue(js)} DETACH DELETE x;`,
+    `MATCH (a:Application {id: ${cypherValue(appId)}}) DETACH DELETE a;`,
   ].join("\n");
 }
 
