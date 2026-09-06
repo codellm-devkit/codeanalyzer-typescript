@@ -25,7 +25,7 @@ import type { ProgramGraphs } from "./graphs";
 import { assignIds } from "./assignIds";
 import { populateL1Body } from "./l1Body";
 import { resolveHeritageIds } from "./heritage";
-import { detectEntrypoints } from "../entrypoints";
+import { detectEntrypoints, type RuleSet } from "../entrypoints";
 import { homeExternals, homeSynthesized } from "./homing";
 import { backfillCallees, reidentifyCallGraph } from "./l2Callees";
 import { applyDataflow } from "../dataflow/attach";
@@ -89,6 +89,7 @@ export function finalizeAnalysis(
   opts: AnalysisOptions,
   resolutions?: Map<string, Map<string, string>>,
   project?: Project,
+  rules?: RuleSet,
 ): AnalysisResult {
   const level = opts.analysisLevel;
   const appName = (opts.appName ?? (opts.input ? path.basename(opts.input) : "") ?? "").trim() || "app";
@@ -98,7 +99,7 @@ export function finalizeAnalysis(
   populateL1Body(app);
   resolveHeritageIds(app, idBySig);
   // Level-free, after heritage: unit 4 matches on resolved extends_ids.
-  const entrypoint_report = detectEntrypoints(app);
+  const entrypoint_report = detectEntrypoints(app, rules);
 
   const root: TSApplication = {
     id: appId,
