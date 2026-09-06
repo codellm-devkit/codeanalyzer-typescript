@@ -137,6 +137,15 @@ describe("CFG gate", () => {
     expect(e).toContainEqual({ source: 6, target: 8, kind: "exception" }); // finally → outward (EXIT)
   });
 
+  test("an empty try falls through instead of entering its unreachable catch", () => {
+    const cfg = cfgOf("src/flow.emptyTryCatch");
+    expect(cfg.nodes.map((node) => node.kind)).toEqual(["entry", "statement", "exit"]);
+    expect(cfg.edges).toEqual([
+      { source: 0, target: 1, kind: "fallthrough" },
+      { source: 1, target: 2, kind: "return" },
+    ]);
+  });
+
   test("throw with no handler edges to EXIT (parse)", () => {
     const cfg = cfgOf("src/flow.parse");
     const exit = cfg.nodes.length - 1;

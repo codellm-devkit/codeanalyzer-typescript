@@ -84,3 +84,11 @@ export function shadow(): number {
   }
   return x;
 }
+
+export function emptyTryCatch(): number {
+  try {
+  } catch {
+    return 1;
+  }
+  return 0;
+}
