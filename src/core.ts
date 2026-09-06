@@ -29,7 +29,7 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   for (const note of mat.notes) log.debug(note);
 
   const cached = opts.eager ? null : loadCache(cacheDir);
-  const { project, symbol_table, programs } = buildSymbolTable(opts, mat, cached?.symbol_table ?? null, log);
+  const { project, symbol_table, programs, programContexts } = buildSymbolTable(opts, mat, cached, log);
 
   // Level 3: post stage-1–4 graph extraction to the worker pool BEFORE the call-graph solve —
   // extraction doesn't need callee resolution, so the two run concurrently (the contract's
@@ -105,7 +105,7 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
 
   // Cache the id-free base (ids/body/heritage are per-run layers stamped by finalizeAnalysis;
   // the cached tree must stay --app-name-free).
-  saveCache(cacheDir, { symbol_table });
+  saveCache(cacheDir, { symbol_table, program_contexts: programContexts });
   // Never let "some edges are missing" look like "there were no edges": a node the checker could
   // not resolve is skipped (see schema/checker.ts), and the count is said out loud.
   const skipped = checkerFailures();
