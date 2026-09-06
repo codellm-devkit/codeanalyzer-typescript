@@ -7,8 +7,9 @@
  * is the one hard-error step, and it happens in analyze(), before any of this.)
  */
 import { forEachCallable, forEachType, type AnalysisInternal, type TSCallable, type TSEntrypointReport, type TSType } from "../schema";
+import { importTable, resolveWritten } from "../syntactic_analysis/importResolver";
 import { detectedFrameworks, knownHeads, unnameable } from "./detect";
-import { entrypointsFromCalls, entrypointsFromDecorators } from "./matching";
+import { entrypointsFromBases, entrypointsFromCalls, entrypointsFromDecorators } from "./matching";
 import { EMPTY_RULES, type RuleSet } from "./rules";
 
 export function detectEntrypoints(app: AnalysisInternal, rules: RuleSet = EMPTY_RULES): TSEntrypointReport {
@@ -33,9 +34,40 @@ export function detectEntrypoints(app: AnalysisInternal, rules: RuleSet = EMPTY_
       });
     }
 
+    const frameworks = report.frameworks_detected;
+
+    // Base-class tier (#159): class-only, one detected framework at a time, BEFORE the decorator
+    // tiers — so a class/method a base rule claims counts as framework-claimed for never-doubles
+    // (the heuristic decorator tier and the calls tier both check `entrypoints.length === 0`).
+    // `typeById` and a resolver PER TYPE (its own module's import table — a transitive ancestor's
+    // `base_classes` is written in that ancestor's own file, so `cls`'s import table cannot name
+    // it) are both built once per run by this single walk.
+    const typeById = new Map<string, TSType>();
+    const resolveByType = new Map<string, (written: string) => string>();
+    for (const mod of Object.values(app.symbol_table)) {
+      const table = importTable(mod.imports ?? []);
+      const resolveInModule = (written: string): string => resolveWritten(table, written) ?? written;
+      forEachType(mod, (t) => { typeById.set(t.id, t); resolveByType.set(t.id, resolveInModule); });
+    }
+    const resolve = (written: string, owner: TSType): string => (resolveByType.get(owner.id) ?? ((w: string) => w))(written);
+    for (const mod of Object.values(app.symbol_table)) {
+      forEachType(mod, (t) => {
+        if (t.kind !== "class") return;
+        for (const name of frameworks) {
+          const baseRules = rules.frameworks[name]!.bases;
+          if (!baseRules.length) continue;
+          const { classEps, methodEps } = entrypointsFromBases(t, name, baseRules, resolve, typeById);
+          (t.entrypoints ??= []).push(...classEps);
+          for (const [methodName, eps] of methodEps) {
+            const m = t.callables?.[methodName];
+            if (m) (m.entrypoints ??= []).push(...eps);
+          }
+        }
+      });
+    }
+
     // Framework tier (matches `qualified_name`), then the heuristic tier LAST (matches `name` as
     // written; never doubles a node a framework rule already claimed — python #185 parity).
-    const frameworks = report.frameworks_detected;
     const visit = (node: TSCallable | TSType): void => {
       node.entrypoints = node.entrypoints ?? [];
       for (const name of frameworks) {
