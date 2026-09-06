@@ -29,6 +29,7 @@ import * as path from "node:path";
 import type { Node, Project } from "ts-morph";
 import type { BuiltProgram } from "../syntactic_analysis/symbolTable";
 import type { AnalysisOptions } from "../options";
+import { writeIr } from "./ir";
 import {
   PROGRAM_GRAPHS_SCHEMA_VERSION,
   fileKeyOf,
@@ -316,6 +317,8 @@ export async function buildProgramGraphs(
     const sdg_edges = wantSdg ? assembleSdg(datas, callSites, summaries) : [];
 
     persistSummaries(opts, symbol_table, callables, summaries, log);
+    // Wave-1 shard IR (#112 step 4): everything the cross-shard stitch needs and nothing tsc owns.
+    if (opts.emitIr) writeIr(opts, opts.programFilter ?? ["<all>"], datas, callSites, summaries, log);
 
     return { schema_version: PROGRAM_GRAPHS_SCHEMA_VERSION, k_limit: opts.graphFieldDepth, functions, sdg_edges };
   } finally {

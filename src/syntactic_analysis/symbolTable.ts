@@ -43,6 +43,41 @@ function ownerProgram(absPath: string, programs: ProgramSpec[]): ProgramSpec {
   return programs[programs.length - 1]!; // root program is a universal ancestor; unreachable fallback
 }
 
+/**
+ * A program's stable CLI name (#146).
+ *
+ * The name is the program's SCOPE directory, not its tsconfig: scope is what decides which files
+ * the program owns (`ownerProgram` matches on `scopeDir`), and a nested `tsconfig.json` that only
+ * `references` others resolves to its LEAF config — so `web/tsconfig.json` becomes a program named
+ * for scope `web` whose configPath is `web/src/tsconfig.app.json`. Two specs can even share one
+ * leaf config under different scopes, which is why the config path alone is not a usable identity.
+ *
+ * `<root>` names the input root's own program.
+ */
+export function programName(spec: ProgramSpec, root: string): string {
+  const rel = path.relative(root, spec.scopeDir).split(path.sep).join("/");
+  return rel === "" ? "<root>" : rel;
+}
+
+/**
+ * Which programs this run analyses. `null` filter ⇒ all of them.
+ *
+ * The filter selects programs; it must NEVER change how files are assigned to them. Ownership is
+ * computed against the FULL spec list and filtered afterwards (see buildSymbolTable), because
+ * `ownerProgram` falls back to the root program: filtering the list first would pull files owned by
+ * a deeper, unselected tsconfig into a selected ancestor and compile them under the wrong config.
+ */
+export function selectPrograms(specs: ProgramSpec[], root: string, filter: string[] | null): ProgramSpec[] {
+  if (!filter) return specs;
+  const want = new Set(
+    filter.map((f) => {
+      const n = f.split(path.sep).join("/").replace(/^\.\//, "").replace(/\/+$/, "");
+      return n === "" || n === "." ? "<root>" : n;
+    }),
+  );
+  return specs.filter((s) => want.has(programName(s, root)));
+}
+
 export function buildSymbolTable(
   opts: AnalysisOptions,
   mat: Materialization,
@@ -60,13 +95,26 @@ export function buildSymbolTable(
   // Assign every discovered file to exactly one program (deepest scope wins), then construct one
   // Project per program from ONLY its files — so each file resolves under the tsconfig that governs
   // it (module resolution, `paths` aliases, lib) instead of a single root program swallowing all.
+  // Ownership FIRST, against every discovered program, then filter (#146). Doing it the other way
+  // round would reassign a deeper program's files to a selected ancestor -- see selectPrograms.
   const assignment = new Map<ProgramSpec, DiscoveredFile[]>();
   for (const s of specs) assignment.set(s, []);
   for (const f of allProjectFiles) assignment.get(ownerProgram(f.absPath, specs))!.push(f);
 
+  const selected = selectPrograms(specs, root, opts.programFilter);
+  if (opts.programFilter && selected.length === 0) {
+    // Hard error, not a warning: an orchestrator typo must not silently produce an empty shard
+    // that then unions cleanly into a graph missing a third of the repository.
+    throw new Error(
+      `no program matched --program ${opts.programFilter.join(", ")}. ` +
+        `Discovered: ${specs.map((x) => programName(x, root)).join(", ")}`,
+    );
+  }
+  const selectedSet = new Set(selected);
+
   const projectOf = new Map<ProgramSpec, Project>();
   const programs: BuiltProgram[] = [];
-  for (const s of specs) {
+  for (const s of selected) {
     const project = createProject(s.configPath);
     const files = assignment.get(s)!;
     const fileKeys = new Set<string>();
@@ -87,6 +135,9 @@ export function buildSymbolTable(
   let built = 0;
   let fromCache = 0;
   for (const f of buildFiles) {
+    // A file owned by an unselected program is EXCLUDED, never reassigned -- including on the
+    // cache path, or a warm cache would smuggle other shards' modules back into the output.
+    if (!selectedSet.has(ownerProgram(f.absPath, specs))) continue;
     if (cached && !opts.eager && cached[f.fileKey] && fileUnchanged(f.absPath, cached[f.fileKey])) {
       symbol_table[f.fileKey] = cached[f.fileKey];
       fromCache++;
@@ -105,8 +156,10 @@ export function buildSymbolTable(
   log.info(`symbol table: ${built} built, ${fromCache} cached, ${Object.keys(symbol_table).length} modules`);
 
   // The root program is always last; its Project is the one legacy single-program consumers expect.
-  const rootProject = projectOf.get(specs[specs.length - 1]!)!;
-  return { project: rootProject, symbol_table, files: buildFiles, programs };
+  // Under --program the root may not be selected, so fall back to the shallowest SELECTED program
+  // (the list is deepest-first, so that is its last entry).
+  const rootProject = projectOf.get(selected[selected.length - 1]!)!;
+  return { project: rootProject, symbol_table, files: buildFiles.filter((f) => selectedSet.has(ownerProgram(f.absPath, specs))), programs };
 }
 
 /** The fallback compiler options when the target has no tsconfig (shared with graph workers). */

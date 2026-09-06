@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { analyze } from "./core";
+import { analyze, discoverPrograms } from "./core";
 import { parseArgs } from "./cli";
 import { RulesError } from "./entrypoints";
 import { emit, emitSchema } from "./utils";
@@ -10,6 +10,10 @@ async function main(): Promise<void> {
     // The schema contract is a static artifact — no project analysis required.
     if (opts.emit === "schema") {
       emitSchema(opts);
+      return;
+    }
+    if (opts.listPrograms) {
+      for (const name of discoverPrograms(opts)) process.stdout.write(`${name}\n`);
       return;
     }
     const result = await analyze(opts);
