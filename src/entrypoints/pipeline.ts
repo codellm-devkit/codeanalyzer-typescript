@@ -74,10 +74,20 @@ export function detectEntrypoints(app: AnalysisInternal, opts: AnalysisOptions, 
     for (const [fileKey, mod] of Object.entries(app.symbol_table)) {
       for (const name of frameworks) {
         const fileRules = rules.frameworks[name]!.files;
-        if (!fileRules.length) continue;
         for (const { target, ep } of entrypointsFromFiles(mod, fileKey, name, fileRules, bump)) {
           (target.entrypoints ??= []).push(ep);
           target.is_entrypoint = target.entrypoints.length > 0;
+        }
+        // Framework-tier CALL rules (#167): gated on the framework and matched on the resolved
+        // callee, so the claim is framework-claimed for never-doubles. Runs before the heuristic
+        // calls stage below.
+        const callRules = rules.frameworks[name]!.calls;
+        if (callRules.length) {
+          const table = importTable(mod.imports ?? []);
+          for (const { target, ep } of entrypointsFromCalls(mod, callRules, bump, name, (w) => resolveWritten(table, w))) {
+            (target.entrypoints ??= []).push(ep);
+            target.is_entrypoint = true;
+          }
         }
       }
     }

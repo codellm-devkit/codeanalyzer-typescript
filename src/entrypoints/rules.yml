@@ -44,6 +44,39 @@ frameworks:
         exports: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS]
         methods: {from: export_name}
 
+  # ---- non-web (#167). Framework-tier CALL rules: gated on the dependency AND matched on the
+  # import-table-resolved callee, so `app.on(...)` in an Express app or on any EventEmitter can
+  # never register as Electron. `route` carries the event / channel name for `on`/`handle` rules —
+  # the nearest field; python's `route` is HTTP-only.
+  electron:
+    detect: [electron]
+    calls:
+      - id: electron.app-on
+        match: "electron.app.{on,once}"
+        route: {from: positional, index: 0}
+        handler: {from: positional, index: -1}
+      - id: electron.ipc
+        match: "electron.ipcMain.{on,once,handle,handleOnce}"
+        route: {from: positional, index: 0}
+        handler: {from: positional, index: -1}
+
+  commander:
+    detect: [commander]
+    calls:
+      # `program.command("x").option(...).action(run)` — the chain between `program` and `.action`
+      # is one to three dotless segments (a call with parentheses has no dot).
+      - id: commander.action
+        match: "commander.program.{*,*.*,*.*.*}.action"
+        handler: {from: positional, index: -1}
+
+  worker_threads:
+    detect: ["node:worker_threads", worker_threads]
+    calls:
+      - id: worker_threads.parent-port
+        match: "{node:worker_threads,worker_threads}.parentPort.{on,once}"
+        route: {from: positional, index: 0}
+        handler: {from: positional, index: -1}
+
 # Framework-independent tier. Matched on the WRITTEN spelling, never a resolved name, so a shape
 # that reads as an HTTP entrypoint is flagged even when no `frameworks:` block knows the library
 # (or it is not installed). Confidence `heuristic` is forced by the loader. Runs LAST; a node a
@@ -66,6 +99,12 @@ heuristics:
       match: "{*,*.*}.{get,post,put,patch,delete,all,use}"
       route: {from: positional, index: 0}
       methods: {from: match_suffix}
+      handler: {from: positional, index: -1}
+    # `process` is a Node global — nothing to gate on, and the spelling is distinctive enough to be
+    # a heuristic. Signal and lifecycle handlers are invoked from outside the program.
+    - id: heuristic.process-on
+      match: "process.{on,once}"
+      route: {from: positional, index: 0}
       handler: {from: positional, index: -1}
 
 # Manifest-declared entrypoints: what runs when the package is executed. Confidence `declared`.

@@ -28,8 +28,8 @@ const rootOf = (r: { application: unknown }) => (r.application as { application:
 
 const nestRules: RuleSet = {
   ...EMPTY_RULES,
-  frameworks: { nestjs: { name: "nestjs", detect: ["@nestjs/common"], decorators: [], bases: [], files: [] },
-                celery: { name: "celery", detect: ["celery"], decorators: [], bases: [], files: [] } },
+  frameworks: { nestjs: { name: "nestjs", detect: ["@nestjs/common"], decorators: [], bases: [], files: [], calls: [] },
+                celery: { name: "celery", detect: ["celery"], decorators: [], bases: [], files: [], calls: [] } },
 };
 
 describe("stage-0 framework gate", () => {
@@ -53,7 +53,7 @@ describe("stage-0 framework gate", () => {
   });
 
   test("comparison is case-insensitive on both sides", () => {
-    const rules: RuleSet = { ...EMPTY_RULES, frameworks: { flask: { name: "flask", detect: ["Flask"], decorators: [], bases: [], files: [] } } };
+    const rules: RuleSet = { ...EMPTY_RULES, frameworks: { flask: { name: "flask", detect: ["Flask"], decorators: [], bases: [], files: [], calls: [] } } };
     const app = { symbol_table: { "a.ts": { imports: [{ module: "flask", name: "Flask", is_type_only: false, import_kind: "named" }] } }, dependencies: [] } as never;
     expect([...detectedFrameworks(app, rules)]).toEqual(["flask"]);
   });

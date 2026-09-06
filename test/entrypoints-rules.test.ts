@@ -15,9 +15,11 @@ describe("rules loader", () => {
   test("shipped rules load and cover the frameworks the spec names", () => {
     const r = loadRules([]);
     expect(r.rulesets).toEqual(["shipped"]);
-    expect(Object.keys(r.frameworks).sort()).toEqual(["angular", "nestjs", "nextjs", "sveltekit"]);
+    expect(Object.keys(r.frameworks).sort()).toEqual(["angular", "commander", "electron", "nestjs", "nextjs", "sveltekit", "worker_threads"]);
     expect(r.heuristics.decorators.map((d) => d.id)).toEqual(["heuristic.http-route", "heuristic.http-verb"]);
-    expect(r.heuristics.calls.map((c) => c.id)).toEqual(["heuristic.http-verb-call"]);
+    expect(r.heuristics.calls.map((c) => c.id)).toEqual(["heuristic.http-verb-call", "heuristic.process-on"]);
+    // framework-tier call rules are NOT forced heuristic (#167)
+    expect(r.frameworks.electron?.calls.map((c) => [c.id, c.confidence])).toEqual([["electron.app-on", "certain"], ["electron.ipc", "certain"]]);
     expect(r.manifest.map((m) => m.id)).toEqual(["manifest.bin", "manifest.main"]);
     // heuristic confidence is FORCED, whatever the file says
     for (const d of [...r.heuristics.decorators, ...r.heuristics.calls]) expect(d.confidence).toBe("heuristic");
