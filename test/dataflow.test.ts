@@ -51,6 +51,16 @@ async function run(level: 1 | 2 | 3, jobs = 1): Promise<Awaited<ReturnType<typeo
 
 const pg = (await run(3)).program_graphs as ProgramGraphs;
 
+const flowSource = fs.readFileSync(path.join(FIXTURE, "src/flow.ts"), "utf8");
+
+function nodeContaining(signature: string, text: string, occurrence = 0): number {
+  const nodes = cfgOf(signature).nodes
+    .filter((node) => node.kind === "statement" && flowSource.slice(node.start_offset, node.end_offset).includes(text))
+    .sort((a, b) => (a.end_offset - a.start_offset) - (b.end_offset - b.start_offset) || a.id - b.id);
+  const node = nodes[occurrence];
+  if (!node) throw new Error(`no ${signature} node containing ${text}`);
+  return node.id;
+}
 const cfgOf = (sig: string): FunctionCfg => {
   const g = pg.functions[sig]?.cfg;
   if (!g) throw new Error(`no cfg for ${sig}`);
@@ -135,6 +145,35 @@ describe("CFG gate", () => {
     const e = kinds("src/flow.guarded");
     expect(e).toContainEqual({ source: 3, target: 4, kind: "exception" }); // out = parse(s) → catch
     expect(e).toContainEqual({ source: 6, target: 8, kind: "exception" }); // finally → outward (EXIT)
+  });
+
+  test("return, throw, break, and continue complete only after finally", () => {
+    const signature = "src/flow.abruptFinally";
+    const edges = kinds(signature);
+    const finallyNode = nodeContaining(signature, "seen += 1");
+    const abrupt = [
+      ["continue outer", "continue"],
+      ["break outer", "break"],
+      ["return seen", "return"],
+      ['throw new Error("abrupt")', "exception"],
+    ] as const;
+    for (const [text, kind] of abrupt) {
+      const source = nodeContaining(signature, text);
+      expect(edges).toContainEqual({ source, target: finallyNode, kind });
+    }
+
+    const continuations = edges.filter((edge) => edge.source === finallyNode).map((edge) => edge.kind);
+    expect(continuations).toEqual(expect.arrayContaining(["continue", "break", "return", "exception"]));
+  });
+
+  test("an abrupt completion in finally overrides the pending return", () => {
+    const signature = "src/flow.overrideFinally";
+    const cfg = cfgOf(signature);
+    const pending = nodeContaining(signature, "return 1");
+    const overriding = nodeContaining(signature, "return 2");
+    expect(cfg.edges).toContainEqual({ source: pending, target: overriding, kind: "return" });
+    expect(cfg.edges).toContainEqual({ source: overriding, target: cfg.nodes.length - 1, kind: "return" });
+    expect(cfg.edges).not.toContainEqual({ source: pending, target: cfg.nodes.length - 1, kind: "return" });
   });
 
   test("throw with no handler edges to EXIT (parse)", () => {
