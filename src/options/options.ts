@@ -56,4 +56,9 @@ export interface AnalysisOptions {
   cacheDir: string | null;
   /** Verbosity (repeatable -v). */
   verbosity: number;
+  /**
+   * Extra entrypoint rules files (YAML), merged with the shipped set (#72). Loading is
+   * CONFIGURATION: a malformed file is a hard error before any analysis work starts.
+   */
+  entrypointRules: string[] | null;
 }

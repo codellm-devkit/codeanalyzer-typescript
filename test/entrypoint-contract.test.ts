@@ -69,7 +69,7 @@ describe("entrypoint contract (unit 1)", () => {
 
   test("the report is present and empty at the root", async () => {
     const root = rootOf(await analyze(opts(1, true)));
-    expect(root.entrypoint_report).toEqual({ frameworks_detected: [], rulesets: [], unresolved: {}, errors: [] });
+    expect(root.entrypoint_report).toEqual({ frameworks_detected: [], rulesets: ["shipped"], unresolved: {}, errors: [] });
   });
 
   test("identical at every -a, including across a warm cache", async () => {
@@ -86,7 +86,7 @@ describe("entrypoint contract (unit 1)", () => {
     const rows = project(res.application);
     const app = rows.nodes.find((n) => n.labels.includes("TSApplication"));
     expect(app?.props.entrypoint_frameworks).toEqual([]);
-    expect(app?.props.entrypoint_report_json).toBe('{"errors":[],"frameworks_detected":[],"rulesets":[],"unresolved":{}}');
+    expect(app?.props.entrypoint_report_json).toBe('{"errors":[],"frameworks_detected":[],"rulesets":["shipped"],"unresolved":{}}');
 
     const cls = rows.nodes.find((n) => n.labels.includes("TSClass"));
     expect(cls?.props).toMatchObject({ is_entrypoint: false, entrypoint_frameworks: [] });

@@ -4,6 +4,7 @@ import { type LinkerResolutions, mergeCallGraphs, runDefuseLinker, tscProvider }
 import { loadCache, saveCache } from "./utils";
 import { materialize } from "./build";
 import { inventoryArtifacts } from "./artifacts";
+import { loadRules } from "./entrypoints";
 import type { AnalysisOptions } from "./options";
 import type { AnalysisInternal } from "./schema";
 import { type AnalysisResult, finalizeAnalysis } from "./schema/emit";
@@ -23,6 +24,9 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   const log = new Logger(opts.verbosity);
   log.info(`analyzing ${opts.input} (level ${opts.analysisLevel})`);
   resetCheckerFailures();
+  // Entrypoint rules are CONFIGURATION, validated before any analysis work: a malformed user file
+  // must stop the run here, not after the symbol table, the solve and the dataflow have all run.
+  const rules = loadRules(opts.entrypointRules ?? []);
   const cacheDir = opts.cacheDir ?? path.join(opts.input, ".codeanalyzer");
 
   const mat = materialize(opts, log);
@@ -110,5 +114,5 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   // not resolve is skipped (see schema/checker.ts), and the count is said out loud.
   const skipped = checkerFailures();
   if (skipped) log.warn(`${skipped} symbol resolution(s) skipped — the TypeScript checker could not resolve them; affected call edges are absent`);
-  return finalizeAnalysis(app, pg, opts, resolutions, project);
+  return finalizeAnalysis(app, pg, opts, resolutions, project, rules);
 }

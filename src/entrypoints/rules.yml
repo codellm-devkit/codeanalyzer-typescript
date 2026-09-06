@@ -1,0 +1,78 @@
+# src/entrypoints/rules.yml — the SHIPPED entrypoint ruleset (#72; python `rules.yml` parity).
+#
+# Decorator `match:` is against the import-table-resolved name (`@nestjs/common.Get`): the module
+# specifier kept verbatim, aliases mapped back to the exported name. There is no checker tier.
+# Base-class `match:` is against the resolved-or-written base spelling the same way.
+version: 1
+
+frameworks:
+  nestjs:
+    detect: ["@nestjs/common", "@nestjs/core"]
+    decorators:
+      - id: nestjs.controller
+        match: "@nestjs/common.Controller"
+        route: {from: positional, index: 0}
+      - id: nestjs.verb
+        match: "@nestjs/common.{Get,Post,Put,Patch,Delete,Head,Options,All}"
+        route: {from: positional, index: 0}
+        methods: {from: match_suffix}
+
+  angular:
+    detect: ["@angular/core"]
+    decorators:
+      - id: angular.component
+        match: "@angular/core.Component"
+      - id: angular.ngmodule
+        match: "@angular/core.NgModule"
+
+  nextjs:
+    detect: [next]
+    files:
+      - id: nextjs.app-route
+        match: "app/**/route.{ts,tsx,js,mjs}"
+        exports: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS]
+        methods: {from: export_name}
+      - id: nextjs.pages-api
+        match: "pages/api/**/*.{ts,tsx,js,mjs}"
+        exports: [default]
+
+  sveltekit:
+    detect: ["@sveltejs/kit"]
+    files:
+      - id: sveltekit.server
+        match: "**/+server.{ts,js}"
+        exports: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS]
+        methods: {from: export_name}
+
+# Framework-independent tier. Matched on the WRITTEN spelling, never a resolved name, so a shape
+# that reads as an HTTP entrypoint is flagged even when no `frameworks:` block knows the library
+# (or it is not installed). Confidence `heuristic` is forced by the loader. Runs LAST; a node a
+# framework rule already claimed gets no heuristic record.
+heuristics:
+  decorators:
+    - id: heuristic.http-route
+      match: "{route,*.route,*.*.route}"
+      route: {from: positional, index: 0}
+      methods: {from: keyword, name: methods}
+    - id: heuristic.http-verb
+      match: "{*,*.*}.{get,post,put,patch,delete,head,options,websocket}"
+      route: {from: positional, index: 0}
+      methods: {from: match_suffix}
+  calls:
+    # `app.get('/p', handler)` — the record attaches to the HANDLER (the callable the request
+    # reaches), `via` is the module-scope call. `use` is deliberate: middleware is reachable from
+    # outside just as a route is; filter on http_methods for routes only.
+    - id: heuristic.http-verb-call
+      match: "{*,*.*}.{get,post,put,patch,delete,all,use}"
+      route: {from: positional, index: 0}
+      methods: {from: match_suffix}
+      handler: {from: positional, index: -1}
+
+# Manifest-declared entrypoints: what runs when the package is executed. Confidence `declared`.
+manifest:
+  - id: manifest.bin
+    source: package.json
+    field: bin
+  - id: manifest.main
+    source: package.json
+    field: main

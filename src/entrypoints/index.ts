@@ -1,2 +1,2 @@
 export { detectEntrypoints } from "./pipeline";
-export { EMPTY_RULES, RulesError, type RuleSet } from "./rules";
+export { EMPTY_RULES, RulesError, loadRules, type RuleSet } from "./rules";
