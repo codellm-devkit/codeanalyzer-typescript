@@ -17,7 +17,7 @@
  *   param→contracted out of the L3 CFG; '@formal_in:N' at L4, statement→'line:col'.
  */
 
-import type { CfgEdge, GraphNode, PdgEdge, ProgramGraphs } from "../schema/graphs";
+import type { CfgEdge, GraphNode, GraphSelector, PdgEdge, ProgramGraphs } from "../schema/graphs";
 import type { TSApplication, TSCallable, TSParamEdge } from "../schema";
 
 interface LocalIds {
@@ -80,7 +80,14 @@ function spanOf(n: GraphNode): { start: [number, number]; end: [number, number];
 // L3 — body statements + cfg/cdg/ddg on the callable (bare local ids)
 // ----------------------------------------------------------------------------------------------
 
-function emitL3(li: LocalIds, nodes: GraphNode[], cfgEdges: CfgEdge[] | undefined, pdgEdges: PdgEdge[] | undefined): void {
+function emitL3(
+  li: LocalIds,
+  nodes: GraphNode[],
+  cfgEdges: CfgEdge[] | undefined,
+  pdgEdges: PdgEdge[] | undefined,
+  emitCdg: boolean,
+  emitDdg: boolean,
+): void {
   const c = li.callable;
   // Grow body with entry/exit + statement nodes (params are contracted out; call nodes from L1 win).
   for (const n of nodes) {
@@ -105,11 +112,11 @@ function emitL3(li: LocalIds, nodes: GraphNode[], cfgEdges: CfgEdge[] | undefine
     const cdg: Array<{ src: string; dst: string }> = [];
     const ddg: Array<{ src: string; dst: string; var?: string; prov: string[] }> = [];
     for (const e of pdgEdges) {
-      if (e.type === "CDG") {
+      if (e.type === "CDG" && emitCdg) {
         const src = l3(li, e.source);
         const dst = l3(li, e.target);
         if (src !== dst) cdg.push({ src, dst });
-      } else if (e.type === "DDG") {
+      } else if (e.type === "DDG" && emitDdg) {
         if (e.target === li.exitId) continue; // formal-out routing → deferred to L4 (→ @formal_out)
         // prov = the def-use METHOD: `solveDefUse` computes forward may-reaching-definitions over
         // k-limited access paths with a flow-insensitive copy/field-alias substrate (defuse.ts). It
@@ -122,8 +129,8 @@ function emitL3(li: LocalIds, nodes: GraphNode[], cfgEdges: CfgEdge[] | undefine
         ddg.push({ src: l3(li, e.source), dst: l3(li, e.target), var: e.var, prov: ["reaching-defs"] });
       }
     }
-    c.cdg = dedupe(cdg, (e) => `${e.src}\0${e.dst}`).sort(cmp2);
-    c.ddg = dedupe(ddg, (e) => `${e.src}\0${e.dst}\0${e.var ?? ""}`).sort(cmpDdg);
+    if (emitCdg) c.cdg = dedupe(cdg, (e) => `${e.src}\0${e.dst}`).sort(cmp2);
+    if (emitDdg) c.ddg = dedupe(ddg, (e) => `${e.src}\0${e.dst}\0${e.var ?? ""}`).sort(cmpDdg);
   }
 }
 
@@ -131,8 +138,8 @@ function emitL3(li: LocalIds, nodes: GraphNode[], cfgEdges: CfgEdge[] | undefine
 // L4 — synthetic vertices + summary (callable) + param_in/param_out (application)
 // ----------------------------------------------------------------------------------------------
 
-function emitL4(root: TSApplication, pg: ProgramGraphs, info: Map<string, LocalIds>): void {
-  // Formal vertices + the deferred formal-out-routing ddg edges, per callable.
+function emitL4(root: TSApplication, pg: ProgramGraphs, info: Map<string, LocalIds>, emitDdg: boolean): void {
+  // Formal vertices + the deferred formal-out-routing DDG edges, per callable.
   for (const [sig, fg] of Object.entries(pg.functions)) {
     const li = info.get(sig);
     if (!li) continue;
@@ -140,18 +147,20 @@ function emitL4(root: TSApplication, pg: ProgramGraphs, info: Map<string, LocalI
     for (const [nodeId, n] of li.paramN) c.body[`@formal_in:${n}`] = { kind: "formal_in", of: li.paramName.get(nodeId) };
     if (li.exitId >= 0) c.body["@formal_out"] = { kind: "formal_out", of: "$ret" };
     if (!c.summary) c.summary = [];
-    // return/global → EXIT ddg edges re-target @formal_out (syntactic routing; L4-placed vertex).
-    for (const e of fg.pdg?.edges ?? []) {
-      if (e.type === "DDG" && e.target === li.exitId) {
-        (c.ddg as Array<{ src: string; dst: string; var?: string; prov: string[] }>).push({
-          src: l3(li, e.source),
-          dst: "@formal_out",
-          var: e.var,
-          prov: ["reaching-defs"],
-        });
+    // Return/global → EXIT DDG edges re-target @formal_out (syntactic routing; L4-placed vertex).
+    if (emitDdg) {
+      for (const e of fg.pdg?.edges ?? []) {
+        if (e.type === "DDG" && e.target === li.exitId) {
+          c.ddg?.push({
+            src: l3(li, e.source),
+            dst: "@formal_out",
+            var: e.var,
+            prov: ["reaching-defs"],
+          });
+        }
       }
+      c.ddg?.sort(cmpDdg);
     }
-    (c.ddg as Array<{ src: string; dst: string; var?: string; prov: string[] }>)?.sort?.(cmpDdg);
   }
 
   // Cross-function SDG edges → param_in/param_out (app) + summary (callable) + actual vertices.
@@ -232,8 +241,9 @@ export function applyDataflow(
   idBySig: Map<string, string>,
   callableBySig: Map<string, TSCallable>,
   level: number,
+  selectors: readonly GraphSelector[],
 ): void {
-  if (level < 3) return;
+  if (level < 3 || selectors.length === 0) return;
 
   const info = new Map<string, LocalIds>();
   for (const [sig, fg] of Object.entries(pg.functions)) {
@@ -243,13 +253,16 @@ export function applyDataflow(
     info.set(sig, buildLocalIds(canId, callable, fg.cfg.nodes));
   }
 
+  const wantCfg = selectors.includes("cfg");
+  const wantCdg = selectors.includes("pdg");
+  const wantDdg = wantCdg || selectors.includes("dfg");
   for (const [sig, fg] of Object.entries(pg.functions)) {
     const li = info.get(sig);
     if (!li) continue;
-    emitL3(li, fg.cfg?.nodes ?? [], fg.cfg?.edges, fg.pdg?.edges);
+    emitL3(li, fg.cfg?.nodes ?? [], wantCfg ? fg.cfg?.edges : undefined, fg.pdg?.edges, wantCdg, wantDdg);
   }
 
-  if (level >= 4) emitL4(root, pg, info);
+  if (level >= 4 && selectors.includes("sdg")) emitL4(root, pg, info, wantDdg);
 }
 
 // ----------------------------------------------------------------------------------------------
