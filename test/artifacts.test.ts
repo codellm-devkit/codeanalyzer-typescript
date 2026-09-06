@@ -211,14 +211,62 @@ describe("Neo4j projection — neutral :Artifact/:Package (#101)", () => {
     expect(decl?.props["direct"]).toBe(true);
     const transitive = rows.edges.find((e) => e.type === "DECLARES_DEPENDENCY" && e.to.value === "pkg:npm/lockonly-transitive");
     expect(transitive?.props["direct"]).toBe(false);
-    expect(rows.edges.some((e) => e.type === "LOCKS" && e.to.value === "pkg:npm/express")).toBe(true);
+    const lockSources = (packageId: string): string[] =>
+      rows.edges
+        .filter((e) => e.type === "LOCKS" && e.to.value === packageId)
+        .map((e) => String(e.from.value));
+    expect(lockSources("pkg:npm/express")).toEqual(["can://artifact/artifacts-app/package-lock.json"]);
+    expect(lockSources("pkg:npm/lockonly-transitive")).toEqual(["can://artifact/artifacts-app/package-lock.json"]);
     expect(
       rows.edges.some(
         (e) => e.type === "TS_PROVIDES" && e.from.value === "pkg:npm/express" && String(e.to.value).endsWith("/@external/express"),
       ),
     ).toBe(true);
+
     expect(
       rows.edges.some((e) => e.type === "TS_UNRESOLVED_IMPORT" && String(e.to.value).endsWith("/@external/left-pad")),
     ).toBe(true);
+  });
+  test("each locked dependency is attributed only to its owning lockfile", () => {
+    const analysis = structuredClone(r1.application);
+    const application = analysis.application;
+    const rootManifest = application.artifacts["package.json"];
+    const rootLock = application.artifacts["package-lock.json"];
+    if (!rootManifest || !rootLock) throw new Error("fixture manifests are missing");
+
+    const manifestId = "can://artifact/artifacts-app/packages/api/package.json";
+    const lockId = "can://artifact/artifacts-app/packages/api/package-lock.json";
+    application.artifacts["packages/api/package.json"] = {
+      ...rootManifest,
+      id: manifestId,
+      path: "packages/api/package.json",
+      config_keys: [],
+    };
+    application.artifacts["packages/api/package-lock.json"] = {
+      ...rootLock,
+      id: lockId,
+      path: "packages/api/package-lock.json",
+      config_keys: [],
+    };
+    application.dependencies.push({
+      name: "nested-only",
+      spec: "^1.0.0",
+      kind: "runtime",
+      extras: [],
+      declared_in: manifestId,
+      direct: true,
+      locked_version: "1.0.1",
+      provides_imports: ["nested-only"],
+      prov: ["declared", "lockfile"],
+    });
+
+    const nestedRows = project(analysis);
+    const sources = (packageId: string): string[] =>
+      nestedRows.edges
+        .filter((e) => e.type === "LOCKS" && e.to.value === packageId)
+        .map((e) => String(e.from.value))
+        .sort();
+    expect(sources("pkg:npm/express")).toEqual(["can://artifact/artifacts-app/package-lock.json"]);
+    expect(sources("pkg:npm/nested-only")).toEqual([lockId]);
   });
 });
