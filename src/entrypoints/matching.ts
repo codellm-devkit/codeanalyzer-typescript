@@ -4,9 +4,11 @@
  * Patterns are dotted names: `{a,b}` alternates (a `*` inside an alternative keeps its meaning),
  * `*` matches ONE dotless segment, everything else is literal, and the match is anchored.
  */
-import { forEachCallable, type TSCallable, type TSCallsite, type TSDecorator, type TSEntrypoint, type TSModule, type TSType } from "../schema";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { forEachCallable, type AnalysisInternal, type TSCallable, type TSCallsite, type TSDecorator, type TSEntrypoint, type TSModule, type TSType } from "../schema";
 import { callBodyKeys } from "../schema/l1Body";
-import type { ArgSpec, BaseRule, CallRule, DecoratorRule, FileRule } from "./rules";
+import type { ArgSpec, BaseRule, CallRule, DecoratorRule, FileRule, ManifestRule } from "./rules";
 
 export class PatternError extends Error {}
 
@@ -312,6 +314,71 @@ export function entrypointsFromFiles(
           route: routeFromFileKey(fileKey, rule.match), http_methods: methodsOf([], {}, rule.methods, exp),
         },
       });
+    }
+  }
+  return out;
+}
+
+/**
+ * Manifest tier (#161; python has no analog): `package.json` is read from the artifact layer
+ * (keyed by repo-relative path — the artifact record for the root manifest is always `"package.json"`),
+ * falling back to disk when the artifact layer has no record (e.g. repo sections skipped).
+ */
+function manifestOf(app: AnalysisInternal, input: string): Record<string, unknown> | undefined {
+  const text = app.artifacts?.["package.json"]?.source
+    ?? (() => { try { return fs.readFileSync(path.join(input, "package.json"), "utf8"); } catch { return undefined; } })();
+  if (!text) return undefined;
+  try { const j = JSON.parse(text); return typeof j === "object" && j ? (j as Record<string, unknown>) : undefined; } catch { return undefined; }
+}
+
+const EXTS = ["", ".ts", ".tsx", ".js", ".mjs", ".cjs"];
+/** `dist/index.js` → the module `src/index.ts` (or `index.ts`, or as written) — whichever the symbol table has. */
+function moduleForPath(app: AnalysisInternal, declared: string): string | undefined {
+  const rel = declared.replace(/\\/g, "/").replace(/^\.\//, "");
+  const stem = rel.replace(/\.(tsx|ts|jsx|js|mjs|cjs)$/, "");
+  const bases = [stem, stem.replace(/^(dist|out|build|lib)\//, "src/"), stem.replace(/^(dist|out|build|lib)\//, "")];
+  for (const b of bases) for (const ext of EXTS) if (app.symbol_table[b + ext]) return b + ext;
+  return undefined;
+}
+
+/**
+ * Manifest tier: a `main`/`bin` entry names a FILE, and "what runs when that file is executed" is
+ * its module-scope calls (python has no analog — an npm-specific convention). Not a "heuristic"
+ * framework — `never-doubles` (pipeline.ts calls tier) does not apply: a callable can legitimately
+ * be both a framework handler AND a manifest-declared root, so this pushes unconditionally.
+ */
+export function entrypointsFromManifest(
+  app: AnalysisInternal,
+  input: string,
+  rules: readonly ManifestRule[],
+  unresolved: (key: string) => void,
+): Array<{ target: TSCallable; ep: TSEntrypoint }> {
+  const out: Array<{ target: TSCallable; ep: TSEntrypoint }> = [];
+  const pkg = manifestOf(app, input);
+  if (!pkg) return out;
+  for (const rule of rules) {
+    const raw = pkg[rule.field];
+    const paths: string[] = typeof raw === "string" ? [raw]
+      : raw && typeof raw === "object" ? Object.values(raw as Record<string, unknown>).filter((v): v is string => typeof v === "string")
+      : [];
+    for (const p of paths) {
+      const key = moduleForPath(app, p);
+      const mod = key ? app.symbol_table[key] : undefined;
+      if (!mod) { unresolved(`package.json#${rule.field}:${p}`); continue; }
+      const free = new Map(Object.values(mod.functions ?? {}).map((c) => [c.name, c] as const));
+      let hit = false;
+      for (const site of mod.call_sites ?? []) {
+        if (site.receiver_expr) continue;
+        const target = free.get(site.method_name);
+        if (!target) continue;
+        hit = true;
+        out.push({
+          target,
+          ep: { framework: "manifest", confidence: rule.confidence, rule: rule.id, ruleset: rule.origin,
+            evidence: `package.json#${rule.field}`, http_methods: [], via: mod.id },
+        });
+      }
+      if (!hit) unresolved(`package.json#${rule.field}:${p}`);
     }
   }
   return out;
