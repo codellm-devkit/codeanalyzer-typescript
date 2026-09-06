@@ -14,7 +14,9 @@
         "max_level": "integer",
         "k_limit": "integer",
         "analyzer_name": "string",
-        "analyzer_version": "string"
+        "analyzer_version": "string",
+        "entrypoint_frameworks": "string[]",
+        "entrypoint_report_json": "string"
       }
     },
     {
@@ -97,7 +99,9 @@
         "is_ambient": "boolean",
         "code": "string",
         "start_line": "integer",
-        "end_line": "integer"
+        "end_line": "integer",
+        "is_entrypoint": "boolean",
+        "entrypoint_frameworks": "string[]"
       }
     },
     {
@@ -194,7 +198,9 @@
         "is_implicit": "boolean",
         "code": "string",
         "start_line": "integer",
-        "end_line": "integer"
+        "end_line": "integer",
+        "is_entrypoint": "boolean",
+        "entrypoint_frameworks": "string[]"
       }
     },
     {

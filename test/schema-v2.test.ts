@@ -93,6 +93,7 @@ describe("schema v2 — L1 envelope", () => {
       "config_reads",
       "config_uses",
       "dependencies",
+      "entrypoint_report", // #72 unit 1: level-free coverage report
       "id",
       "kind",
       "param_in",

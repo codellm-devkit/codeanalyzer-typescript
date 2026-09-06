@@ -10,7 +10,7 @@
  * for the incremental writer's per-module isolation); shared nodes (External) carry none.
  */
 
-import type { TSAnalysis, TSApplication, TSBodyNode, TSCallable, TSDecorator, TSField, TSModule, TSType } from "../../schema";
+import type { TSAnalysis, TSApplication, TSBodyNode, TSCallable, TSDecorator, TSEntrypoint, TSEntrypointReport, TSField, TSModule, TSType } from "../../schema";
 import { purlNpm } from "../../schema/ids";
 import { SCHEMA_VERSION } from "./schema";
 import { type GraphRows, type NodeRef, type Props, RowBuilder, prune } from "./rows";
@@ -58,6 +58,10 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
     // app-name param (project()'s _appName) and every other CanNode's bare `name`.
     analyzer_name: app.analyzer.name,
     analyzer_version: app.analyzer.version,
+    // Entrypoint report (#72; python #182 parity): the pass under-approximates by design, so a graph
+    // consumer must be able to tell "no entrypoints" from "the pass found nothing it could name".
+    entrypoint_frameworks: [...root.entrypoint_report.frameworks_detected],
+    entrypoint_report_json: reportJson(root.entrypoint_report),
   }));
 
   for (const mod of Object.values(root.symbol_table)) {
@@ -289,12 +293,27 @@ function moduleProps(mod: TSModule, fileKey: string): Props {
   });
 }
 
+/** Sorted framework names of a node's entrypoints — the Neo4j-queryable summary of the list. */
+function frameworksOf(eps: TSEntrypoint[] | undefined): string[] {
+  return [...new Set((eps ?? []).map((e) => e.framework))].sort();
+}
+
+/** Key-sorted, matching python's `json.dumps(..., sort_keys=True)`, so the two projections diff. */
+function reportJson(r: TSEntrypointReport): string {
+  const unresolved: Record<string, number> = {};
+  for (const k of Object.keys(r.unresolved).sort()) unresolved[k] = r.unresolved[k] as number;
+  return JSON.stringify({ errors: r.errors, frameworks_detected: r.frameworks_detected, rulesets: r.rulesets, unresolved });
+}
+
 function typeProps(t: TSType, fileKey: string, source: string): Props {
   return prune({
     id: t.id, kind: t.kind, signature: t.signature, name: t.name,
     base_classes: strArr(t.base_classes), implements_types: strArr(t.implements_types),
     aliased_type: t.aliased_type ?? null,
     is_abstract: t.is_abstract ?? null, is_const: t.is_const ?? null,
+    // #72: class only — python stamps PyClass, and :TSClass is the only type label declaring these.
+    is_entrypoint: t.kind === "class" ? (t.is_entrypoint ?? false) : null,
+    entrypoint_frameworks: t.kind === "class" ? frameworksOf(t.entrypoints) : null,
     is_exported: t.is_exported, is_ambient: t.is_ambient,
     code: spanCode(source, t.span), ...span(t),
   });
@@ -306,6 +325,7 @@ function callableProps(c: TSCallable, fileKey: string, source: string): Props {
     return_type: c.return_type ?? null, cyclomatic_complexity: c.cyclomatic_complexity,
     accessibility: c.accessibility ?? null, accessor_kind: c.accessor_kind ?? null,
     is_static: c.is_static, is_abstract: c.is_abstract,
+    is_entrypoint: c.is_entrypoint ?? false, entrypoint_frameworks: frameworksOf(c.entrypoints),
     is_async: c.is_async, is_generator: c.is_generator,
     is_exported: c.is_exported, is_ambient: c.is_ambient,
     is_implicit: c.is_implicit, code: spanCode(source, c.span), ...span(c), _module: fileKey,

@@ -25,6 +25,7 @@ import type { ProgramGraphs } from "./graphs";
 import { assignIds } from "./assignIds";
 import { populateL1Body } from "./l1Body";
 import { resolveHeritageIds } from "./heritage";
+import { detectEntrypoints } from "./entrypoints";
 import { homeExternals, homeSynthesized } from "./homing";
 import { backfillCallees, reidentifyCallGraph } from "./l2Callees";
 import { applyDataflow } from "../dataflow/attach";
@@ -96,6 +97,8 @@ export function finalizeAnalysis(
   const { appId, idBySig, callableBySig, collisions } = assignIds(app, appName);
   populateL1Body(app);
   resolveHeritageIds(app, idBySig);
+  // Level-free, after heritage: unit 4 matches on resolved extends_ids.
+  const entrypoint_report = detectEntrypoints(app);
 
   const root: TSApplication = {
     id: appId,
@@ -109,6 +112,7 @@ export function finalizeAnalysis(
     unresolved_imports: app.unresolved_imports ?? [],
     config_uses: app.config_uses ?? [],
     config_reads: app.config_reads ?? [],
+    entrypoint_report,
   };
 
   // L2 — home the off-tree edge endpoints, backfill `callee`, re-identify the call graph.
