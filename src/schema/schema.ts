@@ -245,6 +245,35 @@ export type TSCallableKind =
   | "arrow"
   | "function_expression";
 
+/**
+ * One way a callable or class is invoked from outside the application (#72; python #27 parity).
+ * A node may hold several — two route decorators, or a function that is both a task and a CLI
+ * command. `confidence` lets a consumer threshold on evidence quality rather than inheriting this
+ * analyzer's judgement.
+ */
+export interface TSEntrypoint {
+  framework: string;
+  confidence: "declared" | "certain" | "heuristic";
+  rule: string; // rules file `id:`, or an engine name
+  ruleset: string; // "shipped" | "user:<path>"
+  evidence?: string;
+  route?: string;
+  http_methods: string[];
+  via?: string; // can:// id of the routed node dispatching here
+}
+
+/**
+ * Coverage and failure record for the entrypoint pass (#72). The pass under-approximates by
+ * design, so silence is its failure mode — this is what makes a gap visible instead of
+ * indistinguishable from "this project has no entrypoints".
+ */
+export interface TSEntrypointReport {
+  frameworks_detected: string[];
+  rulesets: string[];
+  unresolved: Record<string, number>;
+  errors: string[];
+}
+
 export interface TSCallable {
   id: string; // can:// containment id — stamped per-run by assignIds
   kind: TSCallableKind;
@@ -253,6 +282,10 @@ export interface TSCallable {
   signature: string; // e.g. src/user.UserService.getUser — the internal join key
   comments: TSComment[];
   decorators: TSDecorator[];
+  // Entrypoints (#72): stamped per-run by the entrypoint pass, like heritage — the cached tree lacks
+  // them, the wire always carries them. Empty until a rule matches (units 2-5).
+  entrypoints?: TSEntrypoint[];
+  is_entrypoint?: boolean;
   parameters: TSCallableParameter[];
   type_parameters: TSTypeParameter[];
   return_type?: string;
@@ -306,6 +339,10 @@ export interface TSType {
   functions?: Record<string, TSCallable>; // namespace only
   // class
   decorators?: TSDecorator[];
+  // Entrypoints (#72): class only, stamped per-run — python stamps PyClass; an interface, enum,
+  // alias or namespace cannot be an entrypoint and never carries these.
+  entrypoints?: TSEntrypoint[];
+  is_entrypoint?: boolean;
   base_classes?: string[]; // spine: union of extends + implements (signature strings)
   implements_types?: string[]; // typed split: just the implemented interfaces
   is_abstract?: boolean;
@@ -524,6 +561,8 @@ export interface TSApplication {
   /** config_use literal tier (#101 unit C2/C3) — empty until L2; CALL rules need the call graph. */
   config_uses: TSConfigUse[];
   config_reads: TSConfigRead[];
+  /** Entrypoint coverage report (#72) — level-free, identical at every -a. */
+  entrypoint_report: TSEntrypointReport;
   // TS-additive (parity): edge endpoints outside the containment tree need an id home.
   external_symbols?: Record<string, import("./homing").TSExternalNode>; // L2 — library call targets, keyed by id
   // L2 — #92 compatibility index: the older anonymous-callable id → the tree id that replaced

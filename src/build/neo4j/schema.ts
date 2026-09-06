@@ -62,6 +62,8 @@ export const NODE_LABELS: NodeLabel[] = [
       // namespaced (not bare name/version) to avoid colliding with the app-name param / every
       // other CanNode's bare `name`.
       analyzer_name: "string", analyzer_version: "string",
+      // Entrypoint report (#72; python #182 parity) — sorted-key JSON, since Neo4j has no map type.
+      entrypoint_frameworks: "string[]", entrypoint_report_json: "string",
     },
   },
   // Repository-artifact layer (#101, python PR #160 parity): language-NEUTRAL labels — the
@@ -115,6 +117,7 @@ export const NODE_LABELS: NodeLabel[] = [
     properties: {
       ...COMMON, signature: "string", name: "string", base_classes: "string[]", implements_types: "string[]",
       is_abstract: "boolean", is_exported: "boolean", is_ambient: "boolean", code: "string", ...SPAN,
+      is_entrypoint: "boolean", entrypoint_frameworks: "string[]", // #72 (python PyClass parity)
     },
   },
   {
@@ -150,6 +153,7 @@ export const NODE_LABELS: NodeLabel[] = [
       accessibility: "string", accessor_kind: "string", is_static: "boolean", is_abstract: "boolean",
       is_async: "boolean", is_generator: "boolean", is_exported: "boolean", is_ambient: "boolean", is_implicit: "boolean",
       code: "string", ...SPAN,
+      is_entrypoint: "boolean", entrypoint_frameworks: "string[]", // #72 (python PyCallable parity)
     },
   },
   { label: "TSField", mergeLabel: CAN, key: "id", properties: { ...COMMON, name: "string", type: "string", ...SPAN } },
