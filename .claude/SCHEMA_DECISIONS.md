@@ -173,3 +173,13 @@ an unresolved read is `reason: "non-literal"` (key never closes on one literal) 
 | P3 | **Markers `TSCanNode` / `JSCanNode`** on every `can://<lang>/` id, with a range index on `id` each | index anchors only; anchor label chosen from the id's own namespace | property indexes are label-scoped; `STARTS WITH` seeks only on a range index. Two markers because this analyzer emits two namespaces. `CanNode` stays until #95 |
 | P4 | **Empty application refused** (`applicationPrefixes` throws) | on any push: the diff itself is app-scoped | `STARTS WITH ''` matches the whole store |
 | P5 | **`SCHEMA_VERSION` stays 2.0.0** despite a removed property | supersedes #140's "MAJOR bump" goal | #144 / python #186: one version until every analyzer re-baselines together |
+
+## L4 port lattice ↔ statement ddg (2026-09-06, #81/#80 — python #115 parity)
+
+| # | Concept | Decision | Rationale |
+|---|---|---|---|
+| L1 | **Four binding classes**, all `prov: ["reaching-defs"]`: `formal_in:n → first-use`, `def stmt → actual_in:k`, `actual_out → callsite`, `stmt → @formal_out` | emitted in `emitL4` (`src/dataflow/attach.ts`); the last existed already | one class alone made the SDG two disconnected graphs: a walk could cross a call only on the return leg |
+| L2 | `formal_in:n → use` is emitted **alongside** the L3 `@entry → use` edge, not instead | a param folds onto `@entry` below L4 (`l3()`); L3 consumers keep that | additive across levels (L3 ⊆ L4 gate); a walk entering via `param_in` no longer dead-ends |
+| L3 | `def → actual_in:k` binds when the reaching variable's head is a whole word in argument k's TEXT at the call site | derived at emit time from intra ddg + `PARAM_IN` + the callable's own `call_sites` (python's assembler produces these as `extra_edges`; ours does not) | no per-argument AST at this stage; the ceiling is a local/property name clash (`f(o.v)` with local `v`), which over-binds |
+| L4 | `actual_out → callsite` (python's class), not `actual_out → use stmt` | the existing `L → use` edges carry the value onward | derivable without guessing which defined variable is the return |
+| L5 | ddg deduped on `(src, dst, var, prov)` and sorted | a binding can be reached from more than one sdg edge | determinism |
