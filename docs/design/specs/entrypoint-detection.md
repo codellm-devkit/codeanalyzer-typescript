@@ -295,7 +295,7 @@ Tracking follows PR granularity; file each just-in-time.
 Units 0-3 are independently useful: a NestJS, Angular or Express codebase gets correct, gated,
 reported entrypoints without file-convention or manifest matching existing.
 
-## Open questions
+## Open questions (as written at design time)
 
 - Can `entrypoints` hang off a module (`TSModule`), or must a file-convention entrypoint resolve to
   a callable? Python's schema has no module-level entrypoints; adding them here would be a
@@ -305,3 +305,41 @@ reported entrypoints without file-convention or manifest matching existing.
   analyzers? Java will need the same vocabulary for Spring.
 - Should the shipped rules file be a release asset (like `schema.json` already is), so consumers can
   diff which frameworks a given analyzer version covers?
+
+## Decisions taken during implementation (units 2–5)
+
+The open questions above were decided while building the units. Recorded here so the spec stays the
+authority; the code and tests pin each one.
+
+- **File-convention entrypoints attach to callables, never to a module.** `entrypoints` was NOT added
+  to `TSModule`, so the shared vocabulary is untouched: a Next.js `route.ts` records on its exported
+  `GET`/`POST` callables (matched on `is_exported` + `name`; a default export is detected from the
+  declaration's source text, since `TSModule.exports` records only `export { }` and re-exports).
+- **Manifest entrypoints (`package.json` `main`/`bin`) attach to the free functions the entry module
+  calls at top level**, with `confidence: declared`, `evidence: package.json#<field>`, and `via` = the
+  module id. "What runs when this file is executed" is its top-level calls; a path that resolves to no
+  module, or a module with no such call, is counted in `unresolved` under `package.json#<field>:<path>`.
+  Python has no analog, so no shared field was added for this.
+- **Module-scope call sites are captured INTERNAL on `TSModule.call_sites`** (stripped from the wire in
+  `emit.ts`; kept in the cache, because a warm run reuses cached modules verbatim and the calls tier
+  must survive it). The `calls:` tier scans module-owned and callable-owned sites, each exactly once.
+- **`via` for a callable-owned call site** is the owning callable's body-node id via `callBodyKeys`
+  (so chained calls sharing a start position stay distinct); **for a module-owned site** it is
+  `${mod.id}@L:C` — a well-formed ordinal id that names no wire node today, because modules have no
+  `body{}`. Accepted as a locator; a later change may give modules a body.
+- **The rules format has one `heuristics:` block with `decorators:` and `calls:`.** Same semantics
+  for both (written spelling, every node, `heuristic` forced, runs last, never doubles). This is a
+  cross-language vocabulary addition; python #187 tracks accepting `calls` as a known key.
+- **`http_methods` never carries a non-HTTP token.** The verb set is python's seven dispatch verbs and
+  `match_suffix` is filtered by it — deliberately stricter than python, whose suffix branch is
+  unfiltered. So `app.use`, `app.all` and `@ws.websocket` yield `[]`. **Still open:** whether `app.all`
+  (a route matching every method) should carry something; until decided, match on `evidence`/`rule`.
+- **`TSDecorator.qualified_name` is the import-table resolution or absent** (#152), and the resolver
+  is the primary mechanism, not a fallback — there is no checker tier.
+- **Base-class resolution is per owning module**: during a transitive walk, an ancestor's written
+  base is resolved through the ancestor's own import table, not the leaf class's.
+- **The plan's "call_sites must never reach the cache" was wrong** and was not followed; see above.
+- **The manifest matcher's disk fallback is exercised end-to-end with `--no-artifact-text`** (`artifactText:
+  false`), not with `--no-repo-sections` as the plan first said: that flag lives on an unmerged branch, and
+  `--no-artifact-text` produces the exact shape (`source: ""`) the fallback must handle. A missing
+  `pages/api` default export is COUNTED under `<fileKey>#default`, never silent.
