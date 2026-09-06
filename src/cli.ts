@@ -59,6 +59,7 @@ export function buildProgram(): Command {
     .option("--no-phantoms", "disable phantom (external) nodes for imported/required library calls")
     .option("--resolve-installed", "probe node_modules metadata for import→package binding (default: repo files only)")
     .option("--no-artifact-text", "keep the artifact inventory but drop captured raw text")
+    .option("--entrypoint-rules <yaml...>", "extra entrypoint rules file(s), merged with the shipped set; repeatable")
     .option("-c, --cache-dir <dir>", "cache/intermediate directory")
     .option("-v, --verbose", "increase verbosity (repeatable)", (_v: string, prev: number) => prev + 1, 0)
     .allowExcessArguments(true);
@@ -156,5 +157,6 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     artifactText: o.artifactText !== false,
     cacheDir: o.cacheDir ? path.resolve(String(o.cacheDir)) : null,
     verbosity: typeof o.verbose === "number" ? o.verbose : 0,
+    entrypointRules: Array.isArray(o.entrypointRules) && o.entrypointRules.length ? o.entrypointRules.map(String) : null,
   };
 }

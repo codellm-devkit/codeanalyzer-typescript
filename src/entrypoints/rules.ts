@@ -75,3 +75,143 @@ export interface RuleSet {
 export class RulesError extends Error {}
 
 export const EMPTY_RULES: RuleSet = { frameworks: {}, heuristics: { decorators: [], calls: [] }, manifest: [], rulesets: [] };
+
+// --- loader (Task 3) --------------------------------------------------------------------------
+import * as fs from "node:fs";
+import { parse as parseYaml } from "yaml";
+import { PatternError, validatePattern } from "./matching";
+import SHIPPED_YAML from "./rules.yml" with { type: "text" };
+
+const CONFIDENCE: ReadonlySet<string> = new Set(["declared", "certain", "heuristic"]);
+// `declared:` readers and per-framework routing engines are spec blocks not implemented; they are
+// deliberately absent here rather than accepted-and-ignored, so a user file using them fails
+// loudly instead of loading clean and doing nothing.
+const TOP_LEVEL = new Set(["version", "frameworks", "heuristics", "manifest", "disable"]);
+const HEURISTIC_KEYS = new Set(["decorators", "calls"]);
+const FRAMEWORK_KEYS = new Set(["detect", "decorators", "bases", "files"]);
+
+type Raw = Record<string, unknown>;
+
+export function loadRules(userPaths: readonly string[]): RuleSet {
+  const out: RuleSet = { frameworks: {}, heuristics: { decorators: [], calls: [] }, manifest: [], rulesets: [] };
+  merge(out, readYaml(SHIPPED_YAML, "shipped"), "shipped");
+  for (const p of userPaths) {
+    let text: string;
+    try { text = fs.readFileSync(p, "utf8"); } catch { throw new RulesError(`rules file not found: ${p}`); }
+    merge(out, readYaml(text, p), `user:${p}`);
+  }
+  return out;
+}
+
+function readYaml(text: string, origin: string): Raw {
+  let data: unknown;
+  try { data = parseYaml(text); } catch (e) { throw new RulesError(`${origin}: invalid YAML: ${(e as Error).message}`); }
+  if (!isMap(data)) throw new RulesError(`${origin}: top level must be a mapping`);
+  return data;
+}
+
+const isMap = (v: unknown): v is Raw => typeof v === "object" && v !== null && !Array.isArray(v);
+const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+
+function merge(out: RuleSet, data: Raw, origin: string): void {
+  const unknown = Object.keys(data).filter((k) => !TOP_LEVEL.has(k)).sort();
+  if (unknown.length) throw new RulesError(`${origin}: unknown top-level key(s): ${unknown.join(", ")}`);
+  out.rulesets.push(origin);
+  const disabled = new Set(disableList(data, origin));
+
+  const frameworks = data.frameworks ?? {};
+  if (!isMap(frameworks)) throw new RulesError(`${origin}: \`frameworks\` must be a mapping`);
+  for (const [name, body] of Object.entries(frameworks)) {
+    if (!isMap(body)) throw new RulesError(`${origin}: framework \`${name}\` must be a mapping`);
+    const bad = Object.keys(body).filter((k) => !FRAMEWORK_KEYS.has(k));
+    if (bad.length) throw new RulesError(`${origin}: framework \`${name}\`: unknown key(s): ${bad.join(", ")}`);
+    const fw = (out.frameworks[name] ??= { name, detect: [], decorators: [], bases: [], files: [] });
+    fw.detect = [...new Set([...fw.detect, ...list(body.detect).map(String)])].sort();
+    for (const raw of list(body.decorators)) fw.decorators.push(decoratorRule(raw, origin));
+    for (const raw of list(body.bases)) fw.bases.push(baseRule(raw, origin));
+    for (const raw of list(body.files)) fw.files.push(fileRule(raw, origin));
+  }
+
+  const heuristics = data.heuristics ?? {};
+  if (!isMap(heuristics)) throw new RulesError(`${origin}: \`heuristics\` must be a mapping`);
+  const badH = Object.keys(heuristics).filter((k) => !HEURISTIC_KEYS.has(k));
+  if (badH.length) throw new RulesError(`${origin}: unknown heuristics key(s): ${badH.join(", ")}`);
+  for (const raw of list(heuristics.decorators)) out.heuristics.decorators.push(decoratorRule({ ...(raw as Raw), confidence: "heuristic" }, origin));
+  for (const raw of list(heuristics.calls)) out.heuristics.calls.push(callRule({ ...(raw as Raw), confidence: "heuristic" }, origin));
+
+  for (const raw of list(data.manifest)) out.manifest.push(manifestRule(raw, origin));
+
+  for (const fw of Object.values(out.frameworks)) {
+    fw.decorators = fw.decorators.filter((r) => !disabled.has(r.id));
+    fw.bases = fw.bases.filter((r) => !disabled.has(r.id));
+    fw.files = fw.files.filter((r) => !disabled.has(r.id));
+  }
+  out.heuristics.decorators = out.heuristics.decorators.filter((r) => !disabled.has(r.id));
+  out.heuristics.calls = out.heuristics.calls.filter((r) => !disabled.has(r.id));
+  out.manifest = out.manifest.filter((r) => !disabled.has(r.id));
+}
+
+function disableList(data: Raw, origin: string): string[] {
+  const raw = data.disable ?? [];
+  if (!Array.isArray(raw) || !raw.every((x) => typeof x === "string")) throw new RulesError(`${origin}: \`disable\` must be a list of rule id strings`);
+  return raw as string[];
+}
+
+function require(raw: Raw, key: string, origin: string): unknown {
+  if (!(key in raw)) throw new RulesError(`${origin}: rule ${JSON.stringify(raw)} is missing \`${key}\``);
+  return raw[key];
+}
+function confidence(raw: Raw, origin: string): Confidence {
+  const c = raw.confidence ?? "certain";
+  if (typeof c !== "string" || !CONFIDENCE.has(c)) throw new RulesError(`${origin}: confidence must be one of declared, certain, heuristic — got ${JSON.stringify(c)}`);
+  return c as Confidence;
+}
+function match(raw: Raw, origin: string): string {
+  const m = String(require(raw, "match", origin));
+  try { validatePattern(m); } catch (e) {
+    if (e instanceof PatternError) throw new RulesError(`${origin}: rule ${JSON.stringify(raw.id ?? raw)}: ${e.message}`);
+    throw e;
+  }
+  return m;
+}
+function argSpec(v: unknown): ArgSpec | undefined {
+  if (!isMap(v)) return undefined;
+  const spec: ArgSpec = { from: String(v.from) as ArgSpec["from"] };
+  if (typeof v.index === "number") spec.index = v.index;
+  if (typeof v.name === "string") spec.name = v.name;
+  if (Array.isArray(v.default)) spec.default = v.default.map(String);
+  return spec;
+}
+function asRaw(raw: unknown, origin: string): Raw {
+  if (!isMap(raw)) throw new RulesError(`${origin}: rule must be a mapping, got ${JSON.stringify(raw)}`);
+  return raw;
+}
+function decoratorRule(raw0: unknown, origin: string): DecoratorRule {
+  const raw = asRaw(raw0, origin);
+  return { id: String(require(raw, "id", origin)), match: match(raw, origin), confidence: confidence(raw, origin),
+           route: argSpec(raw.route), methods: argSpec(raw.methods), origin };
+}
+function callRule(raw0: unknown, origin: string): CallRule {
+  const raw = asRaw(raw0, origin);
+  return { ...decoratorRule(raw, origin), handler: argSpec(raw.handler) ?? { from: "positional", index: -1 } };
+}
+function baseRule(raw0: unknown, origin: string): BaseRule {
+  const raw = asRaw(raw0, origin);
+  return { id: String(require(raw, "id", origin)), match: match(raw, origin), confidence: confidence(raw, origin),
+           transitive: Boolean(raw.transitive ?? false), dispatch: list(raw.dispatch).map(String), origin };
+}
+function fileRule(raw0: unknown, origin: string): FileRule {
+  const raw = asRaw(raw0, origin);
+  const exports = list(require(raw, "exports", origin)).map(String);
+  if (!exports.length) throw new RulesError(`${origin}: file rule ${JSON.stringify(raw.id)} needs a non-empty \`exports\``);
+  return { id: String(require(raw, "id", origin)), match: String(require(raw, "match", origin)), exports,
+           confidence: confidence(raw, origin), methods: argSpec(raw.methods), origin };
+}
+function manifestRule(raw0: unknown, origin: string): ManifestRule {
+  const raw = asRaw(raw0, origin);
+  const field = String(require(raw, "field", origin));
+  if (field !== "main" && field !== "bin") throw new RulesError(`${origin}: manifest field must be main or bin, got ${field}`);
+  if ((raw.source ?? "package.json") !== "package.json") throw new RulesError(`${origin}: manifest source must be package.json`);
+  const c = raw.confidence ?? "declared";
+  return { id: String(require(raw, "id", origin)), source: "package.json", field, confidence: confidence({ confidence: c }, origin), origin };
+}
