@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { buildProgramGraphs, startExtraction } from "./dataflow";
 import { type LinkerResolutions, mergeCallGraphs, runDefuseLinker, tscProvider } from "./semantic_analysis";
@@ -25,11 +26,33 @@ export type { AnalysisResult } from "./schema/emit";
  * Shard enumeration for an orchestrator: it must be able to find the shards before running them.
  */
 export function discoverPrograms(opts: AnalysisOptions): string[] {
+  assertInputDir(opts.input);
   const log = new Logger(opts.verbosity);
   return materialize(opts, log).programs.map((spec) => programName(spec, opts.input));
 }
 
+/** A user-facing usage error (bad input path): printed as one line, exit 1, no stack, no FATAL. */
+export class InputError extends Error {}
+
+/**
+ * #181: the input must be a readable directory BEFORE anything runs. Discovery swallows a failed
+ * `readdir` and returns no files, which used to turn a mistyped path into a schema-valid
+ * `analysis.json` describing an empty application (id minted from a directory never read) and an
+ * exit code of 0. An empty directory is still a real answer — "no analysable sources" — this only
+ * refuses a path that is not one.
+ */
+function assertInputDir(input: string): void {
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(input);
+  } catch {
+    throw new InputError(`input path does not exist: ${input}`);
+  }
+  if (!stat.isDirectory()) throw new InputError(`input path is not a directory: ${input}`);
+}
+
 export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
+  assertInputDir(opts.input);
   const log = new Logger(opts.verbosity);
   log.info(`analyzing ${opts.input} (level ${opts.analysisLevel})`);
   resetCheckerFailures();
