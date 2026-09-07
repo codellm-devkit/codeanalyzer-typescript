@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { analyze, discoverPrograms } from "./core";
+import { InputError, analyze, discoverPrograms } from "./core";
 import { parseArgs } from "./cli";
 import { RulesError } from "./entrypoints";
 import { emit, emitSchema } from "./utils";
@@ -19,7 +19,7 @@ async function main(): Promise<void> {
     const result = await analyze(opts);
     await emit(result.application, opts);
   } catch (e) {
-    if (e instanceof RulesError) {
+    if (e instanceof RulesError || e instanceof InputError) {
       // A user configuration error, not an analyzer bug: no stack trace, no "FATAL".
       process.stderr.write(`[codeanalyzer-ts] ${e.message}\n`);
       process.exit(1);
