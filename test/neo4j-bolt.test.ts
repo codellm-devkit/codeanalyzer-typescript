@@ -141,6 +141,46 @@ containerSuite("neo4j bolt writer", () => {
   );
 
   test(
+    "binding edges land, and an import edge to a vanished target goes with the target under --eager (#182)",
+    async () => {
+      const opts = optsFor();
+      const result = await analyze(opts);
+      const full = project(finalizeAnalysis(result.internal, result.program_graphs ?? null, opts).application);
+      await boltWriter(full, cfg, log, true, true);
+      const count = (t: string) => full.edges.filter((e) => e.type === t).length;
+      expect(count("TS_IMPORTS")).toBeGreaterThan(0);
+      expect(await num("MATCH (:TSModule)-[r:TS_IMPORTS]->() RETURN count(r)")).toBe(count("TS_IMPORTS"));
+      // index.ts imports ./models: a resolved edge lands on the real module, names aggregated
+      expect(
+        await num("MATCH (m:TSModule {name:'src/index.ts'})-[r:TS_IMPORTS]->(t:TSModule {name:'src/models.ts'}) WHERE 'User' IN r.imported_names RETURN count(r)"),
+      ).toBe(1);
+      // an external lands on the dependency layer's ghost, under the application prefix
+      expect(await num("MATCH (:TSModule)-[:TS_IMPORTS]->(x:TSExternal {module:'commander'}) RETURN count(x)")).toBe(1);
+      expect(await num("MATCH (c:TSCallable {name:'create'}) WHERE c.parameters_json STARTS WITH '[{' RETURN count(c)")).toBeGreaterThan(0);
+
+      // models.ts vanishes. Its importers (index.ts, services.ts) are UNCHANGED modules, so the
+      // incremental diff never rewrites their edges: the stale TS_IMPORTS edge to the victim
+      // survives a default push exactly like the victim's own nodes do (#116's rule) — that
+      // `> 0` is the load-bearing assertion. Under --eager the application is wiped and rebuilt
+      // from the reduced rows, so the edge is gone with the victim; the final count pins that the
+      // rebuilt import graph is exactly the reduced projection's — nothing dangles.
+      const app = result.internal;
+      delete app.symbol_table["src/models.ts"];
+      const reduced = project(finalizeAnalysis(app, result.program_graphs ?? null, opts).application);
+      const appId = full.nodes.find((n) => n.labels[0] === "Application")!.value;
+      const victimId = `${appId}/src/models.ts`;
+      const intoVictim = () => num("MATCH ()-[r:TS_IMPORTS]->(t {id:$id}) RETURN count(r)", { id: victimId });
+      expect(reduced.edges.filter((e) => e.type === "TS_IMPORTS" && e.to.value === victimId).length).toBe(0);
+      await boltWriter(reduced, cfg, log, true, false);
+      expect(await intoVictim()).toBeGreaterThan(0);
+      await boltWriter(reduced, cfg, log, true, true);
+      expect(await intoVictim()).toBe(0);
+      expect(await num("MATCH (:TSModule)-[r:TS_IMPORTS]->() RETURN count(r)")).toBe(reduced.edges.filter((e) => e.type === "TS_IMPORTS").length);
+    },
+    120_000,
+  );
+
+  test(
     "a vanished module is pruned only under --eager (#116)",
     async () => {
       const opts = optsFor();

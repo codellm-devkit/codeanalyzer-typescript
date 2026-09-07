@@ -988,6 +988,8 @@ export function buildNamespace(ns: Node, root: string): { sig: string; ns: TSTyp
 // imports / exports / comments
 // ----------------------------------------------------------------------------------------------
 
+// `resolved_module` is NOT stamped here: it is a per-run pass (moduleResolution.ts, #182) because
+// the answer depends on the tsconfig and on which files exist — state the module cache cannot see.
 function buildImports(sf: Node): TSImport[] {
   const out: TSImport[] = [];
   const decls = (sf as unknown as { getImportDeclarations: () => Node[] }).getImportDeclarations();
@@ -1053,13 +1055,14 @@ function buildExports(sf: Node): TSExport[] {
       });
     }
     for (const ne of named) {
-      const n = ne as unknown as { getName: () => string; getAliasNode?: () => { getText: () => string } | undefined };
+      const n = ne as unknown as { getName: () => string; getAliasNode?: () => { getText: () => string } | undefined; isTypeOnly?: () => boolean };
       const alias = n.getAliasNode?.()?.getText();
       out.push({
         ...(module != null ? { module } : {}),
         name: n.getName(),
         ...(alias != null ? { alias } : {}),
-        is_type_only: typeOnly,
+        // per-specifier `export { type X }` counts as much as the `export type { }` list form
+        is_type_only: typeOnly || (n.isTypeOnly?.() ?? false),
         export_kind: module ? "re_export" : "named",
         ...s,
       });

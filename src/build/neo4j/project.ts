@@ -11,6 +11,7 @@
  * for the incremental writer's per-module isolation); shared nodes (External) carry none.
  */
 
+import { specifierRoot } from "../../artifacts/binding";
 import type { TSAnalysis, TSApplication, TSBodyNode, TSCallable, TSDecorator, TSEntrypoint, TSEntrypointReport, TSField, TSModule, TSType } from "../../schema";
 import { globalOrdinal, purlNpm } from "../../schema/ids";
 import { SCHEMA_VERSION } from "./schema";
@@ -133,11 +134,36 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
       b.edge("TS_UNRESOLVED_IMPORT", appRef, importGhost(u.module), prune({ prov: u.prov.length ? u.prov : null }));
     }
   }
+  // Module-level binding edges (#182): after the artifact layer, so externals share its ghosts.
+  for (const mod of Object.values(root.symbol_table)) projectBindings(b, root, mod, importGhost);
+
   // config_use literal/dataflow tier (#101 unit C2/C3): src is a body-node ordinal id already
   // projected as a :CanNode above; dst is a :ConfigKey id, already projected in the artifact
-  // loop. config_reads stay JSON-only — they record absence, not an edge.
+  // loop.
   for (const u of root.config_uses ?? []) {
     b.edge("TS_USES_CONFIG", ref(u.src), { label: "ConfigKey", keyProp: "id", value: u.dst }, prune({ prov: u.prov }));
+  }
+  // config_reads (#182, python PY_READS_CONFIG_UNRESOLVED): application → the read's target. An
+  // env-root read (`process.env`, `import.meta.env`, `Bun.env`) has no callee node, so it ghosts
+  // under the root's spelling; a call-rule read names its resolved callee id — an external ghost
+  // or an in-project callable — and is gated on that node existing this run. `_k = key|reason`;
+  // one row per distinct (target, key, reason), since several sites collapse onto it anyway.
+  {
+    // Fold the collapsed sites' `prov` together, so a triple read at both the literal and a
+    // dataflow tier keeps both tags rather than whichever site came first.
+    const folded = new Map<string, { r: (typeof root.config_reads)[number]; k: string; prov: Set<string> }>();
+    for (const r of root.config_reads ?? []) {
+      const k = `${r.key ?? ""}|${r.reason}`;
+      const id = `${r.callee}\0${k}`;
+      const f = folded.get(id) ?? { r, k, prov: new Set<string>() };
+      for (const p of r.prov) f.prov.add(p);
+      folded.set(id, f);
+    }
+    for (const { r, k, prov } of folded.values()) {
+      const props = prune({ key: r.key ?? null, reason: r.reason, prov: prov.size ? [...prov].sort() : null });
+      if (r.callee.startsWith("can://")) b.edgeToSymbol("TS_READS_CONFIG_UNRESOLVED", appRef, r.callee, props, k);
+      else b.edge("TS_READS_CONFIG_UNRESOLVED", appRef, importGhost(r.callee), props, k);
+    }
   }
 
   // External library targets (shared nodes — no _module).
@@ -246,6 +272,49 @@ function projectDecorator(b: RowBuilder, on: NodeRef, d: TSDecorator): void {
   });
 }
 
+/**
+ * TS_IMPORTS / TS_RE_EXPORTS (#182, python `_project_imports` parity): ONE edge per (module,
+ * target), every binding of that pair folded into sorted arrays — the writers MERGE on the endpoint
+ * pair and SET props, so a second row for the same pair would silently overwrite the first.
+ * A resolved spelling lands on the real :TSModule (only if this run emitted it — a skipped test
+ * file is not a node); an external one on the `@external/<package root>` ghost the dependency
+ * layer already addresses (builtins under their own spelling, `node:fs`); a relative spelling that
+ * resolved to nothing has no node to land on and is dropped here — the JSON keeps it.
+ */
+function projectBindings(b: RowBuilder, root: TSApplication, mod: TSModule, ghost: (name: string) => NodeRef): void {
+  const from = ref(mod.id);
+  const targetOf = (spec: string, resolved: string | undefined): NodeRef | null => {
+    if (resolved !== undefined) {
+      const t = root.symbol_table[resolved];
+      return t ? ref(t.id) : null;
+    }
+    if (/^[./#]/.test(spec)) return null;
+    return ghost(specifierRoot(spec) ?? spec);
+  };
+  type Binding = { module?: string; resolved_module?: string; name: string; alias?: string; is_type_only: boolean };
+  type Bucket = { to: NodeRef; spellings: Set<string>; names: Set<string>; aliases: Set<string>; typeOnly: Set<string> };
+  const aggregate = (items: Binding[]): Bucket[] => {
+    const buckets = new Map<string, Bucket>();
+    for (const it of items) {
+      if (it.module === undefined) continue; // a local `export { x as y }` binds nothing to another module
+      const to = targetOf(it.module, it.resolved_module);
+      if (!to) continue;
+      let bk = buckets.get(to.value);
+      if (!bk) buckets.set(to.value, (bk = { to, spellings: new Set(), names: new Set(), aliases: new Set(), typeOnly: new Set() }));
+      bk.spellings.add(it.module);
+      if (it.name) bk.names.add(it.name); // "" = side-effect import: the edge alone records the dependency
+      if (it.alias) bk.aliases.add(it.alias);
+      if (it.is_type_only && it.name) bk.typeOnly.add(it.name);
+    }
+    return [...buckets.values()];
+  };
+  const list = (s: Set<string>): string[] | null => (s.size ? [...s].sort() : null);
+  for (const bk of aggregate(mod.imports ?? []))
+    b.edge("TS_IMPORTS", from, bk.to, prune({ spellings: list(bk.spellings), imported_names: list(bk.names), aliases: list(bk.aliases), type_only_names: list(bk.typeOnly) }));
+  for (const bk of aggregate(mod.exports ?? []))
+    b.edge("TS_RE_EXPORTS", from, bk.to, prune({ spellings: list(bk.spellings), exported_names: list(bk.names), aliases: list(bk.aliases), type_only_names: list(bk.typeOnly) }));
+}
+
 /** Key-sorted shallow copy, so the encoded JSON is stable across runs (python sorts too). */
 function sortedKeys(o: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
@@ -290,6 +359,9 @@ function moduleProps(mod: TSModule, fileKey: string): Props {
   return prune({
     id: mod.id, kind: "module", name: fileKey, content_hash: mod.content_hash ?? null,
     is_tsx: mod.is_tsx, is_declaration_file: mod.is_declaration_file,
+    // #182: the lossless export list (per-binding spans, `export { x as y }` locals) — the
+    // TS_RE_EXPORTS edges carry only the aggregated cross-module part. Absent when empty.
+    exports_json: mod.exports?.length ? JSON.stringify(mod.exports) : null,
     ...span(mod), _module: fileKey,
   });
 }
@@ -330,6 +402,9 @@ function callableProps(c: TSCallable, fileKey: string, source: string): Props {
     is_async: c.is_async, is_generator: c.is_generator,
     is_exported: c.is_exported, is_ambient: c.is_ambient,
     is_implicit: c.is_implicit, code: spanCode(source, c.span), ...span(c), _module: fileKey,
+    // #182 (python `parameters_json`): the parameter list verbatim as a JSON string — Neo4j has no
+    // nested-map property — and absent, not "[]", when there are none. The SDK decodes it as-is.
+    parameters_json: c.parameters?.length ? JSON.stringify(c.parameters) : null,
   });
 }
 

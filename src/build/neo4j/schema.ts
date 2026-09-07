@@ -113,7 +113,9 @@ export const NODE_LABELS: NodeLabel[] = [
     label: "TSModule",
     mergeLabel: CAN,
     key: "id",
-    properties: { ...COMMON, name: "string", is_tsx: "boolean", is_declaration_file: "boolean", content_hash: "string", ...SPAN },
+    // `exports_json` (#182): the module's export list as a JSON string, absent when empty; the
+    // cross-module part is also TS_RE_EXPORTS edges. Imports are edges only (TS_IMPORTS).
+    properties: { ...COMMON, name: "string", is_tsx: "boolean", is_declaration_file: "boolean", content_hash: "string", exports_json: "string", ...SPAN },
   },
   {
     label: "TSClass",
@@ -159,6 +161,7 @@ export const NODE_LABELS: NodeLabel[] = [
       is_async: "boolean", is_generator: "boolean", is_exported: "boolean", is_ambient: "boolean", is_implicit: "boolean",
       code: "string", ...SPAN,
       is_entrypoint: "boolean", entrypoint_frameworks: "string[]", // #72 (python PyCallable parity)
+      parameters_json: "string", // #182 (python PyCallable parity): the parameter list, absent when empty
     },
   },
   { label: "TSField", mergeLabel: CAN, key: "id", properties: { ...COMMON, name: "string", type: "string", ...SPAN } },
@@ -204,6 +207,35 @@ export const REL_TYPES: RelType[] = [
   { type: "TS_UNRESOLVED_IMPORT", from: ["TSApplication"], to: ["TSExternal"], properties: { prov: "string[]" } },
   { type: "DEFINES_CONFIG", from: ["Artifact"], to: ["ConfigKey"], properties: {} },
   { type: "TS_USES_CONFIG", from: ["TSBodyNode"], to: ["ConfigKey"], properties: { prov: "string[]" } },
+  // A detector-matched config read that never closed on exactly one declared key (#182, python
+  // PY_READS_CONFIG_UNRESOLVED): application → the read root's ghost (`@external/process.env`) or
+  // the resolved callee of a call-rule read. `_k` discriminates by (key, reason): one callee
+  // legitimately reads several distinct undeclared/dynamic keys, and a plain endpoint-pair MERGE
+  // would keep only the last. Per-site identity is NOT carried (python's documented ceiling).
+  {
+    type: "TS_READS_CONFIG_UNRESOLVED",
+    from: ["TSApplication"],
+    to: ["TSExternal", "TSCallable"],
+    properties: { key: "string", reason: "string", prov: "string[]", _k: "string" },
+  },
+  // Module-level binding edges (#182, python PY_IMPORTS parity): ONE relationship per
+  // (module, target) aggregating every binding of that pair — the writers MERGE on the endpoint
+  // pair and SET props, so a second row for the same pair would overwrite the first. Resolved
+  // targets are the real :TSModule; externals land on the `<app>/@external/<package root>` ghost
+  // that TS_PROVIDES / TS_UNRESOLVED_IMPORT already address. `type_only_names[]` is the TS-only
+  // addition: the bindings that are `import type` / `{ type X }` / `export type`.
+  {
+    type: "TS_IMPORTS",
+    from: ["TSModule"],
+    to: ["TSModule", "TSExternal"],
+    properties: { spellings: "string[]", imported_names: "string[]", aliases: "string[]", type_only_names: "string[]" },
+  },
+  {
+    type: "TS_RE_EXPORTS",
+    from: ["TSModule"],
+    to: ["TSModule", "TSExternal"],
+    properties: { spellings: "string[]", exported_names: "string[]", aliases: "string[]", type_only_names: "string[]" },
+  },
   {
     type: "TS_DECLARES",
     from: ["TSModule", "TSNamespace", "TSCallable"],

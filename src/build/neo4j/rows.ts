@@ -152,12 +152,13 @@ export class RowBuilder {
    * `:CanNode` this run — so EXTENDS / IMPLEMENTS never dangle (the id is already resolved-only by
    * the time it reaches here; this is the defense-in-depth gate, not the primary resolution step).
    */
-  edgeToSymbol(type: string, from: NodeRef, targetId: string, props: Props = {}): void {
+  edgeToSymbol(type: string, from: NodeRef, targetId: string, props: Props = {}, key?: string): void {
     this.deferred.push({
       type,
       from,
       to: { label: CAN_NODE, keyProp: "id", value: targetId },
       props,
+      key,
     });
   }
 

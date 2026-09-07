@@ -18,6 +18,20 @@ ORDER BY m.name LIMIT 25
 // locate a callable — the graph has no source text, only file + line span (see vocabulary.md)
 MATCH (c:TSCallable {name: "analyze"})
 RETURN c.signature, c._module, c.start_line, c.end_line, c.cyclomatic_complexity
+
+// module import graph, in-project only (drop type-only-only edges for a runtime view)
+MATCH (m:TSModule)-[i:TS_IMPORTS]->(t:TSModule)
+WHERE i.imported_names IS NULL OR size(i.imported_names) > size(coalesce(i.type_only_names, []))
+RETURN m.name AS importer, t.name AS target, i.imported_names, i.spellings
+
+// who imports a package (external), with the names they take
+MATCH (m:TSModule)-[i:TS_IMPORTS]->(x:TSExternal {module: "commander"}) RETURN m.name, i.imported_names
+
+// barrel chains: what a module re-exports, transitively
+MATCH p = (m:TSModule {name: "src/index.ts"})-[:TS_RE_EXPORTS*1..5]->(t:TSModule) RETURN [n IN nodes(p) | n.name]
+
+// a callable's parameters, decoded client-side (JSON string; absent when there are none)
+MATCH (c:TSCallable {name: "create"}) RETURN c.signature, c.parameters_json
 ```
 
 ## 2. Call graph (L2)
@@ -224,12 +238,21 @@ RETURN k.key,
 
 // literal-tier-only view (drop the dataflow-widened edges)
 MATCH ()-[u:TS_USES_CONFIG]->() WHERE u.prov = ["literal"] RETURN count(u)
+
+// reads that closed on NO declared key: which root/callee, which key (if literal), why
+MATCH (a:TSApplication)-[r:TS_READS_CONFIG_UNRESOLVED]->(t)
+RETURN coalesce(t.module, t.signature) AS via, r.key, r.reason ORDER BY r.reason, r.key
+
+// undefined-key reads = literal keys nobody declares (a config-drift signal)
+MATCH ()-[r:TS_READS_CONFIG_UNRESOLVED {reason: "undefined-key"}]->() RETURN collect(DISTINCT r.key)
 ```
 
 Edges never guess: the literal tier (`-a 2`) needs a statically-known key at a recognized env root
 or detector-listed call; the dataflow tiers (`-a 3` intra, `-a 4` interprocedural) resolve only
 chains that close over exactly one string literal. Everything else lands in `config_reads` with a
-reason — see SKILL.md's standing traps for why that list shrinks as `-a` rises.
+reason, projected as `TS_READS_CONFIG_UNRESOLVED` — one edge per distinct (target, key, reason), so
+the graph count is a floor on the JSON count — see SKILL.md's standing traps for why that list
+shrinks as `-a` rises.
 
 ## 8. Health metrics (any level)
 
