@@ -160,8 +160,10 @@ containerSuite("neo4j bolt writer", () => {
 
       // models.ts vanishes. Its importers (index.ts, services.ts) are UNCHANGED modules, so the
       // incremental diff never rewrites their edges: the stale TS_IMPORTS edge to the victim
-      // survives a default push exactly like the victim's own nodes do (#116's rule), and goes
-      // with the victim's DETACH DELETE under --eager — nothing dangles.
+      // survives a default push exactly like the victim's own nodes do (#116's rule) — that
+      // `> 0` is the load-bearing assertion. Under --eager the application is wiped and rebuilt
+      // from the reduced rows, so the edge is gone with the victim; the final count pins that the
+      // rebuilt import graph is exactly the reduced projection's — nothing dangles.
       const app = result.internal;
       delete app.symbol_table["src/models.ts"];
       const reduced = project(finalizeAnalysis(app, result.program_graphs ?? null, opts).application);

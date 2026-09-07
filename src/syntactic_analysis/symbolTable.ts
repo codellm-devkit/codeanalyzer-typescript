@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { Project, ts } from "ts-morph";
 import { buildModule } from "./builders";
+import { stampResolvedModules } from "./moduleResolution";
 import { fileMeta, fileUnchanged } from "../utils";
 import { discoverSourceFiles, resolveTargetFiles, type DiscoveredFile } from "./discovery";
 import type { Materialization, ProgramSpec } from "../build";
@@ -154,6 +155,11 @@ export function buildSymbolTable(
     built++;
   }
   log.info(`symbol table: ${built} built, ${fromCache} cached, ${Object.keys(symbol_table).length} modules`);
+
+  // #182: `resolved_module` is re-stamped on EVERY module each run, cached ones included — the
+  // answer depends on the tsconfig and on which files exist, neither of which the per-file
+  // content hash sees (python re-resolves per run for the same reason).
+  stampResolvedModules(symbol_table, buildFiles, (abs) => projectOf.get(ownerProgram(abs, specs))!, root);
 
   // The root program is always last; its Project is the one legacy single-program consumers expect.
   // Under --program the root may not be selected, so fall back to the shallowest SELECTED program

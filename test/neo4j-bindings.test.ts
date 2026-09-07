@@ -163,10 +163,44 @@ describe("D5 TS_READS_CONFIG_UNRESOLVED", () => {
     }
     // an env-root read targets the root's ghost; the ghost is a real node this run
     const envRead = a.config_reads.find((c) => c.callee === "process.env");
-    if (envRead) {
-      const ghostId = `${a.id}/@external/process.env`;
-      expect(edges.some((e) => e.to.value === ghostId)).toBe(true);
-      expect(g.nodes.find((n) => n.value === ghostId)?.labels).toContain("TSExternal");
-    }
+    expect(envRead).toBeDefined();
+    const ghostId = `${a.id}/@external/process.env`;
+    expect(edges.some((e) => e.to.value === ghostId)).toBe(true);
+    expect(g.nodes.find((n) => n.value === ghostId)?.labels).toContain("TSExternal");
+  });
+});
+
+describe("D1 is a per-run stamp, not a cached fact", () => {
+  // The importer never changes between runs, so its module comes back from the content-hash
+  // cache each time; only the world around it moves. A build-time value would be stale (run 2)
+  // and then WRONG (run 3), silently.
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), "cants-bindings-cache-"));
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-bindings-cache-dir-"));
+  const write = (rel: string, text: string) => {
+    fs.mkdirSync(path.dirname(path.join(proj, rel)), { recursive: true });
+    fs.writeFileSync(path.join(proj, rel), text);
+  };
+  const tsconfig = (libDir: string) =>
+    JSON.stringify({ compilerOptions: { target: "ES2020", module: "ESNext", moduleResolution: "node", baseUrl: ".", paths: { "@lib/*": [`src/${libDir}/*`] } }, include: ["src/**/*.ts"] });
+  const run = async () => {
+    const r = await analyze({ input: proj, appName: "cc", analysisLevel: 1, noBuild: true, emit: "json", cacheDir } as unknown as AnalysisOptions);
+    const m = (r.application as TSAnalysis).application.symbol_table["src/index.ts"] as TSModule;
+    return Object.fromEntries(m.imports.map((i) => [i.module, i.resolved_module]));
+  };
+  test("a target added later resolves; a tsconfig paths edit re-points; the importer is cached throughout", async () => {
+    write("tsconfig.json", tsconfig("a"));
+    write("src/a/util.ts", "export const u = 1;");
+    write("src/index.ts", ['import { u } from "@lib/util";', 'import { later } from "./later";', "export const v = u + later;"].join("\n"));
+    expect(await run()).toEqual({ "@lib/util": "src/a/util.ts", "./later": undefined });
+
+    write("src/later.ts", "export const later = 2;");
+    expect(await run()).toEqual({ "@lib/util": "src/a/util.ts", "./later": "src/later.ts" });
+
+    write("tsconfig.json", tsconfig("b"));
+    write("src/b/util.ts", "export const u = 3;");
+    expect(await run()).toEqual({ "@lib/util": "src/b/util.ts", "./later": "src/later.ts" });
+
+    fs.rmSync(path.join(proj, "src/later.ts"));
+    expect(await run()).toEqual({ "@lib/util": "src/b/util.ts", "./later": undefined });
   });
 });

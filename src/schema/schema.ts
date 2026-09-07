@@ -44,9 +44,12 @@ export interface TSImport {
   module: string; // the module specifier, e.g. "./user" or "@nestjs/common"
   name: string; // the imported binding (or "" for side-effect imports / "*" for namespace)
   alias?: string;
-  // #182 (python `PyImport.resolved_module` parity): the symbol-table key of the module the
-  // specifier resolves to, from the checker at build time (tsconfig `paths`, directory index,
-  // `.js` → `.ts`). ABSENT for externals, builtins, and spellings that resolve to nothing.
+  // #182 (python `PyImport.resolved_module` parity): the project-relative file key the specifier
+  // resolves to under the importer's own tsconfig (`paths`, directory index, `.js` → `.ts`) —
+  // whether or not that module was emitted this run (`--skip-tests` / `--program` can exclude
+  // the target; the graph gates on presence, the JSON keeps the key). Re-stamped EVERY run,
+  // cached modules included (moduleResolution.ts). ABSENT for externals, builtins, and spellings
+  // that resolve to nothing.
   resolved_module?: string;
   is_type_only: boolean; // `import type { X } ...`
   import_kind: "named" | "default" | "namespace" | "side_effect";

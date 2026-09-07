@@ -122,7 +122,9 @@ prefix exception — plus TS_PROVIDES/TS_UNRESOLVED_IMPORT into :TSExternal ghos
 into :ConfigKey, and (#182, python parity) TS_READS_CONFIG_UNRESOLVED (app → ghost/callee,
 `_k=key|reason`), TS_IMPORTS/TS_RE_EXPORTS (one per module pair, aggregated names; externals on
 the same ghosts), `exports_json` on :TSModule, `parameters_json` on :TSCallable. `resolved_module`
-on TSImport/TSExport = the compiler's answer (`ts.resolveModuleName`, build time, cached).
+on TSImport/TSExport = the compiler's answer (`ts.resolveModuleName`), a PER-RUN stamp over
+cached modules too (`syntactic_analysis/moduleResolution.ts`) — tsconfig/file existence is
+state the content-hash cache cannot see.
 Consumer query skill: `docs/skills/analyzing-cants-graphs/`.
 
 ## Commands

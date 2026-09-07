@@ -149,12 +149,18 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
   // or an in-project callable — and is gated on that node existing this run. `_k = key|reason`;
   // one row per distinct (target, key, reason), since several sites collapse onto it anyway.
   {
-    const seen = new Set<string>();
+    // Fold the collapsed sites' `prov` together, so a triple read at both the literal and a
+    // dataflow tier keeps both tags rather than whichever site came first.
+    const folded = new Map<string, { r: (typeof root.config_reads)[number]; k: string; prov: Set<string> }>();
     for (const r of root.config_reads ?? []) {
       const k = `${r.key ?? ""}|${r.reason}`;
-      if (seen.has(`${r.callee}\0${k}`)) continue;
-      seen.add(`${r.callee}\0${k}`);
-      const props = prune({ key: r.key ?? null, reason: r.reason, prov: r.prov.length ? r.prov : null });
+      const id = `${r.callee}\0${k}`;
+      const f = folded.get(id) ?? { r, k, prov: new Set<string>() };
+      for (const p of r.prov) f.prov.add(p);
+      folded.set(id, f);
+    }
+    for (const { r, k, prov } of folded.values()) {
+      const props = prune({ key: r.key ?? null, reason: r.reason, prov: prov.size ? [...prov].sort() : null });
       if (r.callee.startsWith("can://")) b.edgeToSymbol("TS_READS_CONFIG_UNRESOLVED", appRef, r.callee, props, k);
       else b.edge("TS_READS_CONFIG_UNRESOLVED", appRef, importGhost(r.callee), props, k);
     }
