@@ -31,6 +31,7 @@ import {
 } from "../schema";
 import { computeSignatureForDecl } from "../schema";
 import { memberKey } from "../schema/ids";
+import { ts } from "ts-morph";
 import { importTable, resolveWritten } from "./importResolver";
 
 // ----------------------------------------------------------------------------------------------
@@ -988,7 +989,45 @@ export function buildNamespace(ns: Node, root: string): { sig: string; ns: TSTyp
 // imports / exports / comments
 // ----------------------------------------------------------------------------------------------
 
-function buildImports(sf: Node): TSImport[] {
+/**
+ * #182 (python `resolved_module` parity): the symbol-table key of the module an import / re-export
+ * specifier resolves to, from the checker — so tsconfig `paths`, directory `index` files and
+ * `.js` → `.ts` are all the compiler's answer, not a second resolver. `{}` (absent) when the
+ * specifier resolves to nothing, to a file outside the project root, or into `node_modules` —
+ * those are externals, addressed by the dependency layer, never symbol-table keys.
+ */
+function resolvedModuleOf(decl: Node, root: string | undefined): { resolved_module?: string } {
+  if (root === undefined) return {};
+  const spec = (decl as unknown as { getModuleSpecifierValue?: () => string | undefined }).getModuleSpecifierValue?.();
+  if (!spec) return {};
+  // `ts.resolveModuleName` rather than ts-morph's `getModuleSpecifierSourceFile()`: the latter goes
+  // through the module SYMBOL, which a side-effect-imported script with no import/export of its
+  // own never has, so `import "./polyfill"` would come back unresolved. The compiler's resolver
+  // answers for every specifier the same way tsc itself would.
+  const sf = decl.getSourceFile();
+  const project = sf.getProject();
+  const res = ts.resolveModuleName(spec, sf.getFilePath(), project.getCompilerOptions(), project.getModuleResolutionHost(), resolutionCacheOf(project));
+  const hit = res.resolvedModule;
+  if (!hit || hit.isExternalLibraryImport) return {};
+  const key = fileKeyOf(hit.resolvedFileName, root).fileKey;
+  if (key.startsWith("../") || key.startsWith("/") || /(^|\/)node_modules\//.test(key)) return {};
+  return { resolved_module: key };
+}
+
+// One resolution cache per ts-morph project (its lifetime): a repository's imports repeat the same
+// few hundred specifiers from the same few directories, and every miss is several stat calls.
+const resolutionCaches = new WeakMap<object, ts.ModuleResolutionCache>();
+function resolutionCacheOf(project: { getCompilerOptions: () => ts.CompilerOptions; getModuleResolutionHost: () => ts.ModuleResolutionHost }): ts.ModuleResolutionCache {
+  let c = resolutionCaches.get(project);
+  if (!c) {
+    const host = project.getModuleResolutionHost();
+    c = ts.createModuleResolutionCache(host.getCurrentDirectory?.() ?? process.cwd(), (f) => f, project.getCompilerOptions());
+    resolutionCaches.set(project, c);
+  }
+  return c;
+}
+
+function buildImports(sf: Node, root?: string): TSImport[] {
   const out: TSImport[] = [];
   const decls = (sf as unknown as { getImportDeclarations: () => Node[] }).getImportDeclarations();
   for (const imp of decls) {
@@ -1000,18 +1039,20 @@ function buildImports(sf: Node): TSImport[] {
       getNamedImports?: () => Node[];
     };
     const module = i.getModuleSpecifierValue();
+    const rm = resolvedModuleOf(imp, root);
     const typeOnly = i.isTypeOnly();
     const s = span(imp);
     const def = i.getDefaultImport?.();
     const ns = i.getNamespaceImport?.();
     const named = i.getNamedImports?.() ?? [];
-    if (def) out.push({ module, name: def.getText(), is_type_only: typeOnly, import_kind: "default", ...s });
-    if (ns) out.push({ module, name: "*", alias: ns.getText(), is_type_only: typeOnly, import_kind: "namespace", ...s });
+    if (def) out.push({ module, ...rm, name: def.getText(), is_type_only: typeOnly, import_kind: "default", ...s });
+    if (ns) out.push({ module, ...rm, name: "*", alias: ns.getText(), is_type_only: typeOnly, import_kind: "namespace", ...s });
     for (const ni of named) {
       const n = ni as unknown as { getName: () => string; getAliasNode?: () => { getText: () => string } | undefined; isTypeOnly?: () => boolean };
       const alias = n.getAliasNode?.()?.getText();
       out.push({
         module,
+        ...rm,
         name: n.getName(),
         ...(alias != null ? { alias } : {}),
         is_type_only: typeOnly || (n.isTypeOnly?.() ?? false),
@@ -1020,13 +1061,13 @@ function buildImports(sf: Node): TSImport[] {
       });
     }
     if (!def && !ns && named.length === 0) {
-      out.push({ module, name: "", is_type_only: typeOnly, import_kind: "side_effect", ...s });
+      out.push({ module, ...rm, name: "", is_type_only: typeOnly, import_kind: "side_effect", ...s });
     }
   }
   return out;
 }
 
-function buildExports(sf: Node): TSExport[] {
+function buildExports(sf: Node, root?: string): TSExport[] {
   const out: TSExport[] = [];
   const decls = (sf as unknown as { getExportDeclarations: () => Node[] }).getExportDeclarations();
   for (const exp of decls) {
@@ -1037,6 +1078,7 @@ function buildExports(sf: Node): TSExport[] {
       getNamedExports?: () => Node[];
     };
     const module = e.getModuleSpecifierValue?.();
+    const rm = module != null ? resolvedModuleOf(exp, root) : {};
     const typeOnly = e.isTypeOnly();
     const s = span(exp);
     const nsExp = e.getNamespaceExport?.();
@@ -1044,7 +1086,7 @@ function buildExports(sf: Node): TSExport[] {
     if (nsExp) {
       const alias = nsExp.getNameNode?.()?.getText();
       out.push({
-        ...(module != null ? { module } : {}),
+        ...(module != null ? { module, ...rm } : {}),
         name: "*",
         ...(alias != null ? { alias } : {}),
         is_type_only: typeOnly,
@@ -1053,20 +1095,21 @@ function buildExports(sf: Node): TSExport[] {
       });
     }
     for (const ne of named) {
-      const n = ne as unknown as { getName: () => string; getAliasNode?: () => { getText: () => string } | undefined };
+      const n = ne as unknown as { getName: () => string; getAliasNode?: () => { getText: () => string } | undefined; isTypeOnly?: () => boolean };
       const alias = n.getAliasNode?.()?.getText();
       out.push({
-        ...(module != null ? { module } : {}),
+        ...(module != null ? { module, ...rm } : {}),
         name: n.getName(),
         ...(alias != null ? { alias } : {}),
-        is_type_only: typeOnly,
+        // per-specifier `export { type X }` counts as much as the `export type { }` list form
+        is_type_only: typeOnly || (n.isTypeOnly?.() ?? false),
         export_kind: module ? "re_export" : "named",
         ...s,
       });
     }
     if (!nsExp && named.length === 0 && module) {
       // `export * from "m"` with no namespace binding
-      out.push({ module, name: "*", is_type_only: typeOnly, export_kind: "re_export", ...s });
+      out.push({ module, ...rm, name: "*", is_type_only: typeOnly, export_kind: "re_export", ...s });
     }
   }
   return out;
@@ -1129,8 +1172,8 @@ export function buildModule(sf: Node, root: string): TSModule {
     kind: "module",
     span: { start: [1, 1], end: [endLc.line, endLc.column], bytes: [0, source.length] },
     source,
-    imports: buildImports(sf),
-    exports: buildExports(sf),
+    imports: buildImports(sf, root),
+    exports: buildExports(sf, root),
     comments: collectComments(sf),
     ...buckets,
     is_tsx: filePath.endsWith(".tsx"),

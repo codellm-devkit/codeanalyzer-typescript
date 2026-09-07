@@ -118,8 +118,12 @@ literal→dataflow-intra→dataflow-interproc tier (`src/semantic_analysis/confi
 `src/dataflow/configUse.ts`); `config_reads` deliberately SHRINKS as `-a` rises — the layer's one
 non-monotonic section. `src/artifacts/`. Neo4j contract 2.1.0 (SCHEMA_VERSION unmoved — every
 analyzer re-baselines together later): NEUTRAL :Artifact/:Package/:ConfigKey (purl) — sanctioned
-prefix exception — plus TS_PROVIDES/TS_UNRESOLVED_IMPORT into :TSExternal ghosts and
-TS_USES_CONFIG into :ConfigKey. Consumer query skill: `docs/skills/analyzing-cants-graphs/`.
+prefix exception — plus TS_PROVIDES/TS_UNRESOLVED_IMPORT into :TSExternal ghosts, TS_USES_CONFIG
+into :ConfigKey, and (#182, python parity) TS_READS_CONFIG_UNRESOLVED (app → ghost/callee,
+`_k=key|reason`), TS_IMPORTS/TS_RE_EXPORTS (one per module pair, aggregated names; externals on
+the same ghosts), `exports_json` on :TSModule, `parameters_json` on :TSCallable. `resolved_module`
+on TSImport/TSExport = the compiler's answer (`ts.resolveModuleName`, build time, cached).
+Consumer query skill: `docs/skills/analyzing-cants-graphs/`.
 
 ## Commands
 

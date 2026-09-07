@@ -28,7 +28,10 @@ query answers the wrong question.
 
 The repository-artifact layer — `Artifact`/`Package`/`ConfigKey` and every edge among them
 (`HAS_ARTIFACT`, `DECLARES_DEPENDENCY`, `LOCKS`, `DEFINES_CONFIG`, `TS_PROVIDES`,
-`TS_UNRESOLVED_IMPORT`) — is **L1 data, level-free**: identical at every `-a`. Neo4j is always
+`TS_UNRESOLVED_IMPORT`) — is **L1 data, level-free**: identical at every `-a`. So are the module
+binding edges `TS_IMPORTS` / `TS_RE_EXPORTS`, `exports_json` on `TSModule`, and `parameters_json` on
+`TSCallable`. `TS_READS_CONFIG_UNRESOLVED` exists from `-a 2` and SHRINKS as the level rises (a read
+resolved at a higher tier moves to `TS_USES_CONFIG`). Neo4j is always
 projected **full-depth** for the level actually analyzed (`--emit neo4j` + `-a`/`--graphs`
 together is a CLI error, not a partial graph).
 
@@ -76,9 +79,10 @@ section (`config_uses` is the opposite: asserted superset-monotonic, L2 ⊆ L3 �
 this branch's fixture at 21/25/29 uses and 10/9/8 reads across L2/L3/L4). A read unresolved at the
 literal tier can close at a higher dataflow tier, so it *moves* from `config_reads` into
 `config_uses` as the level climbs. Diffing two levels and seeing a `config_reads` record vanish
-means "resolved at the higher tier," never "fixed in the code." Pair the two: `config_uses` is the
-graph edge (`TS_USES_CONFIG`); `config_reads` never became an edge — it is JSON-only, a record of
-absence, not a graph fact (analyses.md §7).
+means "resolved at the higher tier," never "fixed in the code." Pair the two: `config_uses` is
+`TS_USES_CONFIG` (body node → key); `config_reads` is `TS_READS_CONFIG_UNRESOLVED` (application →
+the read root's ghost or the resolved callee), one edge per distinct (target, key, reason) — several
+sites collapse onto it, so its count is a floor on the JSON list's, never equal (analyses.md §7).
 
 **`--app-name` is the cross-analyzer join precondition.** Artifact ids are language-neutral
 specifically so a TS and a Python analysis of one repository MERGE onto the same `:Artifact` node
@@ -114,11 +118,16 @@ from the body node straight to the `ConfigKey` instead.
 no name segment) sit on the same label but different ids — join them by the `module` property when
 a query needs both (`references/vocabulary.md`, "External ghosts").
 
-**No entrypoint or import-graph vocabulary exists yet.** `TSCallable` carries no `is_entrypoint`; a
-"reachable from the entrypoints" query needs a root set you supply yourself (analyses.md §2). A
-module's `imports[]`/`exports[]` (specifiers, aliases, type-only flags) live only in
-`analysis.json`'s `TSModule` — `TS_UNRESOLVED_IMPORT`/`TS_PROVIDES` cover the dependency-hygiene
-case only, not a general per-module import graph.
+**The import graph is aggregated, the export list is not.** `TS_IMPORTS` / `TS_RE_EXPORTS` carry ONE
+relationship per (module, target) with every binding folded into `spellings[]` /
+`imported_names[]` (`exported_names[]`) / `aliases[]` / `type_only_names[]` — per-binding spans and
+kinds are not on the edge. `exports_json` on `TSModule` is the verbatim `exports[]` list (including
+`export { x as y }` locals, which are no edge); imports have no such property — read
+`analysis.json` for per-binding detail. An unresolved *relative* import (`./missing`) has no node to
+land on and is absent from the graph while present in JSON; externals land on the same
+`@external/<package root>` ghost `TS_PROVIDES` / `TS_UNRESOLVED_IMPORT` address, builtins under
+their own spelling (`@external/node:fs`). A "reachable from the entrypoints" query still needs a
+root set: `is_entrypoint` on `TSCallable`/`TSClass` (analyses.md §2).
 
 Every trap above is a silent-empty-result failure, not an error: Cypher does not reject a query
 naming a nonexistent label, property, or relationship — it just returns nothing. Cross-check

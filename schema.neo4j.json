@@ -80,6 +80,7 @@
         "is_tsx": "boolean",
         "is_declaration_file": "boolean",
         "content_hash": "string",
+        "exports_json": "string",
         "start_line": "integer",
         "end_line": "integer"
       }
@@ -196,7 +197,8 @@
         "start_line": "integer",
         "end_line": "integer",
         "is_entrypoint": "boolean",
-        "entrypoint_frameworks": "string[]"
+        "entrypoint_frameworks": "string[]",
+        "parameters_json": "string"
       }
     },
     {
@@ -355,6 +357,54 @@
       ],
       "properties": {
         "prov": "string[]"
+      }
+    },
+    {
+      "type": "TS_READS_CONFIG_UNRESOLVED",
+      "from": [
+        "TSApplication"
+      ],
+      "to": [
+        "TSExternal",
+        "TSCallable"
+      ],
+      "properties": {
+        "key": "string",
+        "reason": "string",
+        "prov": "string[]",
+        "_k": "string"
+      }
+    },
+    {
+      "type": "TS_IMPORTS",
+      "from": [
+        "TSModule"
+      ],
+      "to": [
+        "TSModule",
+        "TSExternal"
+      ],
+      "properties": {
+        "spellings": "string[]",
+        "imported_names": "string[]",
+        "aliases": "string[]",
+        "type_only_names": "string[]"
+      }
+    },
+    {
+      "type": "TS_RE_EXPORTS",
+      "from": [
+        "TSModule"
+      ],
+      "to": [
+        "TSModule",
+        "TSExternal"
+      ],
+      "properties": {
+        "spellings": "string[]",
+        "exported_names": "string[]",
+        "aliases": "string[]",
+        "type_only_names": "string[]"
       }
     },
     {

@@ -87,14 +87,14 @@ package" — `references/analyses.md` §6).
 | `TS_PROVIDES` | Package → TSExternal (module-level ghost) | — | correlatable with the call-graph grain via `module` only (see "External ghosts" above), not the same id; `TS_`-prefixed because the claim is this analyzer's own |
 | `TS_UNRESOLVED_IMPORT` | TSApplication → TSExternal (module-level ghost) | prov[] | undeclared-import hygiene signal |
 | `TS_USES_CONFIG` | TSBodyNode → ConfigKey | prov[] | which read joins which key; prov ⊆ {literal (L2+), dataflow (L3 intra, L4 interproc — same tag both tiers)}; superset-monotonic `-a 2 ⊆ 3 ⊆ 4` |
+| `TS_READS_CONFIG_UNRESOLVED` | TSApplication → TSExternal (read-root ghost `@external/process.env`) / TSCallable (call-rule callee) | key?, reason, prov[], `_k` | a recognized read that closed on no declared key (`config_reads`); `_k` = `"<key>\|<reason>"`, NO per-site identity — several sites collapse onto one edge (python's documented ceiling); SHRINKS as `-a` rises |
+| `TS_IMPORTS` | TSModule → TSModule (resolved) / TSExternal (`@external/<package root>`, builtins `@external/node:fs`) | spellings[], imported_names[], aliases[], type_only_names[] | ONE per (module, target), every binding folded in; `imported_names` has `"*"` for a namespace import and nothing for a side-effect import; unresolved *relative* spellings are absent (JSON keeps them); level-free |
+| `TS_RE_EXPORTS` | TSModule → TSModule / TSExternal | spellings[], exported_names[], aliases[], type_only_names[] | `export … from` only, same aggregation as `TS_IMPORTS`; `exported_names` has `"*"` for `export * from`; a local `export { x as y }` is in `TSModule.exports_json`, never an edge; level-free |
 
-There is **no relationship for unresolved config reads** — `config_reads` (JSON: `site`, `callee`,
-`key?`, `reason`, `prov[]`) is not projected; it records an absence, not a graph fact. There is also
-**no import-graph relationship** — a module's `imports[]`/`exports[]` (with specifiers, aliases,
-type-only flags) exist only in `analysis.json`'s `TSModule`; `TS_UNRESOLVED_IMPORT`/`TS_PROVIDES`
-cover the dependency-hygiene case only, not a general per-module import graph. There is also **no
-entrypoint vocabulary** — `TSCallable` carries no `is_entrypoint`/`entrypoint_frameworks`; this
-analyzer does not (yet) detect framework entrypoints.
+`TSModule.exports_json` is the verbatim `exports[]` list (absent when empty); there is no
+`imports_json` — per-binding import spans and kinds are `analysis.json`-only. `TSCallable.parameters_json`
+is the verbatim `parameters[]` list (absent when empty), python's encoding. Entrypoints:
+`is_entrypoint` / `entrypoint_frameworks` on `TSCallable` and `TSClass`, the report on `TSApplication`.
 
 All dataflow relationships are stored src→dst in the forward direction.
 

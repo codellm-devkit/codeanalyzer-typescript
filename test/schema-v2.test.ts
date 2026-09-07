@@ -15,6 +15,7 @@ import type { AnalysisOptions } from "../src/options";
 import { forEachCallable, forEachType, type GraphSelector } from "../src/schema";
 import type { AnalysisResult } from "../src/core";
 import { type GraphRows, project } from "../src/build/neo4j";
+import { specifierRoot } from "../src/artifacts/binding";
 import { tscProvider } from "../src/semantic_analysis";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/sample-app");
@@ -810,8 +811,31 @@ describe("neo4j ↔ json count parity — full depth (issue #27)", () => {
     ].reduce((n, t) => n + relCount(monoRows, t), 0);
     const resolvesTo = relCount(monoRows, "TS_RESOLVES_TO");
     const heritage = relCount(monoRows, "TS_EXTENDS") + relCount(monoRows, "TS_IMPLEMENTS");
-    expect(resolvesTo).toBe(resolvesToCount(monoApp4));
-    expect(typedOverlay + containment + artifactLayer + resolvesTo + heritage).toBe(monoRows.edges.length);
+    // #182: module bindings and unresolved config reads are AGGREGATED families — one relationship
+    // per distinct (module, target) / (target, key, reason) — so their JSON source is a distinct
+    // count, not a list length. The aggregation rule is restated here on purpose (python's rule:
+    // resolved → the module, external → the package-root ghost, unresolved relative → dropped).
+    const app = monoApp4.application;
+    const targetKey = (spec: string, resolved: string | undefined): string | null => {
+      if (resolved !== undefined) return app.symbol_table[resolved] ? `mod:${resolved}` : null;
+      if (/^[./#]/.test(spec)) return null;
+      return `ext:${specifierRoot(spec) ?? spec}`;
+    };
+    const pairs = (pick: (m: (typeof app.symbol_table)[string]) => Array<{ module?: string; resolved_module?: string }>) => {
+      const s = new Set<string>();
+      for (const [key, m] of Object.entries(app.symbol_table))
+        for (const b of pick(m)) {
+          const t = b.module === undefined ? null : targetKey(b.module, b.resolved_module);
+          if (t) s.add(`${key}\0${t}`);
+        }
+      return s.size;
+    };
+    expect(relCount(monoRows, "TS_IMPORTS")).toBe(pairs((m) => m.imports));
+    expect(relCount(monoRows, "TS_RE_EXPORTS")).toBe(pairs((m) => m.exports));
+    const unresolvedReads = new Set(app.config_reads.map((r) => `${r.callee}\0${r.key ?? ""}|${r.reason}`)).size;
+    expect(relCount(monoRows, "TS_READS_CONFIG_UNRESOLVED")).toBe(unresolvedReads);
+    const bindings = relCount(monoRows, "TS_IMPORTS") + relCount(monoRows, "TS_RE_EXPORTS") + relCount(monoRows, "TS_READS_CONFIG_UNRESOLVED");
+    expect(typedOverlay + containment + artifactLayer + resolvesTo + heritage + bindings).toBe(monoRows.edges.length);
   });
 
   test("DDG/CFG_NEXT parity survives the writers: every row keyed, keys fully discriminate (issue #70)", () => {
