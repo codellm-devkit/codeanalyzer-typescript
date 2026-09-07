@@ -183,3 +183,16 @@ an unresolved read is `reason: "non-literal"` (key never closes on one literal) 
 | L3 | `def → actual_in:k` binds when the reaching variable's head is a whole word in argument k's TEXT at the call site | derived at emit time from intra ddg + `PARAM_IN` + the callable's own `call_sites` (python's assembler produces these as `extra_edges`; ours does not) | no per-argument AST at this stage; the ceiling is a local/property name clash (`f(o.v)` with local `v`), which over-binds |
 | L4 | `actual_out → callsite` (python's class), not `actual_out → use stmt` | the existing `L → use` edges carry the value onward | derivable without guessing which defined variable is the return |
 | L5 | ddg deduped on `(src, dst, var, prov)` and sorted | a binding can be reached from more than one sdg edge | determinism |
+
+## Neo4j bindings, parameters, unresolved config reads (2026-09-07, #182 — python `PY_IMPORTS`/`parameters_json`/`PY_READS_CONFIG_UNRESOLVED` parity)
+
+Spec: `docs/design/specs/neo4j-bindings-parameters-config.md`. Additive on contract 2.0.0.
+
+| # | Concept | Decision | Rationale |
+|---|---|---|---|
+| D1 | **`resolved_module`** on `TSImport` / re-export `TSExport` | importer-relative file key from ts-morph `getModuleSpecifierSourceFile()` at build time; absent for external/builtin/unresolvable; cached with the tree | python `PyImport.resolved_module`; the checker already handles `paths`, index files, `.js`→`.ts` — no second resolver |
+| D2 | **`TS_IMPORTS`** | `:TSModule → :TSModule \| :TSExternal`, one edge per (importer, target): `spellings[]`, `imported_names[]`, `aliases[]`, `type_only_names[]`; external target = `<app>/@external/<specifierRoot>` ghost; unresolved relative spellings dropped from the graph | python's aggregation rule (MERGE overwrites a second row for the same pair); ghost on the package root joins `TS_PROVIDES`; `type_only_names[]` is TS's one structural difference |
+| D3 | **Exports** | `exports_json` on `:TSModule` (lossless) + `TS_RE_EXPORTS` aggregated like D2 (`exported_names[]`); local exports stay `is_exported` on the declaration node | no reference precedent — coined once here; the edge makes barrel chains walkable, the property keeps `export { x as y }` and spans |
+| D4 | **`parameters_json`** on `:TSCallable` | `JSON.stringify(c.parameters)` verbatim, `null` when empty | python's property and encoding; SDK already decodes it; 1.4 % of graph on cants self; a property on the existing node does not worsen #177 |
+| D5 | **`TS_READS_CONFIG_UNRESOLVED`** | `:TSApplication → :TSExternal \| :TSCallable`, `key`/`reason`/`prov`, `_k = key\|reason`, no `site`; env-root reads ghost under `@external/<root>`, call-rule reads target the resolved callee id | python shape verbatim incl. its documented per-site collapse; retires the #101 "config_reads stay JSON-only" note (python overturned it in #162) |
+| D6 | **Version / tracking** | contract `2.0.0`, analyzer 1.4.0, one PR closing #182 | every addition optional-with-absent; the SDK pins `analyzer_version` |
