@@ -39,11 +39,12 @@ const ANALYZER_NAME = "codeanalyzer-typescript";
 const MAX_IMPLEMENTED = 4;
 
 /**
- * Structural internal-field strip on the WIRE CLONE: module cache trio + callable join fields.
- * Structural (walks the tree shape) rather than key-name-based, for two load-bearing reasons:
- * the artifact layer's `content_hash` is WIRE payload (a name-keyed replacer would eat it), and
- * a `JSON.stringify` deep-copy roundtrip builds one multi-GB string at vscode-L4 scale and OOMs
- * (measured). `structuredClone` + targeted deletes never materializes a string.
+ * Structural internal-field strip on the WIRE COPY's per-module clones: module cache trio +
+ * callable join fields. Structural (walks the tree shape) rather than key-name-based, for two
+ * load-bearing reasons: the artifact layer's `content_hash` is WIRE payload (a name-keyed replacer
+ * would eat it), and a `JSON.stringify` deep-copy roundtrip builds one multi-GB string at
+ * vscode-L4 scale and OOMs (measured). Per-module `structuredClone` + targeted deletes never
+ * materializes a string and never serializes more than one module at a time (#180).
  */
 function stripInternal(root: TSApplication): void {
   const stripCallable = (c: Record<string, unknown>): void => {
@@ -156,9 +157,17 @@ export function finalizeAnalysis(
     analyzer: { name: ANALYZER_NAME, version: ANALYZER_VERSION },
     application: root,
   };
-  // The wire copy: deep, detached from the live tree, internals stripped STRUCTURALLY —
-  // structuredClone instead of a stringify roundtrip (the string form OOMs at vscode-L4 scale).
-  const application = structuredClone(envelope) as TSAnalysis;
+  // The wire copy: detached from the live tree, internals stripped STRUCTURALLY. The strip only
+  // ever touches modules (and what hangs off them), so the clone is per MODULE (#180): one
+  // structuredClone of the whole envelope hits Bun's serialization ceiling on a large repository
+  // (a TypeError at 13k files on 1.3.0; a hard abort with no exception at ~2 GiB on 1.3.14 —
+  // measured), while the largest single module is megabytes. Everything else on the root
+  // (call_graph, param_in/out, artifacts, config edges, entrypoint report) is untouched by the
+  // strip and shared by reference. A stringify roundtrip is out for the same reason: the string
+  // form OOMs at vscode-L4 scale.
+  const symbol_table: TSApplication["symbol_table"] = {};
+  for (const [key, mod] of Object.entries(root.symbol_table)) symbol_table[key] = structuredClone(mod);
+  const application: TSAnalysis = { ...envelope, application: { ...root, symbol_table } };
   stripInternal(application.application);
   return { application, internal: app, ...(pg ? { program_graphs: pg } : {}), idBySig, collisions, dangling };
 }
