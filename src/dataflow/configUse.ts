@@ -26,6 +26,7 @@ import { symbolAt } from "../schema/checker";
 import { type ConfigUseSets, keyIndex } from "../semantic_analysis/configUse";
 import { ACCESS_RULES } from "../semantic_analysis/configUseRules";
 
+import { offsetMapFor } from "../schema/offsets";
 /**
  * `project` gives the AST the tiers read. A no-op below `-a 3` (the literal tier alone stands).
  * Deterministic: `uses` stays sorted.
@@ -101,8 +102,14 @@ function findCallable(app: AnalysisInternal, pred: (c: TSCallable) => boolean): 
 }
 
 /** The AST node whose exact byte span is [start, end) in `absPath`, or undefined. */
-function nodeAtSpan(project: Project, absPath: string, start: number, end: number): Node | undefined {
-  let n = project.getSourceFile(absPath)?.getDescendantAtPos(start);
+function nodeAtSpan(project: Project, absPath: string, startByte: number, endByte: number): Node | undefined {
+  const sf = project.getSourceFile(absPath);
+  if (!sf) return undefined;
+  // `span.bytes` are UTF-8 byte offsets on the wire (#179); ts-morph positions are char units.
+  const m = offsetMapFor(sf, sf.getFullText());
+  const start = m.toChar(startByte);
+  const end = m.toChar(endByte);
+  let n = sf.getDescendantAtPos(start);
   while (n && (n.getStart() !== start || n.getEnd() !== end)) n = n.getParent();
   return n;
 }

@@ -39,18 +39,20 @@ import {
 import { keyNode } from "./configKeys";
 import type { TSConfigKey, TSSpan } from "../schema";
 
+import { offsetMapOf } from "../schema/offsets";
 export function parseYamlKeys(text: string): TSConfigKey[] {
   const lc = new LineCounter();
   const docs = parseAllDocuments(text, { lineCounter: lc, keepSourceTokens: false });
   const bad = docs.find((d) => d.errors.length);
   if (bad) throw bad.errors[0];
   const out: TSConfigKey[] = [];
+  const offsets = offsetMapOf(text); // yaml ranges are char offsets; `span.bytes` are bytes (#179)
   const spanOf = (n: YamlNode): TSSpan | undefined => {
     const r = n.range;
     if (!r) return undefined;
     const s = lc.linePos(r[0]);
     const e = lc.linePos(r[1]);
-    return { start: [s.line, s.col], end: [e.line, e.col], bytes: [r[0], r[1]] };
+    return { start: [s.line, s.col], end: [e.line, e.col], bytes: [offsets.toByte(r[0]), offsets.toByte(r[1])] };
   };
   const multi = docs.length > 1;
   for (const [i, doc] of docs.entries()) {

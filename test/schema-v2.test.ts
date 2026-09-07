@@ -16,6 +16,7 @@ import { forEachCallable, forEachType, type GraphSelector } from "../src/schema"
 import type { AnalysisResult } from "../src/core";
 import { type GraphRows, project } from "../src/build/neo4j";
 import { specifierRoot } from "../src/artifacts/binding";
+import { sliceBytes } from "../src/schema/offsets";
 import { tscProvider } from "../src/semantic_analysis";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/sample-app");
@@ -151,7 +152,7 @@ describe("schema v2 — L1 source & spans (get_method_body)", () => {
     const svc = st["src/services.ts"];
     const fn = svc.functions.makeGuestName;
     expect(fn.kind).toBe("function");
-    const slice = svc.source.slice(fn.span!.bytes[0], fn.span!.bytes[1]);
+    const slice = sliceBytes(svc.source, fn.span!.bytes); // #179: bytes, not chars
     expect(slice).toContain("makeGuestName");
   });
 });
@@ -453,7 +454,7 @@ describe("schema v2 — L3 intraprocedural dataflow", () => {
     expect(stmt?.kind).toBe("statement");
     const [s, e] = (stmt as { span: { bytes: [number, number] } }).span.bytes;
     expect(e).toBeGreaterThan(s);
-    expect(mod.source.slice(s, e)).toBe('let label = "none";');
+    expect(sliceBytes(mod.source, [s, e])).toBe('let label = "none";');
   });
 
   test("@entry/@exit body nodes are source-sliceable and carry the whole-callable span (issue #45)", () => {
@@ -467,14 +468,13 @@ describe("schema v2 — L3 intraprocedural dataflow", () => {
     expect(entry?.kind).toBe("entry");
     expect(exit?.kind).toBe("exit");
 
-    const [cs, ce] = (classify.span as { bytes: [number, number] }).bytes;
-    const callableText = mod.source.slice(cs, ce);
+    const callableText = sliceBytes(mod.source, (classify.span as { bytes: [number, number] }).bytes);
     expect(callableText.startsWith("export function classify")).toBe(true);
 
     for (const node of [entry, exit]) {
       const [s, e] = (node as { span: { bytes: [number, number] } }).span.bytes;
       expect(e).toBeGreaterThan(s);
-      const slice = mod.source.slice(s, e);
+      const slice = sliceBytes(mod.source, [s, e]);
       expect(slice.length).toBeGreaterThan(0);
       expect(slice).toBe(callableText); // whole-callable span, byte-identical to classify's own span
     }

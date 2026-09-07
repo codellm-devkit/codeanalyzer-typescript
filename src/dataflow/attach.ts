@@ -18,9 +18,11 @@
  */
 
 import type { CfgEdge, FunctionGraphs, GraphNode, PdgEdge, ProgramGraphs } from "../schema/graphs";
-import type { TSApplication, TSCallable, TSParamEdge } from "../schema";
+import { type TSApplication, type TSCallable, type TSModule, type TSParamEdge, forEachCallable } from "../schema";
 import { globalOrdinal, stampBodyIds } from "../schema/ids";
+import type { OffsetMap } from "../schema/offsets";
 
+import { offsetMapFor } from "../schema/offsets";
 interface LocalIds {
   canId: string;
   callable: TSCallable;
@@ -28,10 +30,11 @@ interface LocalIds {
   paramN: Map<number, number>; // param node id → declaration index N
   paramName: Map<number, string>; // param node id → the `of` name
   exitId: number;
+  offsets: OffsetMap; // the owning module's char→byte map: IR offsets are chars, `span.bytes` are bytes (#179)
 }
 
 /** Build the per-callable node_id→local-id maps (single source-of-truth for every edge rewrite). */
-function buildLocalIds(canId: string, callable: TSCallable, nodes: GraphNode[]): LocalIds {
+function buildLocalIds(canId: string, callable: TSCallable, nodes: GraphNode[], offsets: OffsetMap): LocalIds {
   const stmtLocal = new Map<number, string>();
   const paramN = new Map<number, number>();
   const paramName = new Map<number, string>();
@@ -55,7 +58,7 @@ function buildLocalIds(canId: string, callable: TSCallable, nodes: GraphNode[]):
       stmtLocal.set(n.id, key);
     }
   }
-  return { canId, callable, stmtLocal, paramN, paramName, exitId };
+  return { canId, callable, stmtLocal, paramN, paramName, exitId, offsets };
 }
 
 /** L3/CDG/DDG node resolution: a param folds onto `@entry` (params are defined at entry at L3). */
@@ -73,8 +76,9 @@ function fq(callableId: string, bodyKey: string): string {
   return globalOrdinal(callableId, bodyKey); // single definition lives in schema/ids.ts (#164)
 }
 
-function spanOf(n: GraphNode): { start: [number, number]; end: [number, number]; bytes: [number, number] } {
-  return { start: [n.start_line, n.start_column], end: [n.end_line, n.end_column], bytes: [n.start_offset, n.end_offset] };
+/** The IR's char offsets become the wire's UTF-8 byte offsets here (#179). */
+function spanOf(n: GraphNode, offsets: OffsetMap): { start: [number, number]; end: [number, number]; bytes: [number, number] } {
+  return { start: [n.start_line, n.start_column], end: [n.end_line, n.end_column], bytes: [offsets.toByte(n.start_offset), offsets.toByte(n.end_offset)] };
 }
 
 // ----------------------------------------------------------------------------------------------
@@ -88,7 +92,7 @@ function emitL3(li: LocalIds, nodes: GraphNode[], cfgEdges: CfgEdge[] | undefine
     if (n.kind === "param") continue;
     const key = li.stmtLocal.get(n.id) as string;
     if (key in c.body) continue; // keep the richer L1 `call` node on a position collision
-    c.body[key] = n.kind === "statement" ? { kind: "statement", span: spanOf(n) } : { kind: n.kind, span: spanOf(n) };
+    c.body[key] = n.kind === "statement" ? { kind: "statement", span: spanOf(n, li.offsets) } : { kind: n.kind, span: spanOf(n, li.offsets) };
   }
 
   if (cfgEdges) {
@@ -290,12 +294,17 @@ export function applyDataflow(
 ): void {
   if (level < 3) return;
 
+  // Each callable's owning module, for the char→byte map its body-node spans need (#179).
+  const moduleOf = new Map<TSCallable, TSModule>();
+  for (const mod of Object.values(root.symbol_table)) forEachCallable(mod, (c) => moduleOf.set(c, mod));
+
   const info = new Map<string, LocalIds>();
   for (const [sig, fg] of Object.entries(pg.functions)) {
     const callable = callableBySig.get(sig);
     const canId = idBySig.get(sig);
-    if (!callable || !canId || !fg.cfg) continue;
-    info.set(sig, buildLocalIds(canId, callable, fg.cfg.nodes));
+    const mod = callable && moduleOf.get(callable);
+    if (!callable || !canId || !fg.cfg || !mod) continue;
+    info.set(sig, buildLocalIds(canId, callable, fg.cfg.nodes, offsetMapFor(mod, mod.source)));
   }
 
   for (const [sig, fg] of Object.entries(pg.functions)) {

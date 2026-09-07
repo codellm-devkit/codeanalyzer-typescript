@@ -45,7 +45,7 @@ matching rule): `dependency-manifest`, `tool-config`, `container-image`, `servic
 Code nodes are different: neither `TSModule` nor `TSCallable` carries source text, a file path, or
 column positions — only `_module`/`path` (the file key) and `start_line`/`end_line`. To read exact
 code text, re-open the file at those lines, or read `analysis.json`, where every module's `source`
-is stored once and every node's exact text is `source.slice(...span.bytes)`.
+is stored once and every node's exact text is the UTF-8 byte slice `Buffer.from(source).subarray(...span.bytes)` (bytes, not chars — the same rule as codeanalyzer-python's `source.encode()[lo:hi]`).
 
 ### External ghosts (`TSExternal`) — two grains, one label
 
