@@ -196,3 +196,13 @@ Spec: `docs/design/specs/neo4j-bindings-parameters-config.md`. Additive on contr
 | D4 | **`parameters_json`** on `:TSCallable` | `JSON.stringify(c.parameters)` verbatim, `null` when empty | python's property and encoding; SDK already decodes it; 1.4 % of graph on cants self; a property on the existing node does not worsen #177 |
 | D5 | **`TS_READS_CONFIG_UNRESOLVED`** | `:TSApplication → :TSExternal \| :TSCallable`, `key`/`reason`/`prov`, `_k = key\|reason`, no `site`; env-root reads ghost under `@external/<root>`, call-rule reads target the resolved callee id | python shape verbatim incl. its documented per-site collapse; retires the #101 "config_reads stay JSON-only" note (python overturned it in #162) |
 | D6 | **Version / tracking** | contract `2.0.0`, analyzer 1.4.0, one PR closing #182 | every addition optional-with-absent; the SDK pins `analyzer_version` |
+
+## `span.bytes` are UTF-8 byte offsets (2026-09-07, #179 — python `byte_offsets` parity)
+
+Spec: `docs/design/specs/span-bytes-are-bytes.md`. Analyzer 1.5.0; Neo4j contract unchanged.
+
+| # | Concept | Decision | Rationale |
+|---|---|---|---|
+| D1 | **`span.bytes` meaning** | UTF-8 byte offsets into `module.source` (and an artifact's `source` for `ConfigKey` spans), every node and level; `Buffer.from(source).subarray(lo, hi)` reproduces the text | the keystone's `module.source[span.bytes]` and python's `byte_offsets`/`_span_code` mean bytes; TS emitted UTF-16 char offsets, so the graph's Buffer-sliced `code` ran short by the multibyte surplus inside the span and one slicing rule could not hold across languages |
+| D2 | **Conversion point** | `src/schema/offsets.ts` (`offsetMapOf`: ASCII identity, else one cumulative table per text, cached per owner). Producers convert on the way out (builders, `dataflow/attach`, `artifacts/yamlKeys`); consumers needing compiler positions convert on the way in (`configUse.nodeAtSpan`, defuse-linker factory lookup, `entrypoints/matching` default export). The dataflow IR keeps char offsets — internal, never on the wire | ts-morph positions stay native inside the analyzer; one definition of the mapping |
+| D3 | **Version** | 1.5.0 minor; a documented field's values move to the documented contract; ASCII files are byte-identical before and after | not a new field or shape |

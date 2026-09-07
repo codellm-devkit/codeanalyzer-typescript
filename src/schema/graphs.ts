@@ -34,7 +34,8 @@ export interface GraphNode {
   start_column: number;
   end_line: number;
   end_column: number;
-  /** UTF-16 char offsets into the owning module's `source` (same convention as L1 `span.bytes`). */
+  /** UTF-16 char offsets (ts-morph positions) — INTERNAL; `dataflow/attach` converts them to the
+   * UTF-8 byte offsets `span.bytes` carries on the wire (#179). */
   start_offset: number;
   end_offset: number;
 }

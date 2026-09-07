@@ -10,6 +10,7 @@ import { forEachCallable, type AnalysisInternal, type TSCallable, type TSCallsit
 import { callBodyKeys } from "../schema/l1Body";
 import type { ArgSpec, BaseRule, CallRule, DecoratorRule, FileRule, ManifestRule } from "./rules";
 
+import { offsetMapFor, sliceBytes } from "../schema/offsets";
 export class PatternError extends Error {}
 
 const cache = new Map<string, RegExp>();
@@ -313,8 +314,9 @@ function resolveDefaultExport(mod: TSModule): TSCallable | undefined {
   }
   DEFAULT_EXPORT_TOKEN.lastIndex = 0;
   let m: RegExpExecArray | null;
+  const offsets = offsetMapFor(mod, mod.source); // regex indices are chars; `span.bytes` are bytes (#179)
   while ((m = DEFAULT_EXPORT_TOKEN.exec(mod.source))) {
-    const end = m.index + m[0].length;
+    const end = offsets.toByte(m.index + m[0].length);
     const target = Object.values(mod.functions).find((c) => c.name === "(anonymous)" && c.span.bytes[0] === end);
     if (target) return target;
   }
@@ -343,7 +345,7 @@ export function entrypointsFromFiles(
     if (!globToRegExp(rule.match).test(fileKey)) continue;
     for (const exp of rule.exports) {
       let target = Object.values(mod.functions).find((c) => c.is_exported && (exp === "default"
-        ? mod.source.slice(c.span.bytes[0], c.span.bytes[1]).trimStart().startsWith("export default")
+        ? sliceBytes(mod.source, c.span.bytes).trimStart().startsWith("export default")
         : c.name === exp));
       if (!target && exp === "default") target = resolveDefaultExport(mod);
       if (!target) {

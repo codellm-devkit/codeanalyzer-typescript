@@ -14,6 +14,7 @@
 import { specifierRoot } from "../../artifacts/binding";
 import type { TSAnalysis, TSApplication, TSBodyNode, TSCallable, TSDecorator, TSEntrypoint, TSEntrypointReport, TSField, TSModule, TSType } from "../../schema";
 import { globalOrdinal, purlNpm } from "../../schema/ids";
+import { sliceBytes } from "../../schema/offsets";
 import { SCHEMA_VERSION } from "./schema";
 import { type GraphRows, type NodeRef, type Props, RowBuilder, prune } from "./rows";
 
@@ -350,7 +351,7 @@ function spanCode(source: string, sp: { bytes?: [number, number] } | undefined):
   if (!source || !bytes) return null;
   const [lo, hi] = bytes;
   if (hi <= lo) return null;
-  return Buffer.from(source, "utf8").subarray(lo, hi).toString("utf8");
+  return sliceBytes(source, bytes); // #179: `span.bytes` are real byte offsets now, so this is exact
 }
 
 function moduleProps(mod: TSModule, fileKey: string): Props {

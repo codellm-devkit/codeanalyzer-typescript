@@ -31,6 +31,7 @@ import {
 } from "../schema";
 import { computeSignatureForDecl } from "../schema";
 import { memberKey } from "../schema/ids";
+import { offsetMapFor } from "../schema/offsets";
 import { importTable, resolveWritten } from "./importResolver";
 
 // ----------------------------------------------------------------------------------------------
@@ -92,9 +93,10 @@ function span(node: Node): { start_line: number; end_line: number; start_column:
 }
 
 /**
- * schema-v2 precise span: [line, column] endpoints + char offsets into the module source.
- * `bytes = [getStart(), getEnd()]` are exactly the offsets `Node.getText()` slices, so
- * `module.source.slice(bytes[0], bytes[1])` reproduces the node's text.
+ * schema-v2 precise span: [line, column] endpoints + UTF-8 BYTE offsets into the module source
+ * (#179). ts-morph's `getStart()`/`getEnd()` are UTF-16 char positions; `byteRange` converts them
+ * so `Buffer.from(module.source).subarray(bytes[0], bytes[1])` reproduces the node's text — the
+ * keystone's and python's slicing rule.
  */
 function richSpan(node: Node): TSSpan {
   const sf = node.getSourceFile();
@@ -102,7 +104,13 @@ function richSpan(node: Node): TSSpan {
   const e = node.getEnd();
   const sl = sf.getLineAndColumnAtPos(s);
   const el = sf.getLineAndColumnAtPos(e);
-  return { start: [sl.line, sl.column], end: [el.line, el.column], bytes: [s, e] };
+  return { start: [sl.line, sl.column], end: [el.line, el.column], bytes: byteRange(sf, s, e) };
+}
+
+/** Char positions → the byte range on the wire; the map is built once per SourceFile. */
+function byteRange(sf: { getFullText: () => string }, start: number, end: number): [number, number] {
+  const m = offsetMapFor(sf, sf.getFullText());
+  return [m.toByte(start), m.toByte(end)];
 }
 
 function accessibilityOf(node: Node): string | undefined {
@@ -346,7 +354,7 @@ function buildCallsite(call: Node): TSCallsite {
     is_constructor_call: isNew,
     is_optional_chain,
     ...span(call),
-    bytes: [call.getStart(), call.getEnd()],
+    bytes: byteRange(call.getSourceFile(), call.getStart(), call.getEnd()),
   };
 }
 
@@ -404,7 +412,7 @@ function buildConfigAccess(n: Node, root: string, key?: string): TSConfigAccess 
     root,
     ...(key !== undefined ? { key } : {}),
     ...span(n),
-    bytes: [n.getStart(), n.getEnd()],
+    bytes: byteRange(n.getSourceFile(), n.getStart(), n.getEnd()),
   };
 }
 
@@ -1130,7 +1138,7 @@ export function buildModule(sf: Node, root: string): TSModule {
   return {
     id: "",
     kind: "module",
-    span: { start: [1, 1], end: [endLc.line, endLc.column], bytes: [0, source.length] },
+    span: { start: [1, 1], end: [endLc.line, endLc.column], bytes: [0, Buffer.byteLength(source, "utf8")] },
     source,
     imports: buildImports(sf),
     exports: buildExports(sf),

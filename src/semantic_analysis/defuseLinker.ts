@@ -33,6 +33,7 @@ import type { CallGraphContext } from "./provider";
 import type { CallGraphResult } from "./callGraph";
 import { inInstancePropInit, indexCallExpressions } from "./callGraph";
 
+import { offsetMapFor } from "../schema/offsets";
 /** Per-call-site resolutions for the sanctioned `callee: null→id` refinement: callerSig → bodyKey → calleeSig. */
 export type LinkerResolutions = Map<string, Map<string, string>>;
 
@@ -499,7 +500,8 @@ export function runDefuseLinker(ctx: CallGraphContext): LinkerOutput {
     const fc = callables.find((c) => c.signature === factorySig);
     if (fc) {
       const sf = project.getSourceFile(fc.abs_path);
-      const declNode = sf?.getDescendantAtPos(fc.span.bytes[0]);
+      // `span.bytes` are UTF-8 byte offsets (#179); the compiler wants a char position.
+      const declNode = sf?.getDescendantAtPos(offsetMapFor(sf, sf.getFullText()).toChar(fc.span.bytes[0]));
       const fnNode = declNode ? [declNode, ...declNode.getAncestors()].find((a) => computeSignatureForDecl(a, root) === factorySig) : undefined;
       if (fnNode) {
         returnSummary.set(factorySig, null); // cycle guard before descending

@@ -22,7 +22,8 @@ table, call graph, CFG, PDG, SDG — is *projection* of that one structure. Anal
 - **L1** (`-a 1`): tree to callable depth — `application → symbol_table{module} →
   types{}/functions{}/fields{} → callables{}` — plus `call` nodes in each callable's
   `body{}` (`callee` unresolved). `source` stored once per module; every node's
-  text slices off it via `span.bytes`.
+  text slices off it via `span.bytes` (UTF-8 BYTE offsets, #179 — `Buffer` slice, never `String.slice`;
+  producers/consumers convert through `src/schema/offsets.ts`).
 - **L2** (`-a 2`): `call_graph` edge list (callable→callable) at application scope,
   and `callee` slot on each call node refined `null → id` (only sanctioned mutation).
 - **L3** (`-a 3`): rest of `body{}` (statements + `@entry`/`@exit`) and intra-callable

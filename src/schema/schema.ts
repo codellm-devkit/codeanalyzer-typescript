@@ -25,15 +25,17 @@
 import { modulePrefixOf } from "./ids";
 
 // ----------------------------------------------------------------------------------------------
-// Span — the one universal attribute. `bytes` are char offsets into the owning module's `source`
-// blob, so `source.slice(bytes[0], bytes[1])` reproduces the node's text. `start`/`end` are
+// Span — the one universal attribute. `bytes` are UTF-8 BYTE offsets into the owning module's
+// `source` (#179; the keystone's and python's meaning), so
+// `Buffer.from(source, "utf8").subarray(bytes[0], bytes[1])` reproduces the node's text —
+// `source.slice(...)` does NOT once a multibyte char precedes the node. `start`/`end` are
 // [line, column], 1-based.
 // ----------------------------------------------------------------------------------------------
 
 export interface TSSpan {
   start: [number, number]; // [line, column], 1-based
   end: [number, number]; // [line, column], 1-based
-  bytes: [number, number]; // [startOffset, endOffset], char offsets into module.source
+  bytes: [number, number]; // [startOffset, endOffset], UTF-8 byte offsets into module.source
 }
 
 // ----------------------------------------------------------------------------------------------
@@ -149,7 +151,7 @@ export interface TSCallsite {
   start_column: number;
   end_line: number;
   end_column: number;
-  bytes: [number, number]; // char offsets [start, end] into module.source
+  bytes: [number, number]; // UTF-8 byte offsets [start, end] into module.source (#179)
 }
 
 /** INTERNAL — a recognized configuration read (env root access). Never on the wire; the wire's
