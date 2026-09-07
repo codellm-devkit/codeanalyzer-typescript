@@ -13,7 +13,8 @@ import type { AnalysisInternal, TSCallable, TSField, TSType } from "./schema";
 
 export interface AssignedIds {
   appId: string;
-  idBySig: Map<string, string>; // signature → can:// id (types + callables)
+  idBySig: Map<string, string>; // signature → can:// id (types + callables; the VALUE facet of a merged name)
+  typeIdBySig: Map<string, string>; // signature → the first TYPE facet's id (#177; heritage resolves through this)
   callableBySig: Map<string, TSCallable>; // locates each callable's node for the L3/L4 attach
   collisions: string[]; // signatures that mapped to two distinct ids (L1 id-uniqueness gate)
 }
@@ -21,8 +22,14 @@ export interface AssignedIds {
 export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
   const appId = applicationIdOf(appName);
   const idBySig = new Map<string, string>();
+  const typeIdBySig = new Map<string, string>();
   const callableBySig = new Map<string, TSCallable>();
   const collisions: string[] = [];
+  // #177: every id minted this run, so a second declaration facet of one name (declaration
+  // merging) gets its own id instead of silently sharing. Value facets (callables, fields) are
+  // always minted before the types of their scope, so a type is the one that yields.
+  const usedIds = new Set<string>();
+  const typeIds = new Set<string>();
 
   const register = (sig: string, id: string): void => {
     if (idBySig.has(sig) && idBySig.get(sig) !== id) collisions.push(sig);
@@ -30,11 +37,15 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
   };
 
   const doFields = (parentId: string, fields: Record<string, TSField> | undefined): void => {
-    for (const [name, f] of Object.entries(fields ?? {})) f.id = `${parentId}/${name}`;
+    for (const [name, f] of Object.entries(fields ?? {})) {
+      f.id = `${parentId}/${name}`;
+      usedIds.add(f.id);
+    }
   };
 
   const doCallable = (moduleId: string, modulePrefix: string, c: TSCallable): void => {
     c.id = idFromSig(moduleId, modulePrefix, c.signature);
+    usedIds.add(c.id);
     register(c.signature, c.id);
     callableBySig.set(c.signature, c);
     for (const nested of Object.values(c.callables ?? {})) doCallable(moduleId, modulePrefix, nested);
@@ -42,8 +53,16 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
   };
 
   const doType = (moduleId: string, modulePrefix: string, t: TSType): void => {
-    t.id = idFromSig(moduleId, modulePrefix, t.signature);
-    register(t.signature, t.id);
+    const bare = idFromSig(moduleId, modulePrefix, t.signature);
+    // Declaration merging (#177): `#type` when a VALUE of this name holds the bare id, `#<kind>`
+    // when an earlier TYPE facet does (class+interface, enum+namespace). Never otherwise.
+    t.id = !usedIds.has(bare) ? bare : typeIds.has(bare) ? `${bare}#${t.kind}` : `${bare}#type`;
+    usedIds.add(t.id);
+    typeIds.add(bare);
+    if (!typeIdBySig.has(t.signature)) typeIdBySig.set(t.signature, t.id);
+    // The value facet keeps the signature → id slot (call-graph re-identification, callee
+    // backfill, homing all mean the callable); a split is not a collision.
+    if (t.id === bare) register(t.signature, t.id);
     doFields(t.id, t.fields);
     for (const m of Object.values(t.callables ?? {})) doCallable(moduleId, modulePrefix, m);
     for (const f of Object.values(t.functions ?? {})) doCallable(moduleId, modulePrefix, f); // namespace
@@ -88,5 +107,5 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
     dep.declared_in = artifactIdOf(appName, artPath.startsWith("can://") ? artPath.split("/").slice(4).join("/") : artPath);
   }
 
-  return { appId, idBySig, callableBySig, collisions };
+  return { appId, idBySig, typeIdBySig, callableBySig, collisions };
 }

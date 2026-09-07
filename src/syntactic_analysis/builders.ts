@@ -32,6 +32,15 @@ import {
 import { computeSignatureForDecl } from "../schema";
 import { memberKey } from "../schema/ids";
 import { offsetMapFor } from "../schema/offsets";
+
+/**
+ * #177: a later type facet of a merged name (`class C` + `interface C`, `enum E` + `namespace E`)
+ * keeps its own slot as `Name#<kind>` instead of overwriting the first. assignIds mints the
+ * matching `<id>#<kind>` from the same collision.
+ */
+function putType(types: Record<string, TSType>, key: string, t: TSType): void {
+  types[key in types ? `${key}#${t.kind}` : key] = t;
+}
 import { importTable, resolveWritten } from "./importResolver";
 
 // ----------------------------------------------------------------------------------------------
@@ -544,7 +553,7 @@ export function buildCallable(
     },
     onNestedClass: (n: Node) => {
       const r = buildClass(n, root);
-      types[memberKey(r.sig)] = r.cls;
+      putType(types, memberKey(r.sig), r.cls);
     },
   };
   const body = (fnNode as unknown as { getBody?: () => Node | undefined }).getBody?.();
@@ -640,14 +649,12 @@ function resolveHeritage(expr: Node, root: string): string {
     if (sym) {
       const aliased = (sym as { getAliasedSymbol?: () => typeof sym }).getAliasedSymbol?.();
       if (aliased) sym = aliased;
-      const d = sym?.getDeclarations?.()?.[0];
-      if (
-        d &&
-        (Node.isClassDeclaration(d) ||
-          Node.isInterfaceDeclaration(d) ||
-          Node.isEnumDeclaration(d) ||
-          Node.isClassExpression(d))
-      ) {
+      // A merged symbol (#177: `const X = …` + `interface X`) lists every facet; `extends` /
+      // `implements` name the TYPE, so take the first type-like declaration, not the first one.
+      const d = (sym?.getDeclarations?.() ?? []).find(
+        (x) => Node.isClassDeclaration(x) || Node.isInterfaceDeclaration(x) || Node.isEnumDeclaration(x) || Node.isClassExpression(x),
+      );
+      if (d) {
         const s = computeSignatureForDecl(d, root);
         if (s) return s;
       }
@@ -912,24 +919,25 @@ function buildStatemented(container: Node, root: string, varScope: "module" | "n
     getVariableStatements: () => Node[];
   };
   // One types{} map. Fill order (classes → interfaces → enums → aliases → namespaces) is the
-  // canonical precedence: on a member-key collision (e.g. class/interface declaration merging)
-  // the later kind wins, exactly as the historical per-kind bucket merge did.
+  // canonical precedence: on a member-key collision (declaration merging, #177) the FIRST kind
+  // keeps the bare key and every later facet is keyed `Name#<kind>` — both survive, where the
+  // historical per-kind bucket merge silently dropped the earlier one.
   const types: Record<string, TSType> = {};
   for (const cl of c.getClasses()) {
     const r = buildClass(cl, root);
-    types[memberKey(r.sig)] = r.cls;
+    putType(types, memberKey(r.sig), r.cls);
   }
   for (const it of c.getInterfaces()) {
     const r = buildInterface(it, root);
-    types[memberKey(r.sig)] = r.intf;
+    putType(types, memberKey(r.sig), r.intf);
   }
   for (const en of c.getEnums()) {
     const r = buildEnum(en, root);
-    types[memberKey(r.sig)] = r.en;
+    putType(types, memberKey(r.sig), r.en);
   }
   for (const ta of c.getTypeAliases()) {
     const r = buildTypeAlias(ta, root);
-    types[memberKey(r.sig)] = r.ta;
+    putType(types, memberKey(r.sig), r.ta);
   }
   const functions: Record<string, TSCallable> = {};
   for (const fn of c.getFunctions()) {
@@ -967,7 +975,7 @@ function buildStatemented(container: Node, root: string, varScope: "module" | "n
   });
   for (const ns of c.getModules()) {
     const r = buildNamespace(ns, root);
-    types[memberKey(r.sig)] = r.ns;
+    putType(types, memberKey(r.sig), r.ns);
   }
   return { types, functions, fields };
 }

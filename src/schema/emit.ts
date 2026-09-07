@@ -97,9 +97,11 @@ export function finalizeAnalysis(
   const appName = (opts.appName ?? (opts.input ? path.basename(opts.input) : "") ?? "").trim() || "app";
 
   // L1 — stamp ids, derive body{}, project heritage (all overwrite-idempotent per-run passes).
-  const { appId, idBySig, callableBySig, collisions } = assignIds(app, appName);
+  const { appId, idBySig, typeIdBySig, callableBySig, collisions } = assignIds(app, appName);
   populateL1Body(app);
-  resolveHeritageIds(app, idBySig);
+  // `extends`/`implements` name TYPES: on a merged name (#177) the type facet's id wins over the
+  // value facet's, which is what `idBySig` holds for every other pass.
+  resolveHeritageIds(app, new Map([...idBySig, ...typeIdBySig]));
   // Level-free, after heritage: unit 4 matches on resolved extends_ids.
   const entrypoint_report = detectEntrypoints(app, opts, rules);
 
