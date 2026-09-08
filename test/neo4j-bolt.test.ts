@@ -208,16 +208,25 @@ containerSuite("neo4j bolt writer", () => {
       await boltWriter(rows, cfg, log, true, true);
       expect(await victimCount()).toBe(0);
 
-      // The surviving graph under this app's prefix matches the reduced projection exactly:
-      // module-owned rows plus the shared, MERGE-only ones (:TSExternal, and the artifact layer,
-      // which carries the marker now so the wipe can reclaim it). Counted from the rows rather
-      // than excluded by label, so neither class can drift unnoticed.
-      const marked = (ns: typeof rows.nodes) => ns.filter((n) => n.labels.includes("TSCanNode") && n.value.startsWith(`${appId}/`));
-      const moduleOwned = marked(rows.nodes.filter((n) => n.module !== undefined)).length;
-      const shared = marked(rows.nodes.filter((n) => n.module === undefined)).length;
-      expect(moduleOwned).toBeGreaterThan(0);
-      expect(shared).toBeGreaterThan(0);
-      expect(await num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $pre RETURN count(n)", { pre: `${appId}/` })).toBe(moduleOwned + shared);
+      // The surviving module-owned graph matches the reduced projection. Shared, MERGE-only nodes
+      // sit under the app prefix too, so exclude them: :TSExternal, and the artifact layer, which
+      // is inside the destructive scope now that it carries the marker.
+      const moduleOwned = rows.nodes.filter((n) => n.module !== undefined).length;
+      expect(
+        await num(
+          "MATCH (n:TSCanNode) WHERE n.id STARTS WITH $pre AND NOT n:TSExternal AND NOT n:Artifact AND NOT n:ConfigKey RETURN count(n)",
+          { pre: `${appId}/` },
+        ),
+      ).toBe(moduleOwned);
+
+      // The artifact layer is what this change put in scope: the wipe deletes it and the same push
+      // restores it, so a round trip through --eager must leave it whole, not merely non-empty.
+      const artifactRows = rows.nodes.filter((n) => n.labels.includes("Artifact") || n.labels.includes("ConfigKey"));
+      expect(artifactRows.length).toBeGreaterThan(0);
+      for (const n of artifactRows) expect(n.labels).toContain("TSCanNode");
+      expect(
+        await num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $pre AND (n:Artifact OR n:ConfigKey) RETURN count(n)", { pre: `${appId}/` }),
+      ).toBe(artifactRows.length);
     },
     120_000,
   );
