@@ -39,14 +39,22 @@ together is a CLI error, not a partial graph).
 
 - **`can://` ids are opaque** — match on properties, never delimiter-split an id.
 - Code ids are two-tier: **durable** at callable depth and above —
-  `can://<lang>/<app>/<fileKeyWithExt>/<memberPath>`, e.g.
-  `can://typescript/artifacts-app/src/config.ts/readHost` — and **ordinal** below it, appended
+  `can://<app>/<lang>/<fileKeyWithExt>/<memberPath>`, e.g.
+  `can://artifacts-app/typescript/src/config.ts/readHost` — and **ordinal** below it, appended
   with `@`: `line:col` for statements/calls/`config_access`, `@entry`/`@exit`/`@formal_in:N`/
   `@formal_out` for synthetic vertices, `<callsite-local>/actual_in:N`/`<callsite-local>/actual_out`
-  for actuals. Example: `can://typescript/artifacts-app/src/config.ts/readHost@12:3`.
-- **`Artifact.id` is language-neutral**: `can://artifact/<app>/<path>` — no `typescript` segment,
-  so a TS and a Python analysis of one monorepo mint the *same* id for the same file (see the
-  `--app-name` trap below).
+  for actuals. Example: `can://artifacts-app/typescript/src/config.ts/readHost@12:3`.
+- **The application is the OUTERMOST segment**, so `can://<app>/` is one prefix over both language
+  namespaces. Scope a query with `(n:TSCanNode) WHERE n.id STARTS WITH 'can://<app>/'` — one
+  predicate, whole application. Never enumerate `can://typescript/…` and `can://javascript/…`:
+  that shape is gone, and naming only one of the two markers answered for half the graph.
+- **`Artifact.id` is language-neutral**: `can://<app>/artifact/<path>` — `artifact` sits where a
+  language would, so a TS and a Python analysis of one monorepo mint the *same* id for the same
+  file (see the `--app-name` trap below). Artifact nodes carry NO marker label: they are shared
+  with the sibling analyzers, so no analyzer's scoped delete may sweep them.
+- **The first segment is the app, not the language.** An application named `typescript` is legal
+  and yields `can://typescript/javascript/…`. Read the language positionally (segment 2) or,
+  better, from node properties — never by splitting on the first segment.
 - **`Package.id` is a purl**: `pkg:npm/<name>`, scoped `pkg:npm/%40scope/<name>` — the
   cross-language SBOM join key.
 - **`ConfigKey.id`** is `<artifactId>@key/<dotted>` (numeric segments for array indices, e.g.

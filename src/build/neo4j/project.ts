@@ -433,7 +433,8 @@ const edges = (x: unknown): Edge[] => (Array.isArray(x) ? (x as Edge[]) : []);
 const idOf = (endpoint: string): string => endpoint;
 
 function moduleKeyOf(mod: TSModule): string {
-  // id = can://<lang>/<app>/<fileKey>; the fileKey is everything after the 3rd '/' past the scheme.
+  // id = can://<app>/<lang>/<fileKey>; the fileKey is everything past the app and language
+  // segments. Positional, so it survived the segment reorder unchanged.
   const m = /^can:\/\/[^/]+\/[^/]+\/(.+)$/.exec(mod.id);
   return m ? (m[1] as string) : mod.id;
 }

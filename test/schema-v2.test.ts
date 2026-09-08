@@ -103,7 +103,7 @@ describe("schema v2 — L1 envelope", () => {
       "symbol_table",
       "unresolved_imports",
     ]);
-    expect(root.id).toBe("can://typescript/sample-app");
+    expect(root.id).toBe("can://sample-app");
     expect(root.kind).toBe("application");
   });
 
@@ -132,12 +132,19 @@ describe("schema v2 — L1 identity", () => {
     const ids = allIds();
     expect(collisions).toEqual([]);
     expect(new Set(ids).size).toBe(ids.length);
-    for (const id of ids) expect(id.startsWith("can://typescript/sample-app/")).toBe(true);
+    // The grammar gate: application OUTERMOST, language second. Anchored on the app so an id in
+    // the sibling `javascript` namespace would still pass the prefix but be caught by the shape.
+    for (const id of ids) {
+      expect(id.startsWith("can://sample-app/")).toBe(true);
+      expect(id).toMatch(/^can:\/\/sample-app\/(typescript|javascript)\/.+/);
+      expect(id.startsWith("can://typescript/")).toBe(false);
+      expect(id.startsWith("can://javascript/")).toBe(false);
+    }
   });
 
   test("module ids derive from the file key", () => {
     for (const [key, m] of Object.entries(st) as [string, TSModule][]) {
-      expect(m.id).toBe(`can://typescript/sample-app/${key}`);
+      expect(m.id).toBe(`can://sample-app/typescript/${key}`);
       expect(m.kind).toBe("module");
     }
   });
@@ -516,9 +523,12 @@ describe("schema v2 — L4 interprocedural SDG", () => {
 
   test("param_in/param_out use fully-qualified canId@local ids", () => {
     // Every endpoint is a fully-qualified can:// id with a @local suffix (arg edges AND global-flow edges).
+    // Anchored on the APPLICATION prefix, which is what "fully-qualified" now means: one prefix
+    // covers both language namespaces, so this no longer misses a `javascript` endpoint.
+    const appPrefix = `${dfL4.application.id}/`;
     for (const e of [...dfL4.application.param_in, ...dfL4.application.param_out]) {
       for (const ep of [e.src, e.dst]) {
-        expect(ep.startsWith("can://typescript/")).toBe(true);
+        expect(ep.startsWith(appPrefix)).toBe(true);
         expect(ep.includes("@")).toBe(true);
       }
     }

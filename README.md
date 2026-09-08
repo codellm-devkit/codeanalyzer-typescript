@@ -254,7 +254,7 @@ deeply; each level only ever *adds*.
 {
   "schema_version": "2.0.0", "language": "typescript", "max_level": 4, "k_limit": 3,
   "application": {
-    "id": "can://typescript/<app>", "kind": "application",
+    "id": "can://<app>", "kind": "application",
     "symbol_table": {                     // L1: the tree, keyed by file path
       "<file>": { "kind": "module", "source": "…",
         "types":     { /* class | interface | enum | type_alias | namespace nodes */ },
@@ -324,6 +324,11 @@ Levels 1/2 are unaffected: nothing in level 3 runs unless `-a 3` is requested.
 `TS_DDG`, `TS_SUMMARY`, `TS_PARAM_IN`, `TS_PARAM_OUT`) as typed relationships. The graph is
 **always full-depth** — analysis levels gate the JSON path only, so combining `-a`/`--graphs` with
 `--emit neo4j` is an error:
+
+Every node id is `can://<app>/…`, so `can://<app>` is a prefix of every node the application
+emits — the `typescript` and `javascript` namespaces are two segments *inside* it, not two
+top-level namespaces a consumer has to enumerate. That single prefix is what the destructive
+statements scope on, and `:Application` is keyed on the id rather than on `--app-name`.
 
 - **Without `--neo4j-uri`** — writes a self-contained `graph.cypher` (constraints + indexes, a
   scoped wipe, then batched `MERGE`s). Load it with `cypher-shell < graph.cypher`.

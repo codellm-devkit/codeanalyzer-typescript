@@ -80,6 +80,23 @@ describe("can:// prefix scoping (#140)", () => {
     }
   });
 
+  test("two applications project as two distinct roots", async () => {
+    // The multi-service failure mode. :Application already merges on `id` rather than on the
+    // free-text --app-name, so this holds by construction — pinned here against regression, and
+    // because the root's id is now the prefix every other id in the projection is scoped by.
+    const a = project((await analyze({ ...opts, appName: "svc-quotes" })).application);
+    const b = project((await analyze({ ...opts, appName: "svc-orders" })).application);
+    const rootOf = (rows: ReturnType<typeof project>) => rows.nodes.find((n) => n.labels[0] === "Application")!;
+    expect(rootOf(a).keyProp).toBe("id");
+    expect(rootOf(a).value).toBe("can://svc-quotes");
+    expect(rootOf(b).value).toBe("can://svc-orders");
+    expect(rootOf(a).value).not.toBe(rootOf(b).value);
+    // The root carries the index anchor, so the prefix-scoped delete can reach its subtree.
+    expect(rootOf(a).labels).toContain("TSCanNode");
+    // Neither application's prefix reaches the other's nodes.
+    for (const n of b.nodes) expect(n.value.startsWith("can://svc-quotes/")).toBe(false);
+  });
+
   test("every destructive statement anchors on a marker and a /-terminated prefix", async () => {
     expect(EAGER_PURGE).toMatch(/^MATCH \(n:TSCanNode\) WHERE n\.id STARTS WITH \$prefix/);
     expect(EAGER_PURGE).not.toContain("_module");

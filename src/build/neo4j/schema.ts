@@ -40,9 +40,11 @@ export interface RelType {
 }
 
 /** Labels layered onto a node in addition to its primary/specific label. */
-// One per language namespace this analyzer emits (#140): `TSCanNode` on every `can://typescript/`
-// id, `JSCanNode` on every `can://javascript/` id. Index anchors for the prefix-scoped destructive
-// statements — they carry no safety claim of their own. Alongside `CanNode` until #95 retires it.
+// `TSCanNode` rides EVERY `can://` node this analyzer owns, in both language namespaces (#140);
+// `JSCanNode` is a secondary label on the `javascript` namespace, a consumer filter only. With the
+// application outermost, one anchor + one `can://<app>/` prefix scopes every destructive statement,
+// so no scoped query can answer for half the graph by naming one marker. They carry no safety
+// claim of their own. Alongside `CanNode` until #95 retires it.
 export const MARKER_LABELS = ["TSCanNode", "JSCanNode"] as const;
 
 /** The namespace prefix every specific node label and relationship type carries at 2.0.0 (#66). */
@@ -96,7 +98,7 @@ export const NODE_LABELS: NodeLabel[] = [
     // A decorator APPLICATION's shared target (#82, python `:PyDecorator` parity). Merged on the
     // resolved `qualified_name` when the checker supplies one, so `@Get` and `@Get(':id')` land on
     // one node instead of two. Per-application facts (the arguments) ride on TS_DECORATED_BY, not
-    // here: this node is shared across modules, lives outside every `can://<lang>/` prefix, and is never pruned, so
+    // here: this node is shared across modules, lives outside every `can://<app>/` prefix, and is never pruned, so
     // anything application-specific on it would accumulate across every project in the database.
     label: "TSDecorator",
     mergeLabel: "TSDecorator",
@@ -305,6 +307,8 @@ export const INDEXES: readonly string[] = [
   // Back every destructive statement (#140): `id STARTS WITH $prefix` seeks on a range index only
   // when anchored on a label that has one. `STARTS WITH` is index-backed; CONTAINS/ENDS WITH are not.
   "CREATE INDEX tscannode_id IF NOT EXISTS FOR (n:TSCanNode) ON (n.id)",
+  // No statement in this analyzer seeks on JSCanNode any more (one prefix, one anchor); the index
+  // stays for consumers that filter the javascript namespace by id prefix.
   "CREATE INDEX jscannode_id IF NOT EXISTS FOR (n:JSCanNode) ON (n.id)",
 ];
 

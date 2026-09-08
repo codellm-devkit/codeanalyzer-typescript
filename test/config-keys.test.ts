@@ -38,7 +38,7 @@ describe("config keys — flat and JSON (#101 unit B)", () => {
   });
 
   test("key ids chain off the artifact id", () => {
-    expect(keysOf(".env")["PAYMENT_HOST"]?.id).toBe("can://artifact/artifacts-app/.env@key/PAYMENT_HOST");
+    expect(keysOf(".env")["PAYMENT_HOST"]?.id).toBe("can://artifacts-app/artifact/.env@key/PAYMENT_HOST");
   });
 
   test("a dependency manifest is never also a config file — manifests/lockfiles yield zero keys", () => {
@@ -295,8 +295,8 @@ describe("deployment-env namespaces (#101 unit D)", () => {
     const envVersion = keys.find((k) => k.namespace === "env" && k.key === "VERSION");
     expect(argVersion?.key).toBe("VERSION"); // key field stays bare — only the id is disambiguated
     expect(envVersion?.key).toBe("VERSION");
-    expect(argVersion?.id).toBe("can://artifact/artifacts-app/Dockerfile@key/arg.VERSION");
-    expect(envVersion?.id).toBe("can://artifact/artifacts-app/Dockerfile@key/VERSION"); // ENV: unprefixed
+    expect(argVersion?.id).toBe("can://artifacts-app/artifact/Dockerfile@key/arg.VERSION");
+    expect(envVersion?.id).toBe("can://artifacts-app/artifact/Dockerfile@key/VERSION"); // ENV: unprefixed
     expect(argVersion?.id).not.toBe(envVersion?.id);
   });
 
@@ -310,8 +310,8 @@ describe("deployment-env namespaces (#101 unit D)", () => {
     const deployEnv = keys.find((k) => k.namespace === "env" && k.key === "PAYMENT_HOST");
     expect(structural?.value).toBe("https://root-level.example.com");
     expect(deployEnv?.value).toBe("https://pay.example.com");
-    expect(structural?.id).toBe("can://artifact/artifacts-app/docker-compose.yml@key/PAYMENT_HOST");
-    expect(deployEnv?.id).toBe("can://artifact/artifacts-app/docker-compose.yml@key/env.PAYMENT_HOST");
+    expect(structural?.id).toBe("can://artifacts-app/artifact/docker-compose.yml@key/PAYMENT_HOST");
+    expect(deployEnv?.id).toBe("can://artifacts-app/artifact/docker-compose.yml@key/env.PAYMENT_HOST");
     expect(structural?.id).not.toBe(deployEnv?.id);
   });
 

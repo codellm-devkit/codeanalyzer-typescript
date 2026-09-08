@@ -57,8 +57,8 @@ describe("artifact inventory — rules-matched, neutral ids (#101/PR-160)", () =
   });
 
   test("ids are LANGUAGE-NEUTRAL (can://artifact/<app>/<path>); dotfiles keep the dot", () => {
-    expect(arts[".env"]?.id).toBe("can://artifact/artifacts-app/.env");
-    expect(arts["packages/web/package.json"]?.id).toBe("can://artifact/artifacts-app/packages/web/package.json");
+    expect(arts[".env"]?.id).toBe("can://artifacts-app/artifact/.env");
+    expect(arts["packages/web/package.json"]?.id).toBe("can://artifacts-app/artifact/packages/web/package.json");
   });
 
   test("roles and formats from the rules table; roles union across matches", () => {
@@ -95,8 +95,8 @@ describe("dependencies — flat, evidence-tagged (#101/PR-160)", () => {
   });
 
   test("declared_in is the manifest's neutral artifact id (workspace member keeps its own)", () => {
-    expect(byName.get("express")?.declared_in).toBe("can://artifact/artifacts-app/package.json");
-    expect(byName.get("lodash")?.declared_in).toBe("can://artifact/artifacts-app/packages/web/package.json");
+    expect(byName.get("express")?.declared_in).toBe("can://artifacts-app/artifact/package.json");
+    expect(byName.get("lodash")?.declared_in).toBe("can://artifacts-app/artifact/packages/web/package.json");
   });
 
   test("locks backfill locked_version on declared records only, prov gains lockfile", () => {
@@ -114,7 +114,7 @@ describe("dependencies — flat, evidence-tagged (#101/PR-160)", () => {
     expect(t?.kind).toBe("runtime");
     expect(t?.prov).toEqual(["lockfile"]);
     expect(t?.locked_version).toBe("1.0.0");
-    expect(t?.declared_in).toBe("can://artifact/artifacts-app/package-lock.json");
+    expect(t?.declared_in).toBe("can://artifacts-app/artifact/package-lock.json");
     // declared packages stay direct
     expect(byName.get("express")?.direct).toBe(true);
     // nested shadow entries are NOT records
@@ -191,7 +191,7 @@ describe("Neo4j projection — neutral :Artifact/:Package (#101)", () => {
   const rows = project(r1.application);
 
   test("neutral nodes with purl ids; TS-prefixed claims into the ghost space", () => {
-    const art = rows.nodes.find((n) => n.value === "can://artifact/artifacts-app/package.json");
+    const art = rows.nodes.find((n) => n.value === "can://artifacts-app/artifact/package.json");
     expect(art?.labels).toEqual(["Artifact"]);
     expect(art?.props["roles"]).toEqual(["dependency-manifest", "tool-config"]);
     // Artifact text belongs on the graph: python has carried `source` on :Artifact since it

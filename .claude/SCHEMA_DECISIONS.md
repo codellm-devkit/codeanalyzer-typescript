@@ -124,7 +124,7 @@ residual 135 all-classified. Joern parameter tables prove the param-shadow fabri
 ## Recalibration (2026-08-27): PR-160 is the anchor
 
 The first #101 cut mirrored `51ee29e` — an UNMERGED python branch (`feat/configuration-files`).
-The ratified contract is python PR #160 / spec PR #158: language-neutral `can://artifact/` ids,
+The ratified contract is python PR #160 / spec PR #158: language-neutral `can://<app>/artifact/` ids,
 flat roles[] artifacts with unbounded verbatim source (rules-matched capture only), flat
 evidence-tagged `dependencies[]` (kinds runtime|dev|optional|build + our coined `peer`),
 `unresolved_imports[]`, neutral :Artifact/:Package (purl) with the prefix-gate exception,
@@ -169,9 +169,9 @@ an unresolved read is `reason: "non-literal"` (key never closes on one literal) 
 | # | Concept | Decision | Rationale |
 |---|---|---|---|
 | P1 | **Every destructive statement scopes on the `can://` id prefix**: the node by equality, descendants by `id + '/'` | `--eager` purge, per-module purge, orphan prune (bolt) and the snapshot wipe (cypher) | `_module` was application-blind: two apps sharing a file key deleted each other's nodes. A bare `STARTS WITH id` is wrong too — it also matches `…/foo.tsx` under `…/foo.ts`, and `appXtra` under `app` |
-| P2 | **`_module` retired from the graph**; `NodeRow.module` keeps the grouping in memory | the incremental diff is keyed by module id inside the app prefixes | the property carried no scope; the id carries language, app and file |
-| P3 | **Markers `TSCanNode` / `JSCanNode`** on every `can://<lang>/` id, with a range index on `id` each | index anchors only; anchor label chosen from the id's own namespace | property indexes are label-scoped; `STARTS WITH` seeks only on a range index. Two markers because this analyzer emits two namespaces. `CanNode` stays until #95 |
-| P4 | **Empty application refused** (`applicationPrefixes` throws) | on any push: the diff itself is app-scoped | `STARTS WITH ''` matches the whole store |
+| P2 | **`_module` retired from the graph**; `NodeRow.module` keeps the grouping in memory | the incremental diff is keyed by module id inside the app prefix | the property carried no scope; the id carries app, language and file |
+| P3 | **Marker `TSCanNode`** on every `can://` id this analyzer owns, with a range index on `id`; `JSCanNode` a secondary label on the `javascript` namespace | one index anchor; `JSCanNode` is a consumer filter, not part of any scoping predicate | property indexes are label-scoped; `STARTS WITH` seeks only on a range index. With the app OUTERMOST one anchor + one `can://<app>/` prefix covers both namespaces — the dual-anchor arrangement let a scoped query that named one marker answer for half the graph. Artifact ids stay unmarked: shared with the sibling analyzers, so never in our destructive scope. `CanNode` stays until #95 |
+| P4 | **Anything but a bare application id refused** (`applicationPrefix` throws) | on any push: the diff itself is app-scoped | `STARTS WITH ''` matches the whole store; a deeper id would silently narrow the scope to a subtree |
 | P5 | **`SCHEMA_VERSION` stays 2.0.0** despite a removed property | supersedes #140's "MAJOR bump" goal | #144 / python #186: one version until every analyzer re-baselines together |
 
 ## L4 port lattice ↔ statement ddg (2026-09-06, #81/#80 — python #115 parity)
