@@ -9,7 +9,7 @@
 
 import * as fs from "node:fs";
 import type { EdgeRow, GraphRows, NodeRow, Props } from "./rows";
-import { JS_MARKER, TS_CAN_PREFIX, TS_MARKER, applicationPrefixes } from "./rows";
+import { CAN_SCHEME, TS_MARKER, applicationPrefix } from "./rows";
 import { cypherMap, cypherValue } from "./rows";
 import { CONSTRAINTS, INDEXES } from "./schema";
 
@@ -52,20 +52,20 @@ function* cypherBlocks(rows: GraphRows, appId: string): Generator<string> {
 }
 
 function wipe(rows: GraphRows, appIdArg: string): string {
-  // Scoped on the `can://` id prefix per namespace (#140), not on a relationship walk from the
+  // Scoped on the `can://<app>/` id prefix (#140), not on a relationship walk from the
   // Application node: the prefix reaches every node the app owns — including ones a walk would
   // miss — and nothing another app owns, even one whose file keys collide. The id comes from the
   // rows' own Application node (the argument is a fallback for callers that pass the bare name);
   // rows with no application id get NO destructive statement — refused visibly, never `STARTS
   // WITH ''`.
   const appId = rows.nodes.find((n) => n.labels[0] === "Application")?.value ?? appIdArg;
-  if (!appId.startsWith(TS_CAN_PREFIX)) {
+  if (!appId.startsWith(CAN_SCHEME)) {
     return "// no can:// application id in these rows — no wipe emitted (#140 refuses an unscoped delete)";
   }
-  const { ts, js } = applicationPrefixes(appId);
+  // One statement, both language namespaces: with the app outermost they share `can://<app>/`.
+  // The root itself is `can://<app>` — outside its own descendant prefix, hence the second MATCH.
   return [
-    `MATCH (x:${TS_MARKER}) WHERE x.id STARTS WITH ${cypherValue(ts)} DETACH DELETE x;`,
-    `MATCH (x:${JS_MARKER}) WHERE x.id STARTS WITH ${cypherValue(js)} DETACH DELETE x;`,
+    `MATCH (x:${TS_MARKER}) WHERE x.id STARTS WITH ${cypherValue(applicationPrefix(appId))} DETACH DELETE x;`,
     `MATCH (a:Application {id: ${cypherValue(appId)}}) DETACH DELETE a;`,
   ].join("\n");
 }
