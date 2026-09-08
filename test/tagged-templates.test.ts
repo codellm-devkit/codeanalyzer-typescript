@@ -51,6 +51,6 @@ describe("tagged template calls (#98)", () => {
     const fn = result.application.application.symbol_table["src/x.ts"]?.functions["asCSSUrl"];
     const calls = Object.values(fn?.body ?? {}).filter((b) => b.kind === "call");
     expect(calls.length).toBe(1);
-    expect(calls[0]?.callee).toBe("can://typescript/tagged/src/x.ts/inline");
+    expect(calls[0]?.callee).toBe("can://tagged/typescript/src/x.ts/inline");
   });
 });

@@ -24,8 +24,9 @@ import type { AnalysisOptions } from "../src/options";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/unresolvable-js-app");
 // Two namespaces in one run (#114): a .js module is `javascript`, a .ts module is `typescript`.
-const TS = "can://typescript/unresolvable-js-app";
-const JS = "can://javascript/unresolvable-js-app";
+// Both now sit UNDER the one application segment, so they share the `can://<app>/` prefix.
+const TS = "can://unresolvable-js-app/typescript";
+const JS = "can://unresolvable-js-app/javascript";
 
 function options(over: Partial<AnalysisOptions> = {}): AnalysisOptions {
   return {

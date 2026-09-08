@@ -8,6 +8,9 @@
  * node fresh each run (see assignIds.ts).
  */
 
+/** The scheme prefix. The language is NOT part of it — it is the segment below `<app>`. */
+export const SCHEME = "can://";
+
 const LANGUAGE = "typescript";
 const JS_EXTS = /\.(jsx|js|mjs|cjs)$/;
 
@@ -23,18 +26,24 @@ export function languageOf(fileKey: string): string {
 }
 
 /**
- * The :Application anchor keeps the analyzer's own language even when it owns `javascript`
- * children. A mixed repository has no single language, and the alternatives were a neutral anchor
- * (moves every id in every projection) or two anchors (breaks the single-anchor invariant, #43).
+ * `can://<app>` — the application root, and the prefix EVERY id below it shares.
+ *
+ * The application is the outermost segment and the language sits inside it, so the analyzer's two
+ * namespaces (`typescript`, `javascript`) are two children of one application rather than two
+ * top-level namespaces that a consumer has to enumerate. The old anchor had to pick a language for
+ * a mixed repository and picked the analyzer's own; there is nothing left to pick.
  * See docs/design/specs/js-language-namespace.md.
  */
 export function applicationIdOf(appName: string): string {
-  return `can://${LANGUAGE}/${appName}`;
+  return `${SCHEME}${appName}`;
 }
 
-/** Takes the app NAME, not the app id: a module's namespace is its own, not the application's. */
+/**
+ * `can://<app>/<lang>/<fileKey>`. Takes the app NAME, not the app id: a module's namespace is its
+ * own, not the application's.
+ */
 export function moduleIdOf(appName: string, fileKey: string): string {
-  return `can://${languageOf(fileKey)}/${appName}/${fileKey}`;
+  return `${applicationIdOf(appName)}/${languageOf(fileKey)}/${fileKey}`;
 }
 
 /** The module/signature prefix: the file key without its TS/JS extension. */
@@ -56,9 +65,10 @@ export function artifactIdOf(appName: string, relPath: string): string {
   let rel = relPath.replace(/\\/g, "/");
   while (rel.startsWith("./")) rel = rel.slice(2);
   rel = rel.replace(/^\/+/, "");
-  // Language-NEUTRAL namespace (python PR #160): the first segment is `artifact`, not a
-  // language — sibling analyzers over the same repo emit the SAME id for the same file.
-  return `can://artifact/${appName}/${rel}`;
+  // Language-NEUTRAL pseudo-segment (python PR #160): `artifact` sits where a language would, so
+  // sibling analyzers over the same repo emit the SAME id for the same file — `<app>` agreement is
+  // the precondition, and it always was.
+  return `${applicationIdOf(appName)}/artifact/${rel}`;
 }
 
 /** Config-key id: the owning artifact's id, `@key/`, then the dotted path. */

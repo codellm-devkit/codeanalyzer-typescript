@@ -167,8 +167,10 @@ containerSuite("neo4j bolt writer", () => {
       const app = result.internal;
       delete app.symbol_table["src/models.ts"];
       const reduced = project(finalizeAnalysis(app, result.program_graphs ?? null, opts).application);
-      const appId = full.nodes.find((n) => n.labels[0] === "Application")!.value;
-      const victimId = `${appId}/src/models.ts`;
+      // The module's id comes from the projection itself, never composed from the app id and the
+      // file key: the language segment sits between them, and hard-coding that shape here is what
+      // made this test encode the id grammar.
+      const victimId = full.nodes.find((n) => n.labels.includes("TSModule") && n.props.name === "src/models.ts")!.value;
       const intoVictim = () => num("MATCH ()-[r:TS_IMPORTS]->(t {id:$id}) RETURN count(r)", { id: victimId });
       expect(reduced.edges.filter((e) => e.type === "TS_IMPORTS" && e.to.value === victimId).length).toBe(0);
       await boltWriter(reduced, cfg, log, true, false);
@@ -187,13 +189,15 @@ containerSuite("neo4j bolt writer", () => {
       const result = await analyze(opts);
       const app = result.internal;
       const victim = Object.keys(app.symbol_table).sort()[0];
+      // Read the victim's own id off the wire copy BEFORE it is dropped — the analyzer states it,
+      // so the test never has to spell the grammar out.
+      const victimId = result.application.application.symbol_table[victim].id;
       delete app.symbol_table[victim];
 
       const rows = project(finalizeAnalysis(app, result.program_graphs ?? null, opts).application);
 
       // #140: nodes are found by id prefix now, never by a `_module` property.
       const appId = rows.nodes.find((n) => n.labels[0] === "Application")!.value;
-      const victimId = `${appId}/${victim}`;
       const victimCount = () => num("MATCH (n:TSCanNode) WHERE n.id = $mid OR n.id STARTS WITH $pre RETURN count(n)", { mid: victimId, pre: `${victimId}/` });
 
       // Default push: deletion is the operator's call, so the vanished module's nodes stay.
@@ -204,10 +208,25 @@ containerSuite("neo4j bolt writer", () => {
       await boltWriter(rows, cfg, log, true, true);
       expect(await victimCount()).toBe(0);
 
-      // The surviving module-owned graph matches the reduced projection. Shared nodes
-      // (:TSExternal — MERGE-only, never pruned) sit under the app prefix too, so exclude them.
+      // The surviving module-owned graph matches the reduced projection. Shared, MERGE-only nodes
+      // sit under the app prefix too, so exclude them: :TSExternal, and the artifact layer, which
+      // is inside the destructive scope now that it carries the marker.
       const moduleOwned = rows.nodes.filter((n) => n.module !== undefined).length;
-      expect(await num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $pre AND NOT n:TSExternal RETURN count(n)", { pre: `${appId}/` })).toBe(moduleOwned);
+      expect(
+        await num(
+          "MATCH (n:TSCanNode) WHERE n.id STARTS WITH $pre AND NOT n:TSExternal AND NOT n:Artifact AND NOT n:ConfigKey RETURN count(n)",
+          { pre: `${appId}/` },
+        ),
+      ).toBe(moduleOwned);
+
+      // The artifact layer is what this change put in scope: the wipe deletes it and the same push
+      // restores it, so a round trip through --eager must leave it whole, not merely non-empty.
+      const artifactRows = rows.nodes.filter((n) => n.labels.includes("Artifact") || n.labels.includes("ConfigKey"));
+      expect(artifactRows.length).toBeGreaterThan(0);
+      for (const n of artifactRows) expect(n.labels).toContain("TSCanNode");
+      expect(
+        await num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $pre AND (n:Artifact OR n:ConfigKey) RETURN count(n)", { pre: `${appId}/` }),
+      ).toBe(artifactRows.length);
     },
     120_000,
   );
@@ -216,10 +235,10 @@ containerSuite("neo4j bolt writer", () => {
     "a second application in the same language, with colliding module paths, survives every purge (#140)",
     async () => {
       // Same fixture, two application names — every file key collides. `saX` is chosen so that
-      // `can://typescript/sa` is a string prefix of `can://typescript/saX`: the boundary case.
+      // `can://sa` is a string prefix of `can://saX`: the boundary case the trailing `/` handles.
       const a = project((await analyze(optsFor({ appName: "sa" }))).application);
       const b = project((await analyze(optsFor({ appName: "saX" }))).application);
-      const under = (app: string) => num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $p RETURN count(n)", { p: `can://typescript/${app}/` });
+      const under = (app: string) => num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $p RETURN count(n)", { p: `can://${app}/` });
 
       await boltWriter(a, cfg, log, true, true);
       const a0 = await under("sa");

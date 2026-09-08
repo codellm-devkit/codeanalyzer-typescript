@@ -381,7 +381,7 @@ export interface TSType {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSModule {
-  id: string; // can://<lang>/<app>/<fileKey> — stamped per-run by assignIds
+  id: string; // can://<app>/<lang>/<fileKey> — stamped per-run by assignIds
   kind: "module";
   span: TSSpan; // whole file
   source: string; // full file text, once; every node's text slices off this
@@ -426,7 +426,7 @@ export interface TSConfigKey {
 
 /** A recognized non-code file (config, manifest, CI, container spec). */
 export interface TSArtifact {
-  id: string; // can://artifact/<app>/<path> — language-NEUTRAL namespace, stamped per-run
+  id: string; // can://<app>/artifact/<path> — language-NEUTRAL namespace, stamped per-run
   kind: "artifact";
   path: string; // repo-relative POSIX path (also the map key)
   format: string; // json | jsonc | yaml | toml | ini | requirements? | dockerfile | yarnlock | text | env | binary
@@ -566,7 +566,7 @@ export interface TSAnalyzer {
 
 /** The application ROOT node (python's PyApplication): the containment tree + app-scope overlays. */
 export interface TSApplication {
-  id: string; // can://<lang>/<app>
+  id: string; // can://<app> — the prefix every id below it shares
   kind: "application";
   symbol_table: Record<string, TSModule>; // keyed by project-relative POSIX path (with extension)
   call_graph: TSCallGraphEdge[]; // L2 — callable → callable (empty at L1)

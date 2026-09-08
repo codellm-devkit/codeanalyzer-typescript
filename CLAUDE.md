@@ -32,7 +32,7 @@ table, call graph, CFG, PDG, SDG — is *projection* of that one structure. Anal
   vertices, intra-caller `summary` edges, and application-scope `param_in`/`param_out`
   lists (interprocedural SDG).
 
-**Identity two-tier**: durable `can://<lang>/<app>/<file>/<type>/<sig>` ids at callable
+**Identity two-tier**: durable `can://<app>/<lang>/<file>/<type>/<sig>` ids at callable
 depth and above; ordinal `<callable-id>@<line>:<col>` (or `@<tag>`) below. Intra-callable
 edge lists use **bare local ids**; cross-callable lists use **fully-qualified `can://…@local`**
 ids. `L1 ⊆ L2 ⊆ L3 ⊆ L4` = CI-checkable monotonicity gate (`test/schema-v2.test.ts`).
@@ -107,7 +107,7 @@ test — treat both as contracts, keep in lockstep with JSON.
 | `test` | Bun tests + `fixtures/sample-app` + `fixtures/dataflow-app`; `schema-v2.test.ts` = the L1–L4 gates |
 
 **Repository-artifact layer** (#101, python v1.3.0 parity): three level-free sections —
-`application.artifacts{}` (never-drop inventory, LANGUAGE-NEUTRAL `can://artifact/<app>/<path>`
+`application.artifacts{}` (never-drop inventory, LANGUAGE-NEUTRAL `can://<app>/artifact/<path>`
 ids, roles[], text-capture policy: `--no-artifact-text`/`--artifact-text-max-bytes`, `sha256`/
 `size_bytes` always full-file even when `source` is a truncated prefix), `dependencies[]` (npm
 kinds incl. coined `peer`, `direct:false` lockfile-only transitives), `unresolved_imports[]`

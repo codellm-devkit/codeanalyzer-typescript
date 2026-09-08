@@ -254,7 +254,7 @@ deeply; each level only ever *adds*.
 {
   "schema_version": "2.0.0", "language": "typescript", "max_level": 4, "k_limit": 3,
   "application": {
-    "id": "can://typescript/<app>", "kind": "application",
+    "id": "can://<app>", "kind": "application",
     "symbol_table": {                     // L1: the tree, keyed by file path
       "<file>": { "kind": "module", "source": "…",
         "types":     { /* class | interface | enum | type_alias | namespace nodes */ },
@@ -325,6 +325,11 @@ Levels 1/2 are unaffected: nothing in level 3 runs unless `-a 3` is requested.
 **always full-depth** — analysis levels gate the JSON path only, so combining `-a`/`--graphs` with
 `--emit neo4j` is an error:
 
+Every node id is `can://<app>/…`, so `can://<app>` is a prefix of every node the application
+emits — the `typescript` and `javascript` namespaces are two segments *inside* it, not two
+top-level namespaces a consumer has to enumerate. That single prefix is what the destructive
+statements scope on, and `:Application` is keyed on the id rather than on `--app-name`.
+
 - **Without `--neo4j-uri`** — writes a self-contained `graph.cypher` (constraints + indexes, a
   scoped wipe, then batched `MERGE`s). Load it with `cypher-shell < graph.cypher`.
 - **With `--neo4j-uri`** — pushes to a live Neo4j over Bolt **incrementally**: only modules whose
@@ -371,3 +376,25 @@ bun run gen:readme                           # regenerate the cants --help block
 ## License
 
 Apache 2.0 — see [LICENSE](./LICENSE).
+
+## Polyglot applications: all languages, or none
+
+A `--emit neo4j` push is **destructive**. It sweeps everything under `can://<app>/` that this
+analyzer marked, then rewrites what it found. Since the id grammar puts the application outermost,
+every analyzer over the same `<app>` shares that prefix — so a push reclaims stale rows belonging to
+*this* analyzer and, in the shared namespaces, sweeps rows a sibling wrote.
+
+For most of what is shared that is harmless: the artifact walk is a whole-repo inventory, so an
+`:Artifact` a sibling wrote is re-created by this push (with a thinner view of it — `roles` falls
+back to `unknown` and its config keys and dependency edges are gone until that sibling pushes
+again). `@external` ghosts are not inventoried that way: they are per-language, so a sibling's
+ghosts are swept and not restored.
+
+**So for an application analysed in more than one language, run every analyzer or none.** Running
+one in isolation leaves the others' derived rows missing until they run again. Running them
+together is always correct, in any order, because the last push restores everything the batch
+swept.
+
+Nothing here corrupts a graph: what is lost is derived and regenerates. But a partial run leaves a
+partial answer, and nothing in the data says so.
+

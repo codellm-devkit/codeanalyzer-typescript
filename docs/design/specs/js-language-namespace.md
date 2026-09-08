@@ -1,6 +1,6 @@
 # Per-module language namespace in `can://` ids
 
-- **Status:** accepted, implementation pending
+- **Status:** accepted and implemented; the "accepted inconsistency" below is **superseded**
 - **Scope:** `codeanalyzer-typescript`; schema v2 **id-shape change** (breaking for JS modules)
 - **Tracking:** see the work item filed alongside this spec
 
@@ -66,6 +66,15 @@ A mixed repository has no single language, so any single-anchor scheme must eith
 language or name none. Naming the analyzer's own language is the smaller break today; moving to a
 neutral anchor stays open as a follow-up.
 
+> **Superseded — the follow-up landed.** The `can://` grammar now puts the application OUTERMOST
+> (`can://<app>/<lang>/<file>/<type>/<sig>`), which is the "neutral application anchor" alternative
+> above, generalised: `applicationIdOf(app)` is `can://<app>` with no language at all, and the two
+> namespaces are `typescript`/`javascript` segments *inside* it. The accepted inconsistency is
+> gone — the anchor names no language because it no longer has to. The per-module rule below is
+> unchanged; only the segment order moved. The cost the spec feared (every id in every projection
+> changes) was paid deliberately, in exchange for one `can://<app>/` prefix that scopes the whole
+> application in one predicate instead of two.
+
 ## Consequences
 
 - **Breaking for JS ids.** Neo4j `MERGE` keys on id, so a re-projection creates new nodes for JS
@@ -82,8 +91,8 @@ neutral anchor stays open as a follow-up.
 
 ## Definition of done
 
-- A `.js` module and its callables emit `can://javascript/…`; a `.ts` module emits
-  `can://typescript/…`; the `:Application` id is unchanged.
+- A `.js` module and its callables emit `can://<app>/javascript/…`; a `.ts` module emits
+  `can://<app>/typescript/…`; the `:Application` id is `can://<app>`.
 - The `.d.ts` case is asserted explicitly (it is `typescript`, and `.d.ts` must not be read as a
   `.ts` suffix on a `.d` file).
 - Neo4j projection and JSON agree, and the conformance and count-parity gates stay green.

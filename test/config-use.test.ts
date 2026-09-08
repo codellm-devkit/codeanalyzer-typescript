@@ -64,14 +64,14 @@ const useDsts = (fnFragment: string): string[] =>
 describe("config_use literal tier (#101 unit C3)", () => {
   test("a literal env read joins every declaring ConfigKey", () => {
     const dsts = useDsts("readHost");
-    expect(dsts).toContain("can://artifact/artifacts-app/.env@key/PAYMENT_HOST");
-    expect(dsts).toContain("can://artifact/artifacts-app/Dockerfile@key/PAYMENT_HOST");
+    expect(dsts).toContain("can://artifacts-app/artifact/.env@key/PAYMENT_HOST");
+    expect(dsts).toContain("can://artifacts-app/artifact/Dockerfile@key/PAYMENT_HOST");
     expect(app2.config_uses.every((u) => u.prov.includes("literal"))).toBe(true);
   });
 
   test("src is a global ordinal body-node id", () => {
     const u = app2.config_uses.find((x) => x.src.includes("readHost"));
-    expect(u?.src).toMatch(/^can:\/\/typescript\/artifacts-app\/src\/config\.ts\/readHost@\d+:\d+$/);
+    expect(u?.src).toMatch(/^can:\/\/artifacts-app\/typescript\/src\/config\.ts\/readHost@\d+:\d+$/);
   });
 
   test("a literal with no declared key is an undefined-key read, not an edge", () => {
@@ -199,7 +199,7 @@ describe("Neo4j projection of the config layer (#101)", () => {
   const rows = neoProject(r2.application);
 
   test("ConfigKey nodes are neutral and hang off their artifact", () => {
-    const id = "can://artifact/artifacts-app/.env@key/PAYMENT_HOST";
+    const id = "can://artifacts-app/artifact/.env@key/PAYMENT_HOST";
     const n = rows.nodes.find((x) => x.value === id);
     expect(n?.labels).toContain("ConfigKey");
     expect(n?.labels).not.toContain("TSConfigKey");
