@@ -167,8 +167,10 @@ containerSuite("neo4j bolt writer", () => {
       const app = result.internal;
       delete app.symbol_table["src/models.ts"];
       const reduced = project(finalizeAnalysis(app, result.program_graphs ?? null, opts).application);
-      const appId = full.nodes.find((n) => n.labels[0] === "Application")!.value;
-      const victimId = `${appId}/src/models.ts`;
+      // The module's id comes from the projection itself, never composed from the app id and the
+      // file key: the language segment sits between them, and hard-coding that shape here is what
+      // made this test encode the id grammar.
+      const victimId = full.nodes.find((n) => n.labels.includes("TSModule") && n.props.name === "src/models.ts")!.value;
       const intoVictim = () => num("MATCH ()-[r:TS_IMPORTS]->(t {id:$id}) RETURN count(r)", { id: victimId });
       expect(reduced.edges.filter((e) => e.type === "TS_IMPORTS" && e.to.value === victimId).length).toBe(0);
       await boltWriter(reduced, cfg, log, true, false);
@@ -187,13 +189,15 @@ containerSuite("neo4j bolt writer", () => {
       const result = await analyze(opts);
       const app = result.internal;
       const victim = Object.keys(app.symbol_table).sort()[0];
+      // Read the victim's own id off the wire copy BEFORE it is dropped — the analyzer states it,
+      // so the test never has to spell the grammar out.
+      const victimId = result.application.application.symbol_table[victim].id;
       delete app.symbol_table[victim];
 
       const rows = project(finalizeAnalysis(app, result.program_graphs ?? null, opts).application);
 
       // #140: nodes are found by id prefix now, never by a `_module` property.
       const appId = rows.nodes.find((n) => n.labels[0] === "Application")!.value;
-      const victimId = `${appId}/${victim}`;
       const victimCount = () => num("MATCH (n:TSCanNode) WHERE n.id = $mid OR n.id STARTS WITH $pre RETURN count(n)", { mid: victimId, pre: `${victimId}/` });
 
       // Default push: deletion is the operator's call, so the vanished module's nodes stay.

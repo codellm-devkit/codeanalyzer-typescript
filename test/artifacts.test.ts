@@ -56,7 +56,7 @@ describe("artifact inventory — rules-matched, neutral ids (#101/PR-160)", () =
     expect(bin?.size_bytes).toBeGreaterThan(0);
   });
 
-  test("ids are LANGUAGE-NEUTRAL (can://artifact/<app>/<path>); dotfiles keep the dot", () => {
+  test("ids are LANGUAGE-NEUTRAL (can://<app>/artifact/<path>); dotfiles keep the dot", () => {
     expect(arts[".env"]?.id).toBe("can://artifacts-app/artifact/.env");
     expect(arts["packages/web/package.json"]?.id).toBe("can://artifacts-app/artifact/packages/web/package.json");
   });
