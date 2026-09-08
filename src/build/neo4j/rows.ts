@@ -48,22 +48,26 @@ export interface NodeRow {
  * of any scoping predicate. The dual-anchor arrangement is what made a scoped query that named one
  * marker silently answer for half the graph.
  *
- * The artifact namespace (`can://<app>/artifact/...`) is deliberately unmarked: those nodes are
- * language-neutral and SHARED with the sibling analyzers over the same repository (python PR
- * #160), so this analyzer must never sweep them even though they now sit under its own prefix.
+ * The artifact namespace (`can://<app>/artifact/...`) is marked too, so the wipe reaches it:
+ * unmarked artifacts are unreachable by any destructive statement and accumulate forever. This
+ * analyzer inventories the WHOLE repository, not only the files it can parse, so it re-creates
+ * every :Artifact node it deletes — including the sibling analyzers' manifests (`pom.xml`,
+ * `pyproject.toml`). What it does NOT re-create is a sibling's :ConfigKey nodes and
+ * DECLARES_DEPENDENCY/LOCKS edges under an artifact this analyzer does not parse; those are gone
+ * until that sibling pushes again. See the polyglot test in test/artifacts.test.ts, which pins
+ * both halves of that trade.
  */
 export const CAN_SCHEME = "can://";
 export const TS_MARKER = "TSCanNode";
 export const JS_MARKER = "JSCanNode";
 
 // Positional, never first-segment: the app is segment 1 and may legitimately be NAMED
-// "typescript"/"javascript"/"artifact". The language is segment 2.
+// "typescript" or "javascript". The language is segment 2.
 const JS_NAMESPACE = /^can:\/\/[^/]+\/javascript\//;
-const ARTIFACT_NAMESPACE = /^can:\/\/[^/]+\/artifact\//;
 
-/** The marker labels for a `can://` id — empty for ids this analyzer does not own the lifetime of. */
+/** The marker labels for a `can://` id — empty for a node keyed on its own natural identity. */
 export function markersFor(id: string): string[] {
-  if (!id.startsWith(CAN_SCHEME) || ARTIFACT_NAMESPACE.test(id)) return [];
+  if (!id.startsWith(CAN_SCHEME)) return [];
   return JS_NAMESPACE.test(id) ? [TS_MARKER, JS_MARKER] : [TS_MARKER];
 }
 

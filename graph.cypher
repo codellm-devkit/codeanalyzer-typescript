@@ -26,7 +26,7 @@ UNWIND [
   {k: 'can://anon-app/artifact/tsconfig.json', p: {id: 'can://anon-app/artifact/tsconfig.json', kind: 'artifact', path: 'tsconfig.json', format: 'json', roles: ['tool-config'], size_bytes: 105, sha256: 'a1fd9f1c73ce951fa37a06d590cea40ec6d88a2627928d311112c476fded4553', extraction: 'full', source: '{ "compilerOptions": { "target": "ES2020", "module": "commonjs", "strict": false }, "include": ["src"] }\n'}}
 ] AS row
 MERGE (n:Artifact {id: row.k})
-SET n += row.p;
+SET n += row.p, n:TSCanNode;
 UNWIND [
   {k: 'can://anon-app/typescript/src/routes.ts', p: {id: 'can://anon-app/typescript/src/routes.ts', kind: 'module', name: 'src/routes.ts', content_hash: '5d88360df42ccb934501484684da5c8be1f04227c6cef9e1106d12f4ddc02b31', is_tsx: false, is_declaration_file: false, start_line: 1, end_line: 22}}
 ] AS row
@@ -107,7 +107,7 @@ UNWIND [
   {k: 'can://anon-app/artifact/tsconfig.json@key/include.0', p: {id: 'can://anon-app/artifact/tsconfig.json@key/include.0', key: 'include.0', namespace: 'json', value: 'src'}}
 ] AS row
 MERGE (n:ConfigKey {id: row.k})
-SET n += row.p;
+SET n += row.p, n:TSCanNode;
 
 // ── relationships ──
 UNWIND [

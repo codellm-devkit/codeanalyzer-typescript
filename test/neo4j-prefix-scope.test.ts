@@ -28,16 +28,20 @@ describe("can:// prefix scoping (#140)", () => {
     }
   });
 
-  test("one marker spans both namespaces; JSCanNode rides along; artifacts stay unmarked", () => {
+  test("one marker spans every can:// id, artifacts included; JSCanNode rides along", () => {
     expect(markersFor("can://app/typescript/src/a.ts/f")).toEqual(["TSCanNode"]);
     expect(markersFor("can://app/javascript/src/a.js/f")).toEqual(["TSCanNode", "JSCanNode"]);
-    // Artifacts are shared with the sibling analyzers over the same repo — never in our scope.
-    expect(markersFor("can://app/artifact/package.json")).toEqual([]);
+    // Artifacts and their config keys are marked, so the wipe reaches them: an unmarked artifact
+    // is unreachable by every destructive statement and accumulates forever. The polyglot cost is
+    // measured in artifacts.test.ts, not assumed here.
+    expect(markersFor("can://app/artifact/package.json")).toEqual(["TSCanNode"]);
+    expect(markersFor("can://app/artifact/.env@key/PAYMENT_HOST")).toEqual(["TSCanNode"]);
+    // A node keyed on its own natural identity (:Package purl, :TSDecorator name) is never marked.
+    expect(markersFor("pkg:npm/express")).toEqual([]);
     expect(markersFor("Get")).toEqual([]);
     // The language is read POSITIONALLY (segment 2), so an app NAMED after a language still works.
     expect(markersFor("can://javascript/typescript/src/a.ts/f")).toEqual(["TSCanNode"]);
     expect(markersFor("can://typescript/javascript/src/a.js/f")).toEqual(["TSCanNode", "JSCanNode"]);
-    expect(markersFor("can://typescript/artifact/package.json")).toEqual([]);
   });
 
   test("RowBuilder lifts _module off the row and adds the markers for id-keyed can:// nodes", () => {
@@ -45,6 +49,7 @@ describe("can:// prefix scoping (#140)", () => {
     b.node(["CanNode", "TSCallable"], "id", "can://app/typescript/src/a.ts/f", { id: "x", _module: "src/a.ts", name: "f" });
     b.node(["CanNode", "TSCallable"], "id", "can://app/javascript/src/b.js/g", { id: "y", _module: "src/b.js", name: "g" });
     b.node(["Artifact"], "id", "can://app/artifact/package.json", { id: "z", path: "package.json" });
+    b.node(["Package"], "id", "pkg:npm/express", { id: "pkg:npm/express", name: "express" });
     b.node(["TSDecorator"], "name", "Get", { name: "Get" });
     const rows = b.finish();
     const byValue = new Map(rows.nodes.map((n) => [n.value, n]));
@@ -53,15 +58,17 @@ describe("can:// prefix scoping (#140)", () => {
     expect(ts.module).toBe("src/a.ts");
     expect("_module" in ts.props).toBe(false);
     expect(byValue.get("can://app/javascript/src/b.js/g")!.labels).toEqual(["CanNode", "TSCallable", "TSCanNode", "JSCanNode"]);
-    expect(byValue.get("can://app/artifact/package.json")!.labels).toEqual(["Artifact"]);
+    expect(byValue.get("can://app/artifact/package.json")!.labels).toEqual(["Artifact", "TSCanNode"]);
+    expect(byValue.get("pkg:npm/express")!.labels).toEqual(["Package"]);
     expect(byValue.get("Get")!.labels).toEqual(["TSDecorator"]);
   });
 
   test("a real projection: no row carries _module; every node under the app prefix carries TSCanNode", async () => {
     const rows = project((await analyze(opts)).application);
     expect(rows.nodes.some((n) => "_module" in n.props)).toBe(false);
-    const owned = rows.nodes.filter((n) => n.value.startsWith("can://ps/") && !n.value.startsWith("can://ps/artifact/"));
+    const owned = rows.nodes.filter((n) => n.value.startsWith("can://ps/"));
     expect(owned.length).toBeGreaterThan(10);
+    // No can:// row is left unmarked, so no row is beyond the reach of the scoped delete.
     for (const n of owned) expect(n.labels).toContain("TSCanNode");
     expect(rows.nodes.filter((n) => n.module !== undefined).length).toBeGreaterThan(10);
     expect([...MARKER_LABELS]).toEqual(["TSCanNode", "JSCanNode"]);

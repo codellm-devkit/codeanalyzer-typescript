@@ -208,10 +208,16 @@ containerSuite("neo4j bolt writer", () => {
       await boltWriter(rows, cfg, log, true, true);
       expect(await victimCount()).toBe(0);
 
-      // The surviving module-owned graph matches the reduced projection. Shared nodes
-      // (:TSExternal — MERGE-only, never pruned) sit under the app prefix too, so exclude them.
-      const moduleOwned = rows.nodes.filter((n) => n.module !== undefined).length;
-      expect(await num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $pre AND NOT n:TSExternal RETURN count(n)", { pre: `${appId}/` })).toBe(moduleOwned);
+      // The surviving graph under this app's prefix matches the reduced projection exactly:
+      // module-owned rows plus the shared, MERGE-only ones (:TSExternal, and the artifact layer,
+      // which carries the marker now so the wipe can reclaim it). Counted from the rows rather
+      // than excluded by label, so neither class can drift unnoticed.
+      const marked = (ns: typeof rows.nodes) => ns.filter((n) => n.labels.includes("TSCanNode") && n.value.startsWith(`${appId}/`));
+      const moduleOwned = marked(rows.nodes.filter((n) => n.module !== undefined)).length;
+      const shared = marked(rows.nodes.filter((n) => n.module === undefined)).length;
+      expect(moduleOwned).toBeGreaterThan(0);
+      expect(shared).toBeGreaterThan(0);
+      expect(await num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $pre RETURN count(n)", { pre: `${appId}/` })).toBe(moduleOwned + shared);
     },
     120_000,
   );

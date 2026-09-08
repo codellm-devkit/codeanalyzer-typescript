@@ -1,0 +1,6 @@
+# A sibling analyzer's manifest. codeanalyzer-typescript inventories it (the artifact walk covers
+# the whole repository) but cannot parse it, so it mints no config keys and no dependency edges
+# for it. That asymmetry is the measured cost of letting the wipe reach artifacts.
+[project]
+name = "artifacts-app"
+dependencies = ["flask"]
