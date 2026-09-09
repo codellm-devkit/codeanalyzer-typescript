@@ -175,7 +175,10 @@ function emitL4(root: TSApplication, pg: ProgramGraphs, info: Map<string, LocalI
         caller.callable.body[ain] = { kind: "actual_in", of: `arg${i}`, parent: L };
         const n = callee.paramN.get(e.target.node);
         if (n === undefined) continue;
-        root.param_in.push({ src: fq(caller.canId, ain), dst: fq(callee.canId, `@formal_in:${n}`) });
+        // `var` names the callee formal this actual binds (codeanalyzer-python#195): the catalog
+        // declared it on TS_PARAM_IN and the argument leg never carried it, so only the
+        // global-read edges below had one.
+        root.param_in.push({ src: fq(caller.canId, ain), dst: fq(callee.canId, `@formal_in:${n}`), var: callee.paramName.get(e.target.node) ?? `arg${i}` });
         bindDefsToActualIn(caller, pg.functions[e.source.signature], e.source.node, L, i);
       } else if (callee) {
         // global read: rides in at the callee entry, carrying the global path.
@@ -190,7 +193,7 @@ function emitL4(root: TSApplication, pg: ProgramGraphs, info: Map<string, LocalI
       if ((e.var ?? "") === "return") {
         const aout = `${L}/actual_out`;
         caller.callable.body[aout] = { kind: "actual_out", of: "$ret", parent: L };
-        root.param_out.push({ src: fq(callee.canId, "@formal_out"), dst: fq(caller.canId, aout) });
+        root.param_out.push({ src: fq(callee.canId, "@formal_out"), dst: fq(caller.canId, aout), var: "$ret" });
         // #81: `actual_out → callsite` — the return value flows into the statement that made the
         // call; the caller's existing `L → use` edges carry it onward. Python's class exactly.
         pushDdg(caller.callable, { src: aout, dst: L, var: "$ret", prov: ["reaching-defs"] });

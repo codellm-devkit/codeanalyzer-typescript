@@ -83,4 +83,16 @@ describe("L4 port lattice ↔ statement ddg (#81)", () => {
       for (const e of fn(l3, name).ddg as Ddg[]) expect(s4.has(key(e)), `${name}: ${key(e)}`).toBe(true);
     }
   });
+
+  test("every param_in / param_out edge names the formal it binds (codeanalyzer-python#195)", async () => {
+    const root = rootOf(await analyze(opts(4)));
+    const edges = [...root.param_in, ...root.param_out];
+    expect(edges.length).toBeGreaterThan(0);
+    for (const e of edges) expect(e.var, `${e.src} -> ${e.dst}`).toBeTruthy();
+    const build = fn(root, "build");
+    const pin = root.param_in.find((e) => e.dst === `${build.id}@formal_in:0`);
+    expect(pin?.var).toBe("x");
+    const pout = root.param_out.find((e) => e.src === `${build.id}@formal_out`);
+    expect(pout?.var).toBe("$ret");
+  });
 });
