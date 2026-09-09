@@ -600,6 +600,9 @@ export interface TSCallGraphEdge {
 export interface TSParamEdge {
   src: string;
   dst: string;
+  // param_in / param_out: the callee-side formal this edge binds — the parameter name, `$ret`
+  // for the return port, or the global path on a global read/write. Set on every such edge
+  // (codeanalyzer-python#195). Optional only because `summary` edges share the shape.
   var?: string;
 }
 
