@@ -52,7 +52,14 @@ export const TS_PREFIX = "TS";
 
 /** The shared MERGE label for every can://-id-keyed node (one constraint; uniform edge endpoints). */
 const CAN = "CanNode";
-const SPAN = { start_line: "integer", end_line: "integer" } as const;
+// Columns and UTF-8 byte offsets ride beside the line pair (#201): a line pair alone does not
+// resolve to text. Spellings are codeanalyzer-java's, coined in codellm-devkit/codeanalyzer-java#255
+// and adopted verbatim — a term coined twice is permanently wrong under the parity clause.
+const SPAN = {
+  start_line: "integer", end_line: "integer",
+  start_column: "integer", end_column: "integer",
+  start_byte: "integer", end_byte: "integer",
+} as const;
 /** Every can://-keyed node carries these. */
 // `_module` is gone from the graph (#140): scope is the `can://` id prefix. The writer keeps the
 // grouping in memory (NodeRow.module).
@@ -117,7 +124,9 @@ export const NODE_LABELS: NodeLabel[] = [
     key: "id",
     // `exports_json` (#182): the module's export list as a JSON string, absent when empty; the
     // cross-module part is also TS_RE_EXPORTS edges. Imports are edges only (TS_IMPORTS).
-    properties: { ...COMMON, name: "string", is_tsx: "boolean", is_declaration_file: "boolean", content_hash: "string", exports_json: "string", ...SPAN },
+    // `source` is the whole file, the primary text every narrower node's span slices (#201). ALWAYS
+    // present: an empty file yields "", so a consumer never confuses "not carried" with "empty".
+    properties: { ...COMMON, name: "string", is_tsx: "boolean", is_declaration_file: "boolean", content_hash: "string", exports_json: "string", source: "string", ...SPAN },
   },
   {
     label: "TSClass",
@@ -188,7 +197,8 @@ export const NODE_LABELS: NodeLabel[] = [
       ...COMMON, signature: "string", name: "string", return_type: "string", cyclomatic_complexity: "integer",
       accessibility: "string", accessor_kind: "string", is_static: "boolean", is_abstract: "boolean",
       is_async: "boolean", is_generator: "boolean", is_exported: "boolean", is_ambient: "boolean", is_implicit: "boolean",
-      path: "string", start_column: "integer",
+      // `start_column` was declared here ad-hoc before SPAN carried columns (#201); SPAN owns it now.
+      path: "string",
       ...SPAN,
     },
   },

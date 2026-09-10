@@ -2,7 +2,8 @@
 
 Tracking: codeanalyzer-typescript #201. Ships in 1.6.0 (analyzer minor — new graph properties).
 `SCHEMA_VERSION` stays at the held `2.0.0`; detection is by presence. Adopts property spellings
-coined by codeanalyzer-java #254 / PR #255 — **implementation waits on that PR merging**, see D6.
+coined by codeanalyzer-java #254 / PR #255, **merged 2026-09-10 14:45Z** — the four names were
+re-read from java's post-merge `schema.neo4j.json` and adopted verbatim, see D6.
 
 ## Problem
 
@@ -58,11 +59,20 @@ coordination record.
 | D3 | **Those spellings are not ours** | Adopt codeanalyzer-java's four verbatim. This repo does not get to name them. | The parity clause: a term coined twice is permanently wrong. java's PR #255 spells them exactly thus, and PR #258 is stacked on it, so they are already load-bearing in java's own stack. |
 | D4 | **`code` stays** | The callable `code` property is NOT dropped, even though D1+D2 make it derivable. | `python-sdk` reconstructs from it. Removing it is a breaking change and belongs to its own decision, not this one. |
 | D5 | **`SCHEMA_VERSION` does not move** | Held at `2.0.0` per codellm-devkit/.github#50, so the addition is presence-detectable only. | Noting the tension plainly: `schema.ts:19` says "MINOR on additive", which would make this `2.1.0`. The org decision freezes the number until every analyzer re-baselines together, and the artifact layer (#101) already shipped additively under the same freeze. Local policy yields to the org decision; when the re-baseline happens, this addition is part of what it accounts for. |
-| D6 | **Sequencing: wait for java** | The spec lands now; the implementation waits for codeanalyzer-java PR #255 to merge, then adopts verbatim. | #255 was open, unreviewed and hours old when this was written. Shipping first and having its review move a spelling would make *this* analyzer the second coining — the exact outcome D3 exists to prevent. Waiting costs a release cycle; getting it wrong is permanent. |
+| D6 | **Sequencing: wait for java** | RESOLVED. #255 merged 2026-09-10 14:45Z (and #258, stacked on it, at 14:50Z); implementation then proceeded. Java's merged snapshot carries `start_column`/`end_column`/`start_byte`/`end_byte` on 8 labels and `source` on `JModule` + `Artifact`, `schema_version` still `2.0.0` — the spellings survived review unchanged, and were adopted from the merged artifact rather than the PR diff. | #255 was open, unreviewed and hours old when this was written. Shipping first and having its review move a spelling would make *this* analyzer the second coining — the exact outcome D3 exists to prevent. The wait cost nothing and removed the risk entirely. |
 | D7 | **python's state is a question, not an assumption** | Verify whether codeanalyzer-python's graph carries `source` and byte offsets before claiming a third sibling is affected. A `gh search code` for `start_byte` came back empty, which is weak evidence — code-search indexing lags. | The affected-repo list should not carry a guess dressed as a fact. If python has the same gap it needs its own issue; `codeanalyzer-python#203` does not cover it. |
 | D8 | **the SDK's lossy note is in scope to flag, not to fix** | This change makes `cldk/analysis/typescript/neo4j/neo4j_backend.py:68` stale. `python-sdk` is not edited here; the staleness is reported to that repo. | #201's scope boundary says it does not change `python-sdk`, and the SDK ships on its own clock. |
-| D9 | **the recorded snapshot re-records** | `bun run gen:schema` regenerates `schema.neo4j.json`, and the release CI records it in `codeanalyzer-schema`. | Note the ordering dependency: that CI step is `bfa5bef`, which is on the **unmerged** PR #199. If #199 has not landed when 1.6.0 ships, the recording does not happen. |
+| D9 | **the recorded snapshot re-records** | `bun run gen:schema` regenerates `schema.neo4j.json`, and the release CI records it in `codeanalyzer-schema`. | RESOLVED: #199 merged as `7f7a795`, so the recording step is on `main` ahead of the 1.6.0 tag. |
 | D10 | **java's `body_` prefix is reserved, not adopted** | PR #258 coins `body_start_line` … `body_end_byte` for a declaration's body block, and a `spanKey` span discriminant for span-keyed MERGE. Neither is adopted here. | This analyzer has no body span in its JSON model at all — `grep bodySpan\|body_span src/schema/schema.ts` is empty — so there is nothing to project. That is a JSON-side parity gap deserving its own issue, not something to invent on the projection. `spanKey` has no use while every node here is keyed by its `can://` id; it becomes relevant to #202's decorator positions, where `:TSDecorator` merges on `name`. |
+
+## Consequence found during implementation
+
+Carrying whole-file `source` puts arbitrary file text inside the rendered Cypher, which breaks any
+test that scans that text for a bare substring. `test/neo4j-prefix-scope.test.ts` asserted
+`expect(cypher).not.toContain("_module")` to prove the `_module` property is gone (#140) — and any
+fixture whose source says `node_modules` now contains that substring legitimately. The assertion was
+re-pointed at the projected rows' property keys, which is what it always meant. Expect the same
+collision in any future test that greps rendered output.
 
 ## Release plan
 

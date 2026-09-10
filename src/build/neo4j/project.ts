@@ -179,7 +179,7 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
     if (key !== sc.id) continue;
     b.node([CAN, "TSAnonymousCallable"], "id", sc.id, prune({
       id: sc.id, kind: "callable", name: sc.name ?? null, path: sc.path ?? null,
-      start_line: sc.span?.start?.[0] ?? null, start_column: sc.span?.start?.[1] ?? null,
+      ...span(sc),
       _module: sc.path ?? null,
     }));
   }
@@ -363,6 +363,9 @@ function moduleProps(mod: TSModule, fileKey: string): Props {
     // #182: the lossless export list (per-binding spans, `export { x as y }` locals) — the
     // TS_RE_EXPORTS edges carry only the aggregated cross-module part. Absent when empty.
     exports_json: mod.exports?.length ? JSON.stringify(mod.exports) : null,
+    // The primary text, carried once per module; every narrower node's text is a byte slice of it
+    // (#201). `?? ""` not `?? null`: prune() drops null, and absent must not be reachable here.
+    source: mod.source ?? "",
     ...span(mod), _module: fileKey,
   });
 }
@@ -439,9 +442,13 @@ function moduleKeyOf(mod: TSModule): string {
   return m ? (m[1] as string) : mod.id;
 }
 
-function span(n: { span?: { start: [number, number]; end: [number, number] } }): { start_line?: number; end_line?: number } {
+function span(n: { span?: { start: [number, number]; end: [number, number]; bytes?: [number, number] } }): Record<string, number | undefined> {
   if (!n.span) return {};
-  return { start_line: n.span.start?.[0], end_line: n.span.end?.[0] };
+  return {
+    start_line: n.span.start?.[0], end_line: n.span.end?.[0],
+    start_column: n.span.start?.[1], end_column: n.span.end?.[1],
+    start_byte: n.span.bytes?.[0], end_byte: n.span.bytes?.[1],
+  };
 }
 // A present-but-empty string list is a non-fact in the graph (matches the historical projection).
 const strArr = (v: string[] | undefined): string[] | null => (v && v.length ? v : null);

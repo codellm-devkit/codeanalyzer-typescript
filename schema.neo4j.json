@@ -81,8 +81,13 @@
         "is_declaration_file": "boolean",
         "content_hash": "string",
         "exports_json": "string",
+        "source": "string",
         "start_line": "integer",
-        "end_line": "integer"
+        "end_line": "integer",
+        "start_column": "integer",
+        "end_column": "integer",
+        "start_byte": "integer",
+        "end_byte": "integer"
       }
     },
     {
@@ -102,6 +107,10 @@
         "code": "string",
         "start_line": "integer",
         "end_line": "integer",
+        "start_column": "integer",
+        "end_column": "integer",
+        "start_byte": "integer",
+        "end_byte": "integer",
         "is_entrypoint": "boolean",
         "entrypoint_frameworks": "string[]"
       }
@@ -120,7 +129,11 @@
         "is_ambient": "boolean",
         "code": "string",
         "start_line": "integer",
-        "end_line": "integer"
+        "end_line": "integer",
+        "start_column": "integer",
+        "end_column": "integer",
+        "start_byte": "integer",
+        "end_byte": "integer"
       }
     },
     {
@@ -137,7 +150,11 @@
         "is_ambient": "boolean",
         "code": "string",
         "start_line": "integer",
-        "end_line": "integer"
+        "end_line": "integer",
+        "start_column": "integer",
+        "end_column": "integer",
+        "start_byte": "integer",
+        "end_byte": "integer"
       }
     },
     {
@@ -154,7 +171,11 @@
         "is_ambient": "boolean",
         "code": "string",
         "start_line": "integer",
-        "end_line": "integer"
+        "end_line": "integer",
+        "start_column": "integer",
+        "end_column": "integer",
+        "start_byte": "integer",
+        "end_byte": "integer"
       }
     },
     {
@@ -170,7 +191,11 @@
         "is_ambient": "boolean",
         "code": "string",
         "start_line": "integer",
-        "end_line": "integer"
+        "end_line": "integer",
+        "start_column": "integer",
+        "end_column": "integer",
+        "start_byte": "integer",
+        "end_byte": "integer"
       }
     },
     {
@@ -196,6 +221,10 @@
         "code": "string",
         "start_line": "integer",
         "end_line": "integer",
+        "start_column": "integer",
+        "end_column": "integer",
+        "start_byte": "integer",
+        "end_byte": "integer",
         "is_entrypoint": "boolean",
         "entrypoint_frameworks": "string[]",
         "parameters_json": "string"
@@ -211,7 +240,11 @@
         "name": "string",
         "type": "string",
         "start_line": "integer",
-        "end_line": "integer"
+        "end_line": "integer",
+        "start_column": "integer",
+        "end_column": "integer",
+        "start_byte": "integer",
+        "end_byte": "integer"
       }
     },
     {
@@ -225,7 +258,11 @@
         "parent": "string",
         "callee": "string",
         "start_line": "integer",
-        "end_line": "integer"
+        "end_line": "integer",
+        "start_column": "integer",
+        "end_column": "integer",
+        "start_byte": "integer",
+        "end_byte": "integer"
       }
     },
     {
@@ -260,9 +297,12 @@
         "is_ambient": "boolean",
         "is_implicit": "boolean",
         "path": "string",
-        "start_column": "integer",
         "start_line": "integer",
-        "end_line": "integer"
+        "end_line": "integer",
+        "start_column": "integer",
+        "end_column": "integer",
+        "start_byte": "integer",
+        "end_byte": "integer"
       }
     }
   ],
