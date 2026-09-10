@@ -20,6 +20,7 @@ import {
   writeCypherFile,
 } from "../src/build/neo4j";
 import { analyze } from "../src/core";
+import { sha256 } from "../src/utils/fs";
 import type { AnalysisOptions } from "../src/options";
 
 const FIXTURE = path.resolve(import.meta.dir, "fixtures/dataflow-app");
@@ -83,6 +84,63 @@ describe("neo4j schema conformance", () => {
       expect(mergeLabelsFor(decl!.to).has(edge.to.label), `bad target ${edge.to.label} for ${edge.type}`).toBe(true);
       for (const key of Object.keys(edge.props)) {
         expect(decl!.properties[key], `undeclared property on ${edge.type}.${key}`).toBeDefined();
+      }
+    }
+  });
+
+  // ----- #201: the graph resolves to text -----------------------------------------------------
+  // `source` on :TSModule plus byte offsets on every span are what make a node's text reachable.
+  // These assert the VALUES, not their presence: a truncated or placeholder source, or char offsets
+  // mislabelled as bytes, all satisfy "the property is declared" and fail here.
+
+  test("every :TSModule carries source, and its sha256 is the content_hash on that same node", () => {
+    const modules = rows.nodes.filter((n) => specificLabel(n.labels) === "TSModule");
+    expect(modules.length).toBeGreaterThan(0);
+    for (const m of modules) {
+      const src = m.props.source;
+      // Always present, never absent: "" is the empty file, and absent must be unreachable.
+      expect(typeof src, `no source on ${m.value}`).toBe("string");
+      // The hash is over the raw file bytes, so this proves the WHOLE file survived serialization
+      // rather than a prefix or a placeholder.
+      expect(sha256(Buffer.from(src as string, "utf8")), `source is not the whole file: ${m.value}`)
+        .toBe(m.props.content_hash);
+    }
+  });
+
+  test("span byte offsets slice the module source to each node's own code", () => {
+    const srcOf = new Map(
+      rows.nodes.filter((n) => specificLabel(n.labels) === "TSModule").map((n) => [n.props.name as string, n.props.source as string]),
+    );
+    let checked = 0;
+    for (const n of rows.nodes) {
+      const { code, start_byte: lo, end_byte: hi } = n.props as Record<string, unknown>;
+      if (typeof code !== "string" || typeof lo !== "number" || typeof hi !== "number") continue;
+      const src = srcOf.get(n.module ?? "");
+      if (src === undefined) continue;
+      // BYTE offsets (#179), so Buffer — String.slice is wrong the moment a multibyte char precedes
+      // the span, which is exactly what the fixture's non-ASCII modules exercise.
+      expect(Buffer.from(src, "utf8").subarray(lo, hi).toString("utf8"), `bad slice for ${n.value}`).toBe(code);
+      checked++;
+    }
+    expect(checked, "no node carried both code and byte offsets").toBeGreaterThan(0);
+  });
+
+  test("the fixture actually contains multibyte text, so the slice check cannot pass by coincidence", () => {
+    const multibyte = rows.nodes
+      .filter((n) => specificLabel(n.labels) === "TSModule")
+      .filter((n) => Buffer.byteLength(n.props.source as string, "utf8") > (n.props.source as string).length);
+    expect(multibyte.length, "no fixture module has a non-ASCII character; char offsets would pass as bytes").toBeGreaterThan(0);
+  });
+
+  test("every label that declares a span emits all six of its properties", () => {
+    const SPAN_KEYS = ["start_line", "end_line", "start_column", "end_column", "start_byte", "end_byte"] as const;
+    const spanned = NODE_LABELS.filter((n) => SPAN_KEYS.every((k) => k in n.properties)).map((n) => n.label);
+    expect(spanned.length).toBeGreaterThan(0);
+    for (const label of spanned) {
+      const emitted = rows.nodes.filter((n) => specificLabel(n.labels) === label && "start_line" in n.props);
+      if (!emitted.length) continue; // the fixture need not exercise every label
+      for (const key of SPAN_KEYS) {
+        expect(emitted.some((n) => key in n.props), `${label} declares ${key} but never emits it`).toBe(true);
       }
     }
   });

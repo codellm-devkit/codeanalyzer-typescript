@@ -107,11 +107,15 @@ describe("can:// prefix scoping (#140)", () => {
   test("every destructive statement anchors on a marker and a /-terminated prefix", async () => {
     expect(EAGER_PURGE).toMatch(/^MATCH \(n:TSCanNode\) WHERE n\.id STARTS WITH \$prefix/);
     expect(EAGER_PURGE).not.toContain("_module");
-    const cypher = renderCypher(project((await analyze(opts)).application), "ps");
+    const rows = project((await analyze(opts)).application);
+    const cypher = renderCypher(rows, "ps");
     // the snapshot wipe: ONE marker-scoped delete on a /-terminated prefix, then the app by equality
     expect(cypher).toContain("MATCH (x:TSCanNode) WHERE x.id STARTS WITH 'can://ps/' DETACH DELETE x;");
     expect(cypher).toContain("MATCH (a:Application {id: 'can://ps'}) DETACH DELETE a;");
     expect(cypher).not.toContain("JSCanNode) WHERE");
-    expect(cypher).not.toContain("_module");
+    // `_module` is in-memory only (#140). Asserted on the property keys, NOT as a substring of the
+    // rendered cypher: :TSModule now carries whole-file `source` (#201), and any fixture that says
+    // `node_modules` in its text puts the substring `_module` in the output legitimately.
+    for (const n of rows.nodes) expect(Object.keys(n.props)).not.toContain("_module");
   });
 });
