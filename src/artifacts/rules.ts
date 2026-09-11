@@ -75,6 +75,33 @@ export const RULES: ArtifactRule[] = [
   R("LICENSE*", "text", ["legal"]),
   R("COPYRIGHT*", "text", ["legal"]),
   R("NOTICE*", "text", ["legal"]),
+  // View templates (#208). The role name is codeanalyzer-java's — its JSP/JSF/Thymeleaf rows
+  // (ArtifactDiscovery.java, spec 2026-09-11 D1) coined `view-template` first, so it is ADOPTED
+  // verbatim here rather than re-coined; see .claude/SCHEMA_DECISIONS.md. `format` names the
+  // template language, one value per family. Classification is by extension and therefore
+  // best-effort: a hand-written `.html` test input under a views/ directory reads as a view. The
+  // artifact record itself (source, sha256, size) is identical either way.
+  R("*.ejs", "ejs", ["view-template"]),
+  R("*.hbs", "handlebars", ["view-template"]),
+  R("*.handlebars", "handlebars", ["view-template"]),
+  R("*.pug", "pug", ["view-template"]),
+  R("*.njk", "nunjucks", ["view-template"]),
+  R("*.liquid", "liquid", ["view-template"]),
+  // Single-file components. Rendered server-side too, so they are views by the same test; a file
+  // here staying an ARTIFACT is what makes this safe to land ahead of #209 — if a `.vue` later
+  // also yields a symbol_table module, the role it already carries needs no re-decision.
+  R("*.vue", "vue", ["view-template"]),
+  R("*.svelte", "svelte", ["view-template"]),
+  R("*.astro", "astro", ["view-template"]),
+  // `.html` gets the role only under a convention directory, java's policy adopted with the name:
+  // a static page and a rendered template are not distinguishable by file name, and `public/index.html`
+  // is an asset. `views/` is Express' default, `templates/` the cross-framework spelling. `**/`
+  // matches zero directories, so a repo-root `views/` matches too. Deliberately NO bare `*.html`
+  // catch row — one would union `unknown` into these rows' roles.
+  R("**/views/**/*.html", "html", ["view-template"]),
+  R("**/views/**/*.htm", "html", ["view-template"]),
+  R("**/templates/**/*.html", "html", ["view-template"]),
+  R("**/templates/**/*.htm", "html", ["view-template"]),
   // config-shaped catch rows (python's `unknown` rows)
   R("*.toml", "toml", ["unknown"]),
   R("*.ini", "ini", ["unknown"]),
