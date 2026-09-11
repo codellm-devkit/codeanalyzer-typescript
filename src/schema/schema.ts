@@ -567,6 +567,7 @@ export interface TSAnalyzer {
 /** The application ROOT node (python's PyApplication): the containment tree + app-scope overlays. */
 export interface TSApplication {
   id: string; // can://<app> — the prefix every id below it shares
+  name: string; // normalized --app-name, or the input directory basename
   kind: "application";
   symbol_table: Record<string, TSModule>; // keyed by project-relative POSIX path (with extension)
   call_graph: TSCallGraphEdge[]; // L2 — callable → callable (empty at L1)

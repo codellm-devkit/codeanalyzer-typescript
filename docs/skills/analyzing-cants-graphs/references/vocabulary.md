@@ -9,7 +9,7 @@ assuming the graph is empty.
 
 | label | merge key | properties | notes |
 | --- | --- | --- | --- |
-| `TSApplication` | `id` | id, schema_version, language, max_level, k_limit, analyzer_name, analyzer_version | one per run; the `:Application` anchor |
+| `TSApplication` | `id` | id, name, schema_version, language, max_level, k_limit, analyzer_name, analyzer_version | one per run; the `:Application` anchor; `name` is the normalized `--app-name` or input-directory basename |
 | `Artifact` | `id` (`can://artifact/<app>/<path>`) | id, kind, path, format, roles[], size_bytes, sha256, source, extraction | **language-neutral, no TS prefix by design** — sibling analyzers MERGE onto the same node. `source` is the WHOLE file (no byte cap, #116) or `""` under `--no-artifact-text`; `config_keys` are separate `ConfigKey` nodes |
 | `Package` | `id` (purl `pkg:npm/<name>`, scoped `pkg:npm/%40scope/<name>`) | id, ecosystem, name | language-neutral |
 | `ConfigKey` | `id` (`<artifactId>@key/<dotted>`) | id, key, namespace, value, references[] | language-neutral; `key` is always the bare dotted name even when `id` carries an internal `arg.`/`env.` disambiguation prefix (see SKILL.md's identity section) |

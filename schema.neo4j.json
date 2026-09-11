@@ -12,6 +12,7 @@
       "key": "id",
       "properties": {
         "id": "string",
+        "name": "string",
         "schema_version": "string",
         "language": "string",
         "max_level": "integer",

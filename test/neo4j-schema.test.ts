@@ -76,6 +76,18 @@ describe("neo4j schema conformance", () => {
     }
   });
 
+  test("TSApplication retains its display name while merging by id", () => {
+    const application = rows.nodes.find((node) => node.labels.includes("TSApplication"));
+    const declaration = byLabel.get("TSApplication");
+
+    expect(application, "TSApplication row").toBeDefined();
+    expect(application!.keyProp).toBe("id");
+    expect(application!.value).toBe("can://dataflow-app");
+    expect(application!.props.name).toBe("dataflow-app");
+    expect(declaration?.key).toBe("id");
+    expect(declaration?.properties.name).toBe("string");
+  });
+
   test("every emitted relationship type + property + endpoint is declared", () => {
     for (const edge of rows.edges) {
       const decl = relByType.get(edge.type);
