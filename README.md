@@ -254,7 +254,7 @@ deeply; each level only ever *adds*.
 {
   "schema_version": "2.0.0", "language": "typescript", "max_level": 4, "k_limit": 3,
   "application": {
-    "id": "can://<app>", "kind": "application",
+    "id": "can://<app>", "name": "<app>", "kind": "application",
     "symbol_table": {                     // L1: the tree, keyed by file path
       "<file>": { "kind": "module", "source": "…",
         "types":     { /* class | interface | enum | type_alias | namespace nodes */ },
@@ -397,4 +397,3 @@ swept.
 
 Nothing here corrupts a graph: what is lost is derived and regenerates. But a partial run leaves a
 partial answer, and nothing in the data says so.
-

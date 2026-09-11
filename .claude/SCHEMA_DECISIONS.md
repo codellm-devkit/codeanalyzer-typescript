@@ -6,7 +6,7 @@ analyzers — Java (`python-sdk/cldk/models/java/models.py`, rich-edge legacy) a
 Every divergence below was decided **with the user**.
 
 ## Invariant spine (never drifts)
-- Root: `TSApplication { symbol_table: Dict[path, TSModule], call_graph: List[TSCallEdge],
+- Root: `TSApplication { id, name, symbol_table: Dict[path, TSModule], call_graph: List[TSCallEdge],
   entrypoints: Dict[str, List[TSEntrypoint]] }`.
 - `symbol_table` keyed by **project-relative POSIX path with extension** (e.g. `src/user.ts`).
 - `Module → Class/Callable` nesting; identity-only edges (`source`/`target` are bare signature

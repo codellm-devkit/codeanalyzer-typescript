@@ -71,9 +71,9 @@ export const NODE_LABELS: NodeLabel[] = [
     mergeLabel: "Application",
     key: "id",
     properties: {
-      id: "string", schema_version: "string", language: "string", max_level: "integer", k_limit: "integer",
+      id: "string", name: "string", schema_version: "string", language: "string", max_level: "integer", k_limit: "integer",
       // Analyzer identity — mirrors the JSON envelope's `analyzer{name,version}` (issue #43),
-      // namespaced (not bare name/version) to avoid colliding with the app-name param / every
+      // namespaced (not bare name/version) to avoid colliding with the application name / every
       // other CanNode's bare `name`.
       analyzer_name: "string", analyzer_version: "string",
       // Entrypoint report (#72; python #182 parity) — sorted-key JSON, since Neo4j has no map type.

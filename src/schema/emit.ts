@@ -107,6 +107,7 @@ export function finalizeAnalysis(
 
   const root: TSApplication = {
     id: appId,
+    name: appName,
     kind: "application",
     symbol_table: app.symbol_table,
     call_graph: [],

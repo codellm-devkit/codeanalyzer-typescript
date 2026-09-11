@@ -51,6 +51,7 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
 
   const appRef = b.node(["Application", "TSApplication"], "id", root.id, prune({
     id: root.id,
+    name: root.name,
     schema_version: SCHEMA_VERSION,
     language: app.language,
     max_level: app.max_level,
@@ -58,7 +59,7 @@ export function project(app: TSAnalysis, _appName?: string): GraphRows {
     // Same analyzer{name,version} the JSON envelope carries (emit.ts) — the two co-primary
     // projections must never diverge on analyzer identity (issue #43). Namespaced as
     // analyzer_name/analyzer_version (not bare name/version) to avoid colliding with the
-    // app-name param (project()'s _appName) and every other CanNode's bare `name`.
+    // application's display name and every other CanNode's bare `name`.
     analyzer_name: app.analyzer.name,
     analyzer_version: app.analyzer.version,
     // Entrypoint report (#72; python #182 parity): the pass under-approximates by design, so a graph

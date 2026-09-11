@@ -45,10 +45,10 @@ function options(): AnalysisOptions {
   };
 }
 
-async function run(): Promise<AnalysisResult> {
+async function run(overrides: Partial<AnalysisOptions> = {}): Promise<AnalysisResult> {
   const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "cants-v2-test-"));
   try {
-    return await analyze({ ...options(), cacheDir });
+    return await analyze({ ...options(), ...overrides, cacheDir });
   } finally {
     fs.rmSync(cacheDir, { recursive: true, force: true });
   }
@@ -98,13 +98,29 @@ describe("schema v2 — L1 envelope", () => {
       "entrypoint_report", // #72 unit 1: level-free coverage report
       "id",
       "kind",
+      "name",
       "param_in",
       "param_out",
       "symbol_table",
       "unresolved_imports",
     ]);
     expect(root.id).toBe("can://sample-app");
+    expect(root.name).toBe("sample-app");
     expect(root.kind).toBe("application");
+  });
+
+  test("application name and id share the normalized app-name fallback", async () => {
+    for (const [appName, expected] of [["  logical-name  ", "logical-name"], ["   ", "app"]]) {
+      const named = await run({ appName });
+      const namedRoot = named.application.application;
+      const applicationRow = project(named.application).nodes.find((node) => node.labels.includes("TSApplication"));
+
+      expect(namedRoot.name).toBe(expected);
+      expect(namedRoot.id).toBe(`can://${expected}`);
+      expect(applicationRow?.keyProp).toBe("id");
+      expect(applicationRow?.value).toBe(`can://${expected}`);
+      expect(applicationRow?.props.name).toBe(expected);
+    }
   });
 
   test("edge lists are empty at L1 (populated at L2/L4)", () => {
