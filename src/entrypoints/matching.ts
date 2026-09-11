@@ -98,7 +98,9 @@ export function methodsOf(args: string[], kwargs: Record<string, string>, spec: 
     if (typeof v === "string") return [v.toUpperCase()];
     return [...(spec.default ?? [])];
   }
-  if (spec.from === "export_name") return [matched.toUpperCase()];
+  // Filtered through HTTP_VERBS exactly as `match_suffix` is above (#206): Astro exports an `ALL`
+  // handler, and "ALL" is not an HTTP method — a junk value in a field consumers filter on.
+  if (spec.from === "export_name") return HTTP_VERBS.has(matched.toLowerCase()) ? [matched.toUpperCase()] : [];
   return [];
 }
 
@@ -190,7 +192,11 @@ function resolveHandler(site: TSCallsite, rule: CallRule, callables: readonly TS
   if (!raw) return undefined;
   if (/^[A-Za-z_$][\w$]*$/.test(raw)) return callables.find((c) => c.name === raw);
   if (INLINE.test(raw)) {
-    const inside = callables.filter((c) => c.name === "(anonymous)" &&
+    // Not gated on `name === "(anonymous)"` (#206): `app.get("/x", function named(req, res) {})` is a
+    // NAMED function expression — it passes INLINE, and gating on the name resolved nothing, so the
+    // site was counted unresolved instead. Position alone identifies it; sorting below takes the
+    // OUTERMOST callable in the span, so a callable nested inside the handler is never picked.
+    const inside = callables.filter((c) =>
       (c.span.start[0] > site.start_line || (c.span.start[0] === site.start_line && c.span.start[1] >= site.start_column)) &&
       (c.span.start[0] < site.end_line || (c.span.start[0] === site.end_line && c.span.start[1] <= site.end_column)));
     inside.sort((a, b) => a.span.start[0] - b.span.start[0] || a.span.start[1] - b.span.start[1]);
@@ -293,8 +299,13 @@ export function routeFromFileKey(fileKey: string, glob: string): string {
   const rest = fileKey.startsWith(literalPrefix) ? fileKey.slice(literalPrefix.length) : fileKey;
   const noExt = rest.replace(/\.(tsx|ts|jsx|js|mjs|cjs)$/, "");
   const noTail = noExt.replace(/\/?(route|\+server)$/, "");
-  const prefixDir = literalPrefix.replace(/^app\//, "/").replace(/^pages\//, "/").replace(/\/$/, "");
-  return prefixDir + (noTail ? `/${noTail}` : "") || "/";
+  // The glob's leading LAYOUT directories are not route segments: `app/`, `pages/` and (Remix)
+  // `app/routes/` are where the framework looks, not what it serves, and an optional `src/` in
+  // front of any of them is the same path served from the `src` layout (#206). Whatever literal
+  // prefix survives IS a route prefix — `pages/api/` serves at `/api`. Applied to the LITERAL
+  // PREFIX only, so a glob with no literal prefix still yields the whole key (`**/+server`).
+  const layout = literalPrefix.replace(/^(?:src\/)?(?:app\/routes|app|pages)(?:\/|$)/, "").replace(/\/$/, "");
+  return (layout ? `/${layout}` : "") + (noTail ? `/${noTail}` : "") || "/";
 }
 
 const DEFAULT_NAMED_EXPORT = /^\s*export\s+default\s+([A-Za-z_$][\w$]*)\s*;?\s*$/m;
@@ -319,9 +330,21 @@ function resolveDefaultExport(mod: TSModule): TSCallable | undefined {
     const end = offsets.toByte(m.index + m[0].length);
     const target = Object.values(mod.functions).find((c) => c.name === "(anonymous)" && c.span.bytes[0] === end);
     if (target) return target;
+    // `export default <wrapper>(<handler>)` (#206): Nitro/Nuxt's `defineEventHandler(h)`, and every
+    // `withSentry(h)`-shaped wrapper, displace the callable past the token so the exact-offset match
+    // above misses it. The gap between token and callable must be NOTHING BUT call openings, which is
+    // what stops an unrelated later callable in the file from being claimed — `export default
+    // defineHandler({onRequest: fn})` fails the test and stays counted in `unresolved`.
+    const wrapped = Object.values(mod.functions)
+      .filter((c) => c.span.bytes[0] > end && WRAPPER_GAP.test(sliceBytes(mod.source, [end, c.span.bytes[0]])))
+      .sort((a, b) => a.span.bytes[0] - b.span.bytes[0])[0];
+    if (wrapped) return wrapped;
   }
   return undefined;
 }
+
+/** Text allowed between `export default ` and a wrapped handler: one or more `ident(` openings. */
+const WRAPPER_GAP = /^(?:[A-Za-z_$][\w$.]*\s*\(\s*)+$/;
 
 /**
  * File-convention matcher: a rule matches when the module's file key matches its glob. Per name in
