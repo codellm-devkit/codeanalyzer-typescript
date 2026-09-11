@@ -35,6 +35,16 @@ frameworks:
       - id: nextjs.pages-api
         match: "pages/api/**/*.{ts,tsx,js,mjs}"
         exports: [default]
+      # The `src/` layout Next.js supports officially (#206). Separate rows, not a loosened glob:
+      # `globToRegExp` anchors a pattern containing `/` at the repo root by design, and a file must
+      # match a convention path exactly, not anywhere in the tree.
+      - id: nextjs.app-route-src
+        match: "src/app/**/route.{ts,tsx,js,mjs}"
+        exports: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS]
+        methods: {from: export_name}
+      - id: nextjs.pages-api-src
+        match: "src/pages/api/**/*.{ts,tsx,js,mjs}"
+        exports: [default]
 
   sveltekit:
     detect: ["@sveltejs/kit"]
@@ -42,6 +52,36 @@ frameworks:
       - id: sveltekit.server
         match: "**/+server.{ts,js}"
         exports: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS]
+        methods: {from: export_name}
+
+  # Remix, and React Router v7 which absorbed it (#206) — a route module exports named callables,
+  # so the file tier resolves them with no resolution work. One rule per export rather than one rule
+  # listing all three: the `rule` id is then what tells a consumer whether it is looking at a data
+  # loader, a mutation, or the rendered component. `http_methods` stays empty — mapping `loader` to
+  # GET and `action` to the mutating verbs needs a per-export method source the grammar lacks, and
+  # inventing one here would be a spelling no sibling analyzer has agreed to.
+  remix:
+    detect: ["@remix-run/node", "@remix-run/react", "@remix-run/server-runtime", "@remix-run/cloudflare", react-router]
+    files:
+      - id: remix.loader
+        match: "app/routes/**/*.{ts,tsx,js,jsx}"
+        exports: [loader]
+      - id: remix.action
+        match: "app/routes/**/*.{ts,tsx,js,jsx}"
+        exports: [action]
+      - id: remix.route-component
+        match: "app/routes/**/*.{ts,tsx,js,jsx}"
+        exports: [default]
+
+  # Astro API routes (#206): verb-named exports beside the `.astro` pages. `.astro` files themselves
+  # are not parsed, so this covers the `.ts`/`.js` endpoints only. `ALL` is listed because it is a
+  # real Astro handler; `methods: {from: export_name}` filters it to [] since it is not an HTTP verb.
+  astro:
+    detect: [astro]
+    files:
+      - id: astro.api-route
+        match: "src/pages/**/*.{ts,js}"
+        exports: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, ALL]
         methods: {from: export_name}
 
   # ---- non-web (#167). Framework-tier CALL rules: gated on the dependency AND matched on the
