@@ -30,9 +30,17 @@ assuming the graph is empty.
 `config_access` nodes never carry `callee` — they are reads, not calls (see SKILL.md's traps).
 
 `Artifact.format`: `json` \| `jsonc` \| `yaml` \| `toml` \| `ini` \| `dockerfile` \| `yarnlock` \|
-`env` \| `text` \| `binary` (`src/artifacts/rules.ts`). `Artifact.roles` (list, unioned across every
-matching rule): `dependency-manifest`, `tool-config`, `container-image`, `service-topology`, `ci`,
-`env`, `packaging`, `legal`, `docs`, `script`, `unknown`. `Artifact.extraction`: `none` \| `partial`
+`env` \| `text` \| `binary`, plus one per template language — `ejs` \| `handlebars` \| `pug` \|
+`nunjucks` \| `liquid` \| `vue` \| `svelte` \| `astro` \| `html` (`src/artifacts/rules.ts`).
+`Artifact.roles` (list, unioned across every matching rule): `dependency-manifest`, `tool-config`,
+`container-image`, `service-topology`, `ci`, `env`, `packaging`, `legal`, `docs`, `script`,
+`view-template`, `unknown`.
+
+`view-template` is the cross-language role for a rendered view (#208; the name is
+`codeanalyzer-java`'s, adopted verbatim). It is assigned by extension, so it is best-effort. Two
+traps: a `.html`/`.htm` page gets it ONLY under a `views/` or `templates/` directory — a bare
+`public/index.html` is an asset and stays `unknown` — and a `.vue`/`.svelte`/`.astro` file is an
+`:Artifact` only, never a `:TSModule`, so its markup and script are not in the symbol table. `Artifact.extraction`: `none` \| `partial`
 \| `full`. `ConfigKey.namespace`: `env` \| `json` \| `yaml` \| `toml` \| `ini` \| `properties` \|
 `dockerfile`.
 
