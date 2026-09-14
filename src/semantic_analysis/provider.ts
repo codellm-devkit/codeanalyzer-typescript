@@ -5,7 +5,7 @@
  * linker's edges overlay the tsc base through it (an edge found by both carries
  * `["defuse", "tsc"]` after the wire sort).
  */
-import type { Project } from "ts-morph";
+import type { Node, Project } from "ts-morph";
 import type { TSExternalSymbol, TSModule } from "../schema";
 import type { Logger } from "../utils";
 import { buildCallGraph, type CallGraphResult } from "./callGraph";
@@ -13,6 +13,7 @@ import { buildCallGraph, type CallGraphResult } from "./callGraph";
 /** Everything the builder needs to produce a call graph over the analyzed project. */
 export interface CallGraphContext {
   project: Project;
+  callExprIndex: ReadonlyMap<string, Node>;
   symbol_table: Record<string, TSModule>;
   root: string;
   log: Logger;
@@ -31,7 +32,16 @@ export interface CallGraphProvider {
 /** The one backend — the ts-morph checker resolver (+ RTA + phantoms). */
 export const tscProvider: CallGraphProvider = {
   name: "tsc",
-  build: (ctx) => buildCallGraph(ctx.project, ctx.symbol_table, ctx.root, ctx.log, ctx.phantoms, ctx.only),
+  build: (ctx) =>
+    buildCallGraph(
+      ctx.project,
+      ctx.symbol_table,
+      ctx.root,
+      ctx.log,
+      ctx.phantoms,
+      ctx.callExprIndex,
+      ctx.only,
+    ),
 };
 
 /**
