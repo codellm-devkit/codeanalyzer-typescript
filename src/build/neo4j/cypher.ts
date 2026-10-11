@@ -8,8 +8,10 @@
  */
 
 import * as fs from "node:fs";
-import type { EdgeRow, GraphRows, NodeRow, Props } from "./rows";
-import { CAN_SCHEME, TS_MARKER, applicationPrefix } from "./rows";
+import type { EdgeRow, GraphRows, NodeRef, NodeRow, Props } from "./rows";
+import { CAN_SCHEME, RowBuilder, TS_MARKER, applicationPrefix } from "./rows";
+import type { TSAnalysis } from "../../schema";
+import { project } from "./project";
 import { cypherMap, cypherValue } from "./rows";
 import { CONSTRAINTS, INDEXES } from "./schema";
 
@@ -114,18 +116,94 @@ function* edgeStatements(edges: EdgeRow[]): Generator<string> {
     const { type, from, to } = group[0];
     // Discriminated relationships MERGE on `{_k}` — see EdgeRow.key (issue #70).
     const keyed = group[0].key !== undefined;
-    for (const batch of batches(group, BATCH)) {
-      const list = batch
-        .map((e) => `  {f: ${cypherValue(e.from.value)}, t: ${cypherValue(e.to.value)}, ${keyed ? `k: ${cypherValue(e.key!)}, ` : ""}p: ${cypherMap(e.props)}}`)
-        .join(",\n");
-      yield (
-        `UNWIND [\n${list}\n] AS row\n` +
-        `MATCH (a:${from.label} {${from.keyProp}: row.f})\n` +
-        `MATCH (b:${to.label} {${to.keyProp}: row.t})\n` +
-        `MERGE (a)-[r:${type}${keyed ? " {_k: row.k}" : ""}]->(b)\n` +
-        `SET r += row.p;`
-      );
-    }
+    for (const batch of batches(group, BATCH)) yield edgeBatchStatement(batch, type, from, to, keyed);
+  }
+}
+
+/** One UNWIND … MERGE statement for a batch of same-group edges (shared with the streaming writer). */
+function edgeBatchStatement(batch: EdgeRow[], type: string, from: NodeRef, to: NodeRef, keyed: boolean): string {
+  const list = batch
+    .map((e) => `  {f: ${cypherValue(e.from.value)}, t: ${cypherValue(e.to.value)}, ${keyed ? `k: ${cypherValue(e.key!)}, ` : ""}p: ${cypherMap(e.props)}}`)
+    .join(",\n");
+  return (
+    `UNWIND [\n${list}\n] AS row\n` +
+    `MATCH (a:${from.label} {${from.keyProp}: row.f})\n` +
+    `MATCH (b:${to.label} {${to.keyProp}: row.t})\n` +
+    `MERGE (a)-[r:${type}${keyed ? " {_k: row.k}" : ""}]->(b)\n` +
+    `SET r += row.p;`
+  );
+}
+
+// ----------------------------------------------------------------------------------------------
+// the streaming snapshot writer. Two projections of the resident envelope: nodes
+// (written, then released) and edges (rendered per batch as they are produced, never retained).
+// ----------------------------------------------------------------------------------------------
+
+/** Collects nodes only; every edge is dropped (the second pass emits them). */
+class NodesOnlyBuilder extends RowBuilder {
+  override edge(): void {}
+  override edgeToSymbol(): void {}
+}
+
+/** Renders edges straight into UNWIND batches; nodes are answered as refs and not stored. */
+class EdgeStreamBuilder extends RowBuilder {
+  private readonly groups = new Map<string, EdgeRow[]>();
+  constructor(private readonly nodeKeys: Set<string>, private readonly put: (block: string) => void) {
+    super();
+  }
+  override node(labels: string[], keyProp: string, value: string): NodeRef {
+    return { label: labels[0] as string, keyProp, value };
+  }
+  override edge(type: string, from: NodeRef, to: NodeRef, props: Props = {}, key?: string): void {
+    const k = `${type}|${from.label}.${from.keyProp}|${to.label}.${to.keyProp}|${key !== undefined}`;
+    const group = this.groups.get(k) ?? this.groups.set(k, []).get(k)!;
+    group.push({ type, from, to, props, key });
+    if (group.length >= BATCH) this.flush(k, group);
+  }
+  override edgeToSymbol(type: string, from: NodeRef, targetId: string, props: Props = {}, key?: string): void {
+    // Same resolved-only gate as RowBuilder.finish(): the target must have been emitted as a node.
+    if (this.nodeKeys.has(targetId)) this.edge(type, from, { label: "CanNode", keyProp: "id", value: targetId }, props, key);
+  }
+  private flush(k: string, group: EdgeRow[]): void {
+    const { type, from, to, key } = group[0] as EdgeRow;
+    this.put(edgeBatchStatement(group, type, from, to, key !== undefined));
+    this.groups.set(k, []);
+  }
+  override finish(): GraphRows {
+    for (const [k, group] of this.groups) if (group.length) this.flush(k, group);
+    return { nodes: [], edges: [] };
+  }
+}
+
+/** Write the snapshot for `app` without ever holding its edge rows: see the module comment. */
+export function writeCypherStreaming(filePath: string, app: TSAnalysis, appId: string): void {
+  const file = fs.openSync(filePath, "w");
+  try {
+    let first = true;
+    const put = (block: string): void => {
+      fs.writeFileSync(file, first ? block : `\n${block}`);
+      first = false;
+    };
+    // Pass 1 — nodes (and the key set the deferred-edge gate needs).
+    let rows: GraphRows | null = project(app, appId, new NodesOnlyBuilder());
+    const keys = new Set(rows.nodes.map((n) => n.value));
+    put("// ── constraints & indexes ──");
+    for (const stmt of CONSTRAINTS) put(`${stmt};`);
+    for (const stmt of INDEXES) put(`${stmt};`);
+    put("");
+    put("// ── wipe this project's prior subgraph (external targets are shared) ──");
+    put(wipe(rows, appId));
+    put("");
+    put("// ── nodes ──");
+    for (const stmt of nodeStatements(rows.nodes)) put(stmt);
+    rows = null;
+    // Pass 2 — edges, streamed.
+    put("");
+    put("// ── relationships ──");
+    project(app, appId, new EdgeStreamBuilder(keys, put)).nodes.length; // builder writes as it goes
+    put("");
+  } finally {
+    fs.closeSync(file);
   }
 }
 

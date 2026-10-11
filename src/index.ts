@@ -2,7 +2,7 @@
 import { InputError, analyze, discoverPrograms } from "./core";
 import { parseArgs } from "./cli";
 import { RulesError } from "./entrypoints";
-import { emit, emitSchema } from "./utils";
+import { collectGarbage, emit, emitSchema, memlog } from "./utils";
 
 async function main(): Promise<void> {
   try {
@@ -17,7 +17,9 @@ async function main(): Promise<void> {
       return;
     }
     const result = await analyze(opts);
+    collectGarbage(); // the analysis working set is garbage; emission allocates
     await emit(result.application, opts);
+    memlog("emit");
   } catch (e) {
     if (e instanceof RulesError || e instanceof InputError) {
       // A user configuration error, not an analyzer bug: no stack trace, no "FATAL".

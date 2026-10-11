@@ -45,8 +45,8 @@ const KIND_LABEL: Record<string, string> = {
   function_expression: "TSCallable",
 };
 
-export function project(app: TSAnalysis, _appName?: string): GraphRows {
-  const b = new RowBuilder();
+export function project(app: TSAnalysis, _appName?: string, builder?: RowBuilder): GraphRows {
+  const b = builder ?? new RowBuilder(); // a streaming writer supplies its own
   const root: TSApplication = app.application;
 
   const appRef = b.node(["Application", "TSApplication"], "id", root.id, prune({

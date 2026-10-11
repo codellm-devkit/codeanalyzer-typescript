@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { buildProgramGraphs, startExtraction } from "./dataflow";
 import { type LinkerResolutions, mergeCallGraphs, runDefuseLinker, tscProvider } from "./semantic_analysis";
-import { loadCache, saveCache } from "./utils";
+import { collectGarbage, loadCache, saveCache } from "./utils";
 import { materialize } from "./build";
 import { inventoryArtifacts } from "./artifacts";
 import { loadRules } from "./entrypoints";
@@ -10,7 +10,7 @@ import type { AnalysisOptions } from "./options";
 import type { AnalysisInternal } from "./schema";
 import { type AnalysisResult, finalizeAnalysis } from "./schema/emit";
 import { buildSymbolTable, programName } from "./syntactic_analysis";
-import { Logger } from "./utils";
+import { Logger, memlog } from "./utils";
 import { checkerFailures, resetCheckerFailures } from "./schema/checker";
 
 export type { AnalysisResult } from "./schema/emit";
@@ -62,11 +62,14 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   const cacheDir = opts.cacheDir ?? path.join(opts.input, ".codeanalyzer");
 
   const mat = materialize(opts, log);
+  memlog("materialize");
 
   for (const note of mat.notes) log.debug(note);
 
   const cached = opts.eager ? null : loadCache(cacheDir);
   const { project, symbol_table, programs } = buildSymbolTable(opts, mat, cached?.symbol_table ?? null, log);
+  collectGarbage(); // the symbol-table build leaves the heap mostly garbage
+  memlog("symbol_table");
 
   // Level 3: post stage-1–4 graph extraction to the worker pool BEFORE the call-graph solve —
   // extraction doesn't need callee resolution, so the two run concurrently (the contract's
@@ -97,11 +100,14 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
         only: prog.fileKeys,
       };
       cg = mergeCallGraphs(cg, tscProvider.build(ctx));
+      memlog(`call_graph tsc ${prog.configPath ?? "default"}`);
       // The defuse linker overlays the tsc base: it reads the callee_signature backfill the tsc
       // leg just wrote, resolves what remains (tiers T1–T5, defuseLinker.ts), and returns its
       // body-node resolutions out-of-band (never persisted — cache provenance rule).
       const linked = runDefuseLinker(ctx);
       cg = mergeCallGraphs(cg, linked.result);
+      collectGarbage(); // per program, the call-expression indexes are garbage now
+      memlog(`call_graph defuse ${prog.configPath ?? "default"}`);
       for (const [caller, m] of linked.resolutions) {
         const ex = resolutions.get(caller);
         if (!ex) resolutions.set(caller, m);
@@ -117,6 +123,7 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   const extraction =
     opts.analysisLevel >= 3 ? startExtraction(programs, symbol_table, opts, log, project) : null;
 
+  memlog("extraction");
   const call_graph = cg.edges;
 
   // Repository-artifact layer (#101, python PR #160 parity): level-free, identical at every -a.
@@ -147,13 +154,18 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   // Level 3 join: stages 5–7 (summary wavefront + SDG) consume the extraction AND the
   // provider-backfilled callee signatures. Strictly flag-gated so -a 1/-a 2 cost nothing.
   const pg = extraction ? await buildProgramGraphs(extraction, symbol_table, opts, log) : null;
+  collectGarbage(); // extraction released the programs' ASTs; reclaim before finalize
+  memlog("program_graphs");
 
   // Cache the id-free base (ids/body/heritage are per-run layers stamped by finalizeAnalysis;
   // the cached tree must stay --app-name-free).
   saveCache(cacheDir, { symbol_table });
+  memlog("save_cache");
   // Never let "some edges are missing" look like "there were no edges": a node the checker could
   // not resolve is skipped (see schema/checker.ts), and the count is said out loud.
   const skipped = checkerFailures();
   if (skipped) log.warn(`${skipped} symbol resolution(s) skipped — the TypeScript checker could not resolve them; affected call edges are absent`);
-  return finalizeAnalysis(app, pg, opts, resolutions, project, rules);
+  const result = finalizeAnalysis(app, pg, opts, resolutions, project, rules);
+  memlog("finalize");
+  return result;
 }

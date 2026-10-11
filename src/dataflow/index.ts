@@ -43,6 +43,7 @@ import {
   forEachCallable,
 } from "../schema";
 import type { Logger } from "../utils";
+import { collectGarbage } from "../utils";
 import { extractCallableData, indexCallableDecls } from "./extract";
 import type { CallableGraphData } from "./model";
 import { WorkerPool } from "./pool";
@@ -232,6 +233,11 @@ function extractSequential(
     // which finalizeAnalysis still needs for the config-use dataflow tier, so it is spared.
     if (p.project !== keepProject) {
       for (const sf of p.project.getSourceFiles()) p.project.removeSourceFile(sf);
+      // ts-morph keeps the previous compiler Program (every SourceFile and the
+      // checker) as `oldProgram` until the program is next requested. Request it now, so the
+      // removal above frees what it was meant to free.
+      void p.project.getProgram().compilerObject;
+      collectGarbage(); // the program's AST and checker are unreachable now
     }
   }
   reportCoverage(out.size, callables.size, log);

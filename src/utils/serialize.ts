@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { boltWriter, buildSchemaDocument, project, writeCypherFile } from "../build/neo4j";
+import { boltWriter, buildSchemaDocument, project, writeCypherStreaming } from "../build/neo4j";
 import type { AnalysisOptions } from "../options";
 import type { TSAnalysis } from "../schema";
 import { Logger } from "./logging";
@@ -105,9 +105,9 @@ async function emitNeo4j(application: TSAnalysis, opts: AnalysisOptions): Promis
   // Second projection of the SAME v2 envelope the JSON path emits. --emit neo4j forces full depth
   // (cli.ts), so the envelope carries the L4 dataflow and the projected graph is the complete CPG.
   const appId = application.application.id;
-  const rows = project(application, appId);
 
   if (opts.neo4jUri) {
+    const rows = project(application, appId);
     const log = new Logger(opts.verbosity);
     await boltWriter(
       rows,
@@ -126,5 +126,6 @@ async function emitNeo4j(application: TSAnalysis, opts: AnalysisOptions): Promis
 
   const dir = opts.output ?? process.cwd();
   fs.mkdirSync(dir, { recursive: true });
-  writeCypherFile(path.join(dir, "graph.cypher"), rows, appId);
+  // the snapshot streams; only the Bolt push needs the full GraphRows.
+  writeCypherStreaming(path.join(dir, "graph.cypher"), application, appId);
 }
