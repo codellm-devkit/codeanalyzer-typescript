@@ -163,9 +163,13 @@ function collectStatementNodes(node: Node, out: Node[]): void {
       out.push(s);
       for (const clause of s.getClauses()) for (const cs of clause.getStatements()) collectStatementNodes(cs, out);
     } else if (Node.isTryStatement(s)) {
+      const beforeTry = out.length;
       collectStatementNodes(s.getTryBlock(), out);
+      const tryHasNodes = out.length > beforeTry;
       const cc = s.getCatchClause();
-      if (cc) {
+      // A catch after a structurally empty try is unreachable. Omitting that dead region keeps
+      // normal flow on the statement list and preserves the graph's all-nodes-reachable contract.
+      if (cc && tryHasNodes) {
         out.push(cc);
         collectStatementNodes(cc.getBlock(), out);
       }
@@ -377,15 +381,17 @@ class Lowerer {
     const exits: Dangling[] = [];
     let catchEntry: number | null = null;
     if (cc) {
-      const catchId = this.idOf.get(cc) as number; // binds the exception variable (a def, stage 3)
-      catchEntry = catchId;
-      const catchCtx: LowerCtx = { ...ctx, exceptionTarget: afterCatchTarget };
-      const catchBody = this.statements(cc.getBlock().getStatements(), catchCtx);
-      if (catchBody.entry !== null) {
-        this.addEdge(catchId, catchBody.entry, "fallthrough");
-        this.routeThroughFinally(catchBody.exits, finLowered, exits);
-      } else {
-        this.routeThroughFinally([{ from: catchId, kind: "fallthrough" }], finLowered, exits);
+      const catchId = this.idOf.get(cc);
+      if (catchId !== undefined) {
+        catchEntry = catchId; // binds the exception variable (a def, stage 3)
+        const catchCtx: LowerCtx = { ...ctx, exceptionTarget: afterCatchTarget };
+        const catchBody = this.statements(cc.getBlock().getStatements(), catchCtx);
+        if (catchBody.entry !== null) {
+          this.addEdge(catchId, catchBody.entry, "fallthrough");
+          this.routeThroughFinally(catchBody.exits, finLowered, exits);
+        } else {
+          this.routeThroughFinally([{ from: catchId, kind: "fallthrough" }], finLowered, exits);
+        }
       }
     }
 
