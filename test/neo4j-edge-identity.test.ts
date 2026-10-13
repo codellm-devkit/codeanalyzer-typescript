@@ -43,3 +43,21 @@ describe("edge identity discriminant (_k)", () => {
     expect(ddg.length).toBe(2);
   });
 });
+
+test("row sorting preserves composite-key collation across prefix values", () => {
+  const builder = new RowBuilder();
+  const target = builder.node(["CanNode"], "id", "target", {});
+  const file = builder.node(["CanNode"], "id", "file", {});
+  const nested = builder.node(["CanNode"], "id", "file/<anon>", {});
+  const slash = builder.node(["CanNode"], "id", "file/x", {});
+
+  builder.edge("TS_CALLS", file, target);
+  builder.edge("TS_CALLS", nested, target);
+  builder.edge("TS_CALLS", slash, target);
+
+  expect(builder.finish().edges.map((edge) => edge.from.value)).toEqual([
+    "file/<anon>",
+    "file/x",
+    "file",
+  ]);
+});
