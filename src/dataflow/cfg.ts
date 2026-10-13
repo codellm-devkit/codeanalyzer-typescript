@@ -49,6 +49,7 @@ interface Lowered {
 }
 
 interface LoopLabel {
+  /** Every JavaScript label is a break target; iteration labels additionally own continue. */
   breaks: Dangling[];
   continueHeader: number | null;
 }
@@ -205,7 +206,7 @@ class Lowerer {
 
   statement(s: Node, ctx: LowerCtx, label?: string): Lowered {
     if (Node.isBlock(s)) return this.statements(s.getStatements(), ctx);
-    if (Node.isLabeledStatement(s)) return this.statement(s.getStatement(), ctx, s.getLabel().getText());
+    if (Node.isLabeledStatement(s)) return this.labeledStatement(s, ctx);
     if (Node.isIfStatement(s)) return this.ifStatement(s, ctx);
     if (Node.isWhileStatement(s) || Node.isForStatement(s) || Node.isForOfStatement(s) || Node.isForInStatement(s))
       return this.loop(s, ctx, label);
@@ -213,6 +214,27 @@ class Lowerer {
     if (Node.isSwitchStatement(s)) return this.switchStatement(s, ctx);
     if (Node.isTryStatement(s)) return this.tryStatement(s, ctx);
     return this.leaf(s, ctx);
+  }
+
+  private labeledStatement(s: Node, ctx: LowerCtx): Lowered {
+    if (!Node.isLabeledStatement(s)) throw new Error("unreachable");
+    const statement = s.getStatement();
+    const label = s.getLabel().getText();
+    if (
+      Node.isWhileStatement(statement) ||
+      Node.isDoStatement(statement) ||
+      Node.isForStatement(statement) ||
+      Node.isForOfStatement(statement) ||
+      Node.isForInStatement(statement)
+    ) {
+      return this.statement(statement, ctx, label);
+    }
+
+    const breaks: Dangling[] = [];
+    ctx.labels.set(label, { breaks, continueHeader: null });
+    const lowered = this.statement(statement, ctx);
+    ctx.labels.delete(label);
+    return { entry: lowered.entry, exits: [...lowered.exits, ...breaks] };
   }
 
   private leaf(s: Node, ctx: LowerCtx): Lowered {
