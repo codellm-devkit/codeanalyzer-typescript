@@ -8,8 +8,10 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { Project } from "ts-morph";
 import { analyze } from "../src/core";
 import { backwardSlice } from "../src/dataflow";
+import { mayThrow } from "../src/dataflow/cfg";
 import type { AnalysisOptions } from "../src/options";
 import type { CfgEdge, FunctionCfg, ProgramGraphs, SdgEdge } from "../src/schema";
 
@@ -164,6 +166,24 @@ describe("CFG gate", () => {
   test("short-circuit / optional chaining stay intra-statement (shortCircuit has no branch edges)", () => {
     expect(kinds("src/susp.shortCircuit", (e) => e.kind === "true" || e.kind === "false")).toHaveLength(0);
   });
+});
+
+test("throwability scans all throw kinds without entering nested callables", () => {
+  const project = new Project({ useInMemoryFileSystem: true });
+  const source = project.createSourceFile(
+    "throwability.ts",
+    [
+      "async function outer() {",
+      "  call();",
+      "  new Thing();",
+      "  await task;",
+      "  tag`value`;",
+      "  const nested = () => call();",
+      "}",
+    ].join("\n"),
+  );
+  const statements = source.getFunctionOrThrow("outer").getStatements();
+  expect(statements.map((statement) => mayThrow(statement))).toEqual([true, true, true, true, false]);
 });
 
 // ------------------------------------------------------------------------------------------------

@@ -471,12 +471,31 @@ export function containsKind(root: Node, kind: SyntaxKind): boolean {
   return found;
 }
 
+const THROWING_KINDS = new Set([
+  SyntaxKind.CallExpression,
+  SyntaxKind.NewExpression,
+  SyntaxKind.AwaitExpression,
+  SyntaxKind.TaggedTemplateExpression,
+]);
+
 /** May evaluating this subtree throw? Over-approximate: any call-like or await counts. */
 export function mayThrow(root: Node): boolean {
-  return (
-    containsKind(root, SyntaxKind.CallExpression) ||
-    containsKind(root, SyntaxKind.NewExpression) ||
-    containsKind(root, SyntaxKind.AwaitExpression) ||
-    containsKind(root, SyntaxKind.TaggedTemplateExpression)
-  );
+  if (THROWING_KINDS.has(root.getKind())) return true;
+  let found = false;
+  root.forEachDescendant((node, traversal) => {
+    if (found) {
+      traversal.stop();
+      return;
+    }
+    // Match containsKind's callable boundary: nested bodies execute separately from this subtree.
+    if (isFunctionBoundary(node)) {
+      traversal.skip();
+      return;
+    }
+    if (THROWING_KINDS.has(node.getKind())) {
+      found = true;
+      traversal.stop();
+    }
+  });
+  return found;
 }
