@@ -51,8 +51,22 @@ function assertInputDir(input: string): void {
   if (!stat.isDirectory()) throw new InputError(`input path is not a directory: ${input}`);
 }
 
+/**
+ * Published keys are relativized against the workspace root, so --input must be that root or inside
+ * it — otherwise a key would need `..`, which the schema forbids (relative, never absolute or `..`).
+ * Checked before any work, like the input itself.
+ */
+function assertInsideWorkspace(input: string, workspaceRoot: string | null | undefined): void {
+  if (!workspaceRoot) return;
+  const rel = path.relative(path.resolve(workspaceRoot), path.resolve(input));
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new InputError(`--input ${input} is not inside --workspace-root ${workspaceRoot}`);
+  }
+}
+
 export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   assertInputDir(opts.input);
+  assertInsideWorkspace(opts.input, opts.workspaceRoot);
   const log = new Logger(opts.verbosity);
   log.info(`analyzing ${opts.input} (level ${opts.analysisLevel})`);
   resetCheckerFailures();

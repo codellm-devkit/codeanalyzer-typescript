@@ -13,6 +13,12 @@ export interface AnalysisOptions {
   emit: EmitTarget;
   /** Logical application name for the graph's :Application anchor; null ⇒ derived from input. */
   appName: string | null;
+  /**
+   * Directory the PUBLISHED file keys (and the module/artifact ids built from them) are relative to
+   * (absolute); null ⇒ `input`. Must contain `input`. Emission-only: signatures, entrypoint
+   * path rules, test detection and the cache keep the input-relative key.
+   */
+  workspaceRoot?: string | null;
   /** Bolt URI for a live Neo4j push (incremental). null ⇒ write a graph.cypher snapshot to -o. */
   neo4jUri: string | null;
   neo4jUser: string;

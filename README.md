@@ -153,6 +153,9 @@ Options:
                                  Neo4j schema.json contract) (default: "json")
   --app-name <name>              logical application name for the graph
                                  :Application anchor (default: input dir name)
+  --workspace-root <dir>         directory file keys, module ids and artifact
+                                 ids are relative to (default: --input); must
+                                 contain --input
   --neo4j-uri <uri>              push the graph to a live Neo4j over Bolt
                                  (incremental); omit to write graph.cypher (env:
                                  NEO4J_URI)
@@ -229,12 +232,21 @@ Options:
    cants --input ./my-ts-project --target-files src/a.ts src/b.ts
    ```
 
-4. **Force a clean rebuild with a custom cache directory:**
+4. **Repository-relative paths for a project inside a larger repo:**
+   ```sh
+   cants --input ./monorepo/packages/web --workspace-root ./monorepo
+   # symbol_table key: packages/web/src/app.ts
+   ```
+   Only the published keys and ids change: the application id (`can://<app-name>`) and
+   `signature`s stay as they are, entrypoint path rules still match from `--input`, and the cache
+   is reused either way.
+
+5. **Force a clean rebuild with a custom cache directory:**
    ```sh
    cants --input ./my-ts-project --eager --cache-dir /path/to/custom-cache
    ```
 
-5. **Program graphs (level 3): CFG/PDG/SDG in `analysis.json`:**
+6. **Program graphs (level 3): CFG/PDG/SDG in `analysis.json`:**
    ```sh
    cants --input ./my-ts-project -a 3                    # full program_graphs section
    cants --input ./my-ts-project -a 3 --graphs cfg,pdg   # scope the emitted graphs

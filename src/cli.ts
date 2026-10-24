@@ -17,6 +17,7 @@ export function buildProgram(): Command {
     .option("-o, --output <dir>", "output directory (omit ⇒ compact output to stdout)")
     .option("--emit <target>", "output target: json (analysis.json, default) | neo4j (graph.cypher or live push) | schema (the Neo4j schema.json contract)", "json")
     .option("--app-name <name>", "logical application name for the graph :Application anchor (default: input dir name)")
+    .option("--workspace-root <dir>", "directory file keys, module ids and artifact ids are relative to (default: --input); must contain --input")
     // The four Neo4j connection options also read the standard NEO4J_* environment variables when
     // the flag is omitted (an explicit flag wins). Prefer NEO4J_PASSWORD over the flag — a flag
     // value is visible in shell history / the process list. Commander renders the `(env: …)` hint.
@@ -146,6 +147,7 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     output: o.output ? path.resolve(String(o.output)) : null,
     emit,
     appName: o.appName ? String(o.appName) : null,
+    workspaceRoot: o.workspaceRoot ? path.resolve(String(o.workspaceRoot)) : null,
     neo4jUri: o.neo4jUri ? String(o.neo4jUri) : null,
     neo4jUser: String(o.neo4jUser),
     neo4jPassword: String(o.neo4jPassword),

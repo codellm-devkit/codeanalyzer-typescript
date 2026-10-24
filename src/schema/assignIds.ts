@@ -19,7 +19,12 @@ export interface AssignedIds {
   collisions: string[]; // signatures that mapped to two distinct ids (L1 id-uniqueness gate)
 }
 
-export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
+/**
+ * @param keyPrefix prepended to every file key an id is minted from (`--workspace-root`: the
+ *   input's path under the workspace, with a trailing `/`; `""` when unset). Ids only — the
+ *   signature registry stays keyed on the input-relative module prefix every other pass joins on.
+ */
+export function assignIds(app: AnalysisInternal, appName: string, keyPrefix = ""): AssignedIds {
   const appId = applicationIdOf(appName);
   const idBySig = new Map<string, string>();
   const typeIdBySig = new Map<string, string>();
@@ -70,7 +75,7 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
   };
 
   for (const [fileKey, mod] of Object.entries(app.symbol_table)) {
-    const moduleId = moduleIdOf(appName, fileKey);
+    const moduleId = moduleIdOf(appName, keyPrefix + fileKey);
     const modulePrefix = modulePrefixOf(fileKey);
     mod.id = moduleId;
     // Module-scope execution is a call-graph SOURCE (python #131 parity: a call in module scope
@@ -86,7 +91,7 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
   // language-NEUTRAL (`can://<app>/artifact/...`); dependency/import records are flat evidence
   // rows with no node id of their own (the graph's :Package node is purl-keyed).
   for (const [relPath, art] of Object.entries(app.artifacts ?? {})) {
-    art.id = artifactIdOf(appName, relPath);
+    art.id = artifactIdOf(appName, keyPrefix + relPath);
     // Deployment-env id disambiguation (#101 unit D fix round 1, python v1.3.0 parity verbatim):
     // the `key` FIELD always stays the bare variable name — env-namespace resolution still joins
     // on a plain `key ===` match — but a bare name can collide across mints on the SAME artifact
@@ -106,7 +111,9 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
     const artPath = dep.declared_in; // scanners record the REL PATH; re-stamp onto the id
     // slice(4) drops `can:`, ``, `<app>`, `artifact` — the same depth the old `can://artifact/<app>/`
     // shape had, so the reorder left this re-stamp guard alone.
-    dep.declared_in = artifactIdOf(appName, artPath.startsWith("can://") ? artPath.split("/").slice(4).join("/") : artPath);
+    dep.declared_in = artPath.startsWith("can://")
+      ? artifactIdOf(appName, artPath.split("/").slice(4).join("/"))
+      : artifactIdOf(appName, keyPrefix + artPath);
   }
 
   return { appId, idBySig, typeIdBySig, callableBySig, collisions };

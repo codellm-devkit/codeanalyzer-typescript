@@ -19,6 +19,7 @@
 import * as path from "node:path";
 import type { Project } from "ts-morph";
 import type { AnalysisOptions } from "../options";
+import { relPosix } from "../utils/fs";
 import { ANALYZER_VERSION } from "../utils/version";
 import type { AnalysisInternal, TSAnalysis, TSApplication } from "./schema";
 import type { ProgramGraphs } from "./graphs";
@@ -72,6 +73,37 @@ function stripInternal(root: TSApplication): void {
   }
 }
 
+/**
+ * `--workspace-root`: the input's path under the workspace root, `/`-terminated, prepended to every
+ * PUBLISHED file key; `""` when unset or equal to the input. Emission-only — the live tree, the
+ * signatures, entrypoint path rules and the cache all keep the input-relative key.
+ */
+function workspaceKeyPrefix(opts: AnalysisOptions): string {
+  if (!opts.workspaceRoot || !opts.input) return "";
+  const rel = relPosix(opts.workspaceRoot, opts.input);
+  return rel === "" ? "" : `${rel}/`;
+}
+
+/**
+ * The wire's other path-keyed maps, re-keyed under `keyPrefix`: artifacts (map key + `path`) and the
+ * synthesized callables' owning-module `path`. Ids were already minted with the prefix by
+ * assignIds; this only renames. New objects, so the live tree keeps its input-relative paths.
+ */
+function rekeyRepoPaths(root: TSApplication, keyPrefix: string): Partial<TSApplication> {
+  if (!keyPrefix) return {};
+  const artifacts: TSApplication["artifacts"] = {};
+  for (const [key, art] of Object.entries(root.artifacts)) artifacts[keyPrefix + key] = { ...art, path: keyPrefix + art.path };
+  const out: Partial<TSApplication> = { artifacts };
+  if (root.synthesized_callables) {
+    const synthesized: NonNullable<TSApplication["synthesized_callables"]> = {};
+    for (const [id, sc] of Object.entries(root.synthesized_callables)) {
+      synthesized[id] = sc.path === undefined ? sc : { ...sc, path: keyPrefix + sc.path };
+    }
+    out.synthesized_callables = synthesized;
+  }
+  return out;
+}
+
 // ----------------------------------------------------------------------------------------------
 // entry point
 // ----------------------------------------------------------------------------------------------
@@ -95,9 +127,10 @@ export function finalizeAnalysis(
 ): AnalysisResult {
   const level = opts.analysisLevel;
   const appName = (opts.appName ?? (opts.input ? path.basename(opts.input) : "") ?? "").trim() || "app";
+  const keyPrefix = workspaceKeyPrefix(opts);
 
   // L1 — stamp ids, derive body{}, project heritage (all overwrite-idempotent per-run passes).
-  const { appId, idBySig, typeIdBySig, callableBySig, collisions } = assignIds(app, appName);
+  const { appId, idBySig, typeIdBySig, callableBySig, collisions } = assignIds(app, appName, keyPrefix);
   populateL1Body(app);
   // `extends`/`implements` name TYPES: on a merged name (#177) the type facet's id wins over the
   // value facet's, which is what `idBySig` holds for every other pass.
@@ -169,8 +202,8 @@ export function finalizeAnalysis(
   // strip and shared by reference. A stringify roundtrip is out for the same reason: the string
   // form OOMs at vscode-L4 scale.
   const symbol_table: TSApplication["symbol_table"] = {};
-  for (const [key, mod] of Object.entries(root.symbol_table)) symbol_table[key] = structuredClone(mod);
-  const application: TSAnalysis = { ...envelope, application: { ...root, symbol_table } };
+  for (const [key, mod] of Object.entries(root.symbol_table)) symbol_table[keyPrefix + key] = structuredClone(mod);
+  const application: TSAnalysis = { ...envelope, application: { ...root, symbol_table, ...rekeyRepoPaths(root, keyPrefix) } };
   stripInternal(application.application);
   return { application, internal: app, ...(pg ? { program_graphs: pg } : {}), idBySig, collisions, dangling };
 }
