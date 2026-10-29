@@ -12,7 +12,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { InputError, analyze } from "../src/core";
 import type { AnalysisOptions } from "../src/options";
-import { forEachCallable, type TSApplication } from "../src/schema";
+import { project } from "../src/build/neo4j";
+import { forEachCallable, type TSAnalysis, type TSApplication } from "../src/schema";
 import { loadCache } from "../src/utils";
 
 const ROOT = path.resolve(import.meta.dir, "..");
@@ -75,6 +76,25 @@ describe("--workspace-root", () => {
 
     expect(app.call_graph.length).toBe(without.call_graph.length);
     for (const e of app.call_graph) expect(e.src.includes(`/${prefix}`)).toBe(true);
+  });
+
+  test("resolved_module names a published symbol_table key, so internal import edges survive", async () => {
+    const { repo, input, prefix } = repoWith("sample-app");
+    const bindings = (a: TSApplication) =>
+      Object.values(a.symbol_table).flatMap((m) => [...(m.imports ?? []), ...(m.exports ?? [])]);
+    const internalImports = (a: TSAnalysis) =>
+      project(a).edges.filter((e) => (e.type === "TS_IMPORTS" || e.type === "TS_RE_EXPORTS") && e.to.label !== "TSExternal").length;
+    const without = (await analyze(options(input))).application;
+    const rooted = (await analyze(options(input, { workspaceRoot: repo }))).application;
+
+    const resolved = bindings(rooted.application).map((b) => b.resolved_module).filter((k) => k !== undefined);
+    expect(resolved.length).toBeGreaterThan(0);
+    for (const k of resolved) {
+      expect(k.startsWith(prefix)).toBe(true);
+      expect(rooted.application.symbol_table[k]).toBeDefined();
+    }
+    expect(internalImports(without)).toBeGreaterThan(0);
+    expect(internalImports(rooted)).toBe(internalImports(without));
   });
 
   test("signatures stay --input-relative: the re-key is the published name, not the analysis", async () => {

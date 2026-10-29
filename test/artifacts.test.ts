@@ -191,20 +191,9 @@ describe("Neo4j projection — neutral :Artifact/:Package (#101)", () => {
   const rows = project(r1.application);
 
   /**
-   * Artifacts are inside the destructive scope: they carry the marker, so the prefix-scoped wipe
-   * reaches them and stale ones are reclaimed instead of accumulating forever. This test pins the
-   * BOTH halves of that trade, because the second half is a real cost paid by polyglot databases.
-   *
-   * What makes it affordable is that this analyzer's artifact walk covers the WHOLE repository,
-   * not only files it can parse: it deletes and then re-creates every :Artifact node, a sibling
-   * analyzer's manifests included. What it does not re-create are the config keys and dependency
-   * edges only that sibling can produce.
-   *
-   * Measured against a live store (neo4j:5, throwaway container): on a second push, python's
-   * :ConfigKey rows under `pyproject.toml` SURVIVE — they never acquired `TSCanNode`, because the
-   * marker is only ever attached by the analyzer that MERGEs the row — while python's
-   * DECLARES_DEPENDENCY edge into `pkg:pypi/flask` is dropped by the DETACH and comes back only on
-   * python's next push. The `:Package` node itself is purl-keyed, never marked, never in scope.
+   * Artifacts carry the marker: it is this analyzer's claim, which a full `--eager` Bolt run
+   * releases when the artifact vanishes (see neo4j-artifact-reconcile.test.ts). The `:Package`
+   * node is purl-keyed, never marked, never in scope.
    */
   test("the wipe reaches artifacts, and the same push restores every one it deletes", () => {
     const canRows = rows.nodes.filter((n) => n.keyProp === "id" && n.value.startsWith("can://"));

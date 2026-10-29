@@ -28,4 +28,4 @@ jobs:
 
       # Container suite is opt-in; ubuntu-latest ships Docker, so testcontainers works out of the box.
       - name: Neo4j bolt container tests
-        run: RUN_CONTAINER_TESTS=1 bun test test/neo4j-bolt.test.ts
+        run: bun run test:container

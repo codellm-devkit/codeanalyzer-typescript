@@ -348,6 +348,20 @@ statements scope on, and `:Application` is keyed on the id rather than on `--app
   content hash changed are rewritten, and on a full run modules whose source file vanished are
   pruned. Every graph carries a `schema_version` on its `:Application` node.
 
+  `--eager` purges this application's code nodes but not its `:Artifact`/`:ConfigKey` nodes, which
+  are shared with the sibling analyzers. An `--eager` full run (no `--target-files`) reconciles them
+  instead, so a deleted or renamed file, a removed dependency, or re-keying under
+  `--workspace-root` leaves nothing stale. TypeScript-owned artifact edges (`HAS_ARTIFACT`,
+  `DECLARES_DEPENDENCY`/`LOCKS` to `pkg:npm/…`, `TS_PROVIDES`, `TS_USES_CONFIG`,
+  `TS_READS_CONFIG_UNRESOLVED`, `TS_UNRESOLVED_IMPORT`) are rebuilt. An `:Artifact` or `:ConfigKey`
+  the run no longer emits loses its `:TSCanNode` label. An artifact is then deleted only if no other
+  analyzer's `HAS_ARTIFACT` still points at it; a config key only if no other analyzer's marker
+  (`:JCanNode`, `:PyCanNode`) claims it. Other analyzers' edges are never removed. An
+  `--eager --target-files` push reconciles nothing, so stale artifacts wait for the next full
+  `--eager` push. The `graph.cypher` snapshot is a full rebuild by design: its wipe deletes every
+  node this application wrote, shared artifacts included, and other analyzers restore their edges
+  on their next push.
+
 The connection options also read the standard Neo4j environment variables — `NEO4J_URI`,
 `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE` — when the corresponding flag is omitted (an
 explicit flag wins). Prefer the env var for the password so it doesn't land in shell history or the

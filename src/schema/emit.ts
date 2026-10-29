@@ -202,7 +202,16 @@ export function finalizeAnalysis(
   // strip and shared by reference. A stringify roundtrip is out for the same reason: the string
   // form OOMs at vscode-L4 scale.
   const symbol_table: TSApplication["symbol_table"] = {};
-  for (const [key, mod] of Object.entries(root.symbol_table)) symbol_table[keyPrefix + key] = structuredClone(mod);
+  for (const [key, mod] of Object.entries(root.symbol_table)) {
+    const wire = structuredClone(mod);
+    // `resolved_module` names a symbol_table key, so it takes the same prefix (on the clone only).
+    if (keyPrefix) {
+      for (const b of [...(wire.imports ?? []), ...(wire.exports ?? [])]) {
+        if (b.resolved_module !== undefined) b.resolved_module = keyPrefix + b.resolved_module;
+      }
+    }
+    symbol_table[keyPrefix + key] = wire;
+  }
   const application: TSAnalysis = { ...envelope, application: { ...root, symbol_table, ...rekeyRepoPaths(root, keyPrefix) } };
   stripInternal(application.application);
   return { application, internal: app, ...(pg ? { program_graphs: pg } : {}), idBySig, collisions, dangling };
