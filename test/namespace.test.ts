@@ -65,3 +65,8 @@ test('cache rejects legacy and noninteger markers without rewriting the input', 
   }
  } finally { fs.writeFileSync(file,original); }
 });
+test('application metadata is required even for the default namespace', async () => {
+ const wire = (await analyze({...options,appName:'app',namespace:undefined})).application;
+ delete (wire.application as any).identity_namespace;
+ expect(()=>project(wire)).toThrow();
+});

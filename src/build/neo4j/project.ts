@@ -47,7 +47,7 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export function project(app: TSAnalysis, _appName?: string, builder?: RowBuilder): GraphRows {
-  if (app.identity_version !== 2 || app.application.identity_version !== 2 || app.application.id !== applicationIdOf(app.application.application_name, app.application.identity_namespace)) throw new Error("Incompatible application identity");
+  if (app.identity_version !== 2 || app.application.identity_version !== 2 || typeof app.application.application_name !== "string" || typeof app.application.identity_namespace !== "string" || app.application.id !== applicationIdOf(app.application.application_name, app.application.identity_namespace)) throw new Error("Incompatible application identity");
   const b = builder ?? new RowBuilder(); // a streaming writer supplies its own
   const root: TSApplication = app.application;
 
