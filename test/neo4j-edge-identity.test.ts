@@ -11,8 +11,8 @@ import { RowBuilder } from "../src/build/neo4j/rows";
 
 function twoVarDdgRows() {
   const b = new RowBuilder();
-  const a = b.node(["CanNode", "TSBodyNode"], "id", "can://ts/app/f.ts/f()@1:0", {});
-  const c = b.node(["CanNode", "TSBodyNode"], "id", "can://ts/app/f.ts/f()@2:0", {});
+  const a = b.node(["CanNode", "TSBodyNode"], "id", "can://ts/ts/app/f.ts/f()@1:0", {});
+  const c = b.node(["CanNode", "TSBodyNode"], "id", "can://ts/ts/app/f.ts/f()@2:0", {});
   b.edge("TS_DDG", a, c, { var: "x", prov: ["reaching-defs"] }, "x|reaching-defs");
   b.edge("TS_DDG", a, c, { var: "y", prov: ["reaching-defs"] }, "y|reaching-defs");
   b.edge("TS_CDG", a, c); // undiscriminated control family stays a plain MERGE

@@ -21,7 +21,7 @@ describe("per-module language namespace (#114)", () => {
   // A declaration file is TypeScript. The suffix must not be read as `.ts` on a file named `a.d`.
   test("a .d.ts declaration file is typescript", () => {
     expect(languageOf("types/x.d.ts")).toBe("typescript");
-    expect(moduleIdOf("app", "types/x.d.ts")).toBe("can://app/typescript/types/x.d.ts");
+    expect(moduleIdOf("app", "types/x.d.ts")).toBe("can://app/app/typescript/types/x.d.ts");
   });
 
   // The match is anchored: a DIRECTORY named `foo.js` must not make its .ts children javascript.
@@ -30,17 +30,17 @@ describe("per-module language namespace (#114)", () => {
   });
 
   test("module ids carry their own namespace, nested under the one application", () => {
-    expect(applicationIdOf("app")).toBe("can://app");
-    expect(moduleIdOf("app", "src/bar.ts")).toBe("can://app/typescript/src/bar.ts");
-    expect(moduleIdOf("app", "lib/foo.js")).toBe("can://app/javascript/lib/foo.js");
+    expect(applicationIdOf("app")).toBe("can://app/app");
+    expect(moduleIdOf("app", "src/bar.ts")).toBe("can://app/app/typescript/src/bar.ts");
+    expect(moduleIdOf("app", "lib/foo.js")).toBe("can://app/app/javascript/lib/foo.js");
   });
 });
 
 describe("the application is the outermost segment", () => {
   test("artifact ids nest under the app instead of forming a parallel scheme", () => {
     // Was can://artifact/<app>/<path> — a third top-level namespace. Now one rule.
-    expect(artifactIdOf("app", "package.json")).toBe("can://app/artifact/package.json");
-    expect(artifactIdOf("app", "./.env")).toBe("can://app/artifact/.env");
+    expect(artifactIdOf("app", "package.json")).toBe("can://app/app/artifact/package.json");
+    expect(artifactIdOf("app", "./.env")).toBe("can://app/app/artifact/.env");
   });
 
   test("every id shares the application prefix — both language namespaces included", () => {
@@ -69,8 +69,8 @@ describe("the application is the outermost segment", () => {
   test("an app named after a language is still addressable (the segment-1 collision)", () => {
     // can://typescript/typescript/... is legal and unambiguous POSITIONALLY. Anything that reads
     // the language off the FIRST segment gets it wrong here; segment 2 is the language.
-    expect(moduleIdOf("typescript", "lib/foo.js")).toBe("can://typescript/javascript/lib/foo.js");
-    expect(moduleIdOf("javascript", "src/bar.ts")).toBe("can://javascript/typescript/src/bar.ts");
-    expect(applicationIdOf("artifact")).toBe("can://artifact");
+    expect(moduleIdOf("typescript", "lib/foo.js")).toBe("can://typescript/typescript/javascript/lib/foo.js");
+    expect(moduleIdOf("javascript", "src/bar.ts")).toBe("can://javascript/javascript/typescript/src/bar.ts");
+    expect(applicationIdOf("artifact")).toBe("can://artifact/artifact");
   });
 });

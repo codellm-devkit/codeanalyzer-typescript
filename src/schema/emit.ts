@@ -73,37 +73,6 @@ function stripInternal(root: TSApplication): void {
   }
 }
 
-/**
- * `--workspace-root`: the input's path under the workspace root, `/`-terminated, prepended to every
- * PUBLISHED file key; `""` when unset or equal to the input. Emission-only — the live tree, the
- * signatures, entrypoint path rules and the cache all keep the input-relative key.
- */
-function workspaceKeyPrefix(opts: AnalysisOptions): string {
-  if (!opts.workspaceRoot || !opts.input) return "";
-  const rel = relPosix(opts.workspaceRoot, opts.input);
-  return rel === "" ? "" : `${rel}/`;
-}
-
-/**
- * The wire's other path-keyed maps, re-keyed under `keyPrefix`: artifacts (map key + `path`) and the
- * synthesized callables' owning-module `path`. Ids were already minted with the prefix by
- * assignIds; this only renames. New objects, so the live tree keeps its input-relative paths.
- */
-function rekeyRepoPaths(root: TSApplication, keyPrefix: string): Partial<TSApplication> {
-  if (!keyPrefix) return {};
-  const artifacts: TSApplication["artifacts"] = {};
-  for (const [key, art] of Object.entries(root.artifacts)) artifacts[keyPrefix + key] = { ...art, path: keyPrefix + art.path };
-  const out: Partial<TSApplication> = { artifacts };
-  if (root.synthesized_callables) {
-    const synthesized: NonNullable<TSApplication["synthesized_callables"]> = {};
-    for (const [id, sc] of Object.entries(root.synthesized_callables)) {
-      synthesized[id] = sc.path === undefined ? sc : { ...sc, path: keyPrefix + sc.path };
-    }
-    out.synthesized_callables = synthesized;
-  }
-  return out;
-}
-
 // ----------------------------------------------------------------------------------------------
 // entry point
 // ----------------------------------------------------------------------------------------------
@@ -126,11 +95,10 @@ export function finalizeAnalysis(
   rules?: RuleSet,
 ): AnalysisResult {
   const level = opts.analysisLevel;
-  const appName = (opts.appName ?? (opts.input ? path.basename(opts.input) : "") ?? "").trim() || "app";
-  const keyPrefix = workspaceKeyPrefix(opts);
+  const appName = opts.appName ?? (opts.input ? path.basename(path.resolve(opts.input)) : "app");
 
   // L1 — stamp ids, derive body{}, project heritage (all overwrite-idempotent per-run passes).
-  const { appId, idBySig, typeIdBySig, callableBySig, collisions } = assignIds(app, appName, keyPrefix);
+  const { appId, idBySig, typeIdBySig, callableBySig, collisions } = assignIds(app, appName, opts.namespace);
   populateL1Body(app);
   // `extends`/`implements` name TYPES: on a merged name (#177) the type facet's id wins over the
   // value facet's, which is what `idBySig` holds for every other pass.
@@ -140,6 +108,9 @@ export function finalizeAnalysis(
 
   const root: TSApplication = {
     id: appId,
+    identity_version: 2,
+    application_name: appName,
+    identity_namespace: opts.namespace ?? appName,
     name: appName,
     kind: "application",
     symbol_table: app.symbol_table,
@@ -187,6 +158,7 @@ export function finalizeAnalysis(
 
   const envelope: TSAnalysis = {
     schema_version: SCHEMA_VERSION,
+    identity_version: 2,
     language: LANGUAGE,
     max_level: Math.min(level, MAX_IMPLEMENTED),
     ...(k_limit !== undefined ? { k_limit } : {}),
@@ -204,15 +176,9 @@ export function finalizeAnalysis(
   const symbol_table: TSApplication["symbol_table"] = {};
   for (const [key, mod] of Object.entries(root.symbol_table)) {
     const wire = structuredClone(mod);
-    // `resolved_module` names a symbol_table key, so it takes the same prefix (on the clone only).
-    if (keyPrefix) {
-      for (const b of [...(wire.imports ?? []), ...(wire.exports ?? [])]) {
-        if (b.resolved_module !== undefined) b.resolved_module = keyPrefix + b.resolved_module;
-      }
-    }
-    symbol_table[keyPrefix + key] = wire;
+    symbol_table[key] = wire;
   }
-  const application: TSAnalysis = { ...envelope, application: { ...root, symbol_table, ...rekeyRepoPaths(root, keyPrefix) } };
+  const application: TSAnalysis = { ...envelope, application: { ...root, symbol_table } };
   stripInternal(application.application);
   return { application, internal: app, ...(pg ? { program_graphs: pg } : {}), idBySig, collisions, dangling };
 }

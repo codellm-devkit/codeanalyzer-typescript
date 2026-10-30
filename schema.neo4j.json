@@ -13,6 +13,9 @@
       "properties": {
         "id": "string",
         "name": "string",
+        "identity_version": "integer",
+        "application_name": "string",
+        "identity_namespace": "string",
         "schema_version": "string",
         "language": "string",
         "max_level": "integer",

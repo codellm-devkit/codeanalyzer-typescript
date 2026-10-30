@@ -1,3 +1,4 @@
+import { applicationIdOf } from "../../schema/ids";
 /**
  * project() — the pure projection from the schema-v2 additive-CPG tree (`TSAnalysis`) to graph
  * rows. It walks the uniform tree (module → types/functions/fields → callables → body) emitting one
@@ -46,11 +47,15 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export function project(app: TSAnalysis, _appName?: string, builder?: RowBuilder): GraphRows {
+  if (app.identity_version !== 2 || app.application.identity_version !== 2 || app.application.id !== applicationIdOf(app.application.application_name, app.application.identity_namespace)) throw new Error("Incompatible application identity");
   const b = builder ?? new RowBuilder(); // a streaming writer supplies its own
   const root: TSApplication = app.application;
 
   const appRef = b.node(["Application", "TSApplication"], "id", root.id, prune({
     id: root.id,
+    identity_version: 2,
+    application_name: root.application_name,
+    identity_namespace: root.identity_namespace,
     name: root.name,
     schema_version: SCHEMA_VERSION,
     language: app.language,

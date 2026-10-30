@@ -6,6 +6,8 @@ import { ANALYZER_VERSION } from "./version";
 
 export interface CacheData {
   analyzer_version?: string;
+  identity_version?: number;
+  application_id?: string;
   symbol_table: Record<string, TSModule>;
 }
 
@@ -13,7 +15,7 @@ export function cacheFilePath(cacheDir: string): string {
   return path.join(cacheDir, "analysis_cache.json");
 }
 
-export function loadCache(cacheDir: string): CacheData | null {
+export function loadCache(cacheDir: string, applicationId?: string): CacheData | null {
   try {
     const p = cacheFilePath(cacheDir);
     if (!fs.existsSync(p)) return null;
@@ -21,6 +23,7 @@ export function loadCache(cacheDir: string): CacheData | null {
     // Invalidate the whole cache when the analyzer version changed — the per-file source hash
     // can't detect that the extraction logic itself moved on.
     if (data.analyzer_version !== ANALYZER_VERSION) return null;
+    if (data.identity_version !== 2 || (applicationId !== undefined && data.application_id !== applicationId)) return null;
     return data;
   } catch {
     return null;

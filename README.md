@@ -153,9 +153,7 @@ Options:
                                  Neo4j schema.json contract) (default: "json")
   --app-name <name>              logical application name for the graph
                                  :Application anchor (default: input dir name)
-  --workspace-root <dir>         directory file keys, module ids and artifact
-                                 ids are relative to (default: --input); must
-                                 contain --input
+  --namespace <name>             application identity namespace (default: app name)
   --neo4j-uri <uri>              push the graph to a live Neo4j over Bolt
                                  (incremental); omit to write graph.cypher (env:
                                  NEO4J_URI)
@@ -232,14 +230,17 @@ Options:
    cants --input ./my-ts-project --target-files src/a.ts src/b.ts
    ```
 
-4. **Repository-relative paths for a project inside a larger repo:**
+4. **Group applications in a namespace:**
    ```sh
-   cants --input ./monorepo/packages/web --workspace-root ./monorepo
-   # symbol_table key: packages/web/src/app.ts
+   cants --input ./monorepo/packages/web --app-name web --namespace monorepo
+   # application id: can://monorepo/web
+   # symbol_table key: src/app.ts (relative to --input)
    ```
-   Only the published keys and ids change: the application id (`can://<app-name>`) and
-   `signature`s stay as they are, entrypoint path rules still match from `--input`, and the cache
-   is reused either way.
+   Namespace defaults to the application name. Both root segments are always present.
+   Raw identity names are case sensitive and percent encoded; empty names, separators,
+   control characters, and dot names are rejected. Version 2 identities require
+   `identity_version: 2` on the envelope and application anchor. Regenerate legacy output
+   from source. Cache reuse requires the same namespace and application.
 
 5. **Force a clean rebuild with a custom cache directory:**
    ```sh
@@ -264,9 +265,10 @@ deeply; each level only ever *adds*.
 
 ```jsonc
 {
-  "schema_version": "2.0.0", "language": "typescript", "max_level": 4, "k_limit": 3,
+  "schema_version": "2.0.0", "identity_version": 2, "language": "typescript", "max_level": 4, "k_limit": 3,
   "application": {
-    "id": "can://<app>", "name": "<app>", "kind": "application",
+    "id": "can://<namespace>/<app>", "name": "<app>", "kind": "application",
+    "identity_version": 2, "application_name": "<app>", "identity_namespace": "<namespace>",
     "symbol_table": {                     // L1: the tree, keyed by file path
       "<file>": { "kind": "module", "source": "…",
         "types":     { /* class | interface | enum | type_alias | namespace nodes */ },
@@ -337,7 +339,7 @@ Levels 1/2 are unaffected: nothing in level 3 runs unless `-a 3` is requested.
 **always full-depth** — analysis levels gate the JSON path only, so combining `-a`/`--graphs` with
 `--emit neo4j` is an error:
 
-Every node id is `can://<app>/…`, so `can://<app>` is a prefix of every node the application
+Every node id is `can://<namespace>/<app>/…`, so `can://<namespace>/<app>` is a prefix of every node the application
 emits — the `typescript` and `javascript` namespaces are two segments *inside* it, not two
 top-level namespaces a consumer has to enumerate. That single prefix is what the destructive
 statements scope on, and `:Application` is keyed on the id rather than on `--app-name`.
@@ -350,8 +352,8 @@ statements scope on, and `:Application` is keyed on the id rather than on `--app
 
   `--eager` purges this application's code nodes but not its `:Artifact`/`:ConfigKey` nodes, which
   are shared with the sibling analyzers. An `--eager` full run (no `--target-files`) reconciles them
-  instead, so a deleted or renamed file, a removed dependency, or re-keying under
-  `--workspace-root` leaves nothing stale. TypeScript-owned artifact edges (`HAS_ARTIFACT`,
+  instead, so deleted or renamed files and removed dependencies within the selected scope
+  leave nothing stale. Legacy roots and other namespaces remain outside this scope. TypeScript-owned artifact edges (`HAS_ARTIFACT`,
   `DECLARES_DEPENDENCY`/`LOCKS` to `pkg:npm/…`, `TS_PROVIDES`, `TS_USES_CONFIG`,
   `TS_READS_CONFIG_UNRESOLVED`, `TS_UNRESOLVED_IMPORT`) are rebuilt. An `:Artifact` or `:ConfigKey`
   the run no longer emits loses its `:TSCanNode` label. An artifact is then deleted only if no other
@@ -405,7 +407,7 @@ Apache 2.0 — see [LICENSE](./LICENSE).
 
 ## Polyglot applications: all languages, or none
 
-A `--emit neo4j` push is **destructive**. It sweeps everything under `can://<app>/` that this
+A `--emit neo4j` push is **destructive**. It sweeps everything under `can://<namespace>/<app>/` that this
 analyzer marked, then rewrites what it found. Since the id grammar puts the application outermost,
 every analyzer over the same `<app>` shares that prefix — so a push reclaims stale rows belonging to
 *this* analyzer and, in the shared namespaces, sweeps rows a sibling wrote.

@@ -18,7 +18,7 @@ import { Logger } from "../src/utils";
 const FIXTURES = path.resolve(import.meta.dir, "fixtures");
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "cants-reconcile-"));
 const log = new Logger(0);
-const APP = "can://app";
+const APP = "can://app/app";
 const ART = `${APP}/artifact/`;
 const containerSuite = process.env.RUN_CONTAINER_TESTS ? describe : describe.skip;
 
@@ -35,7 +35,7 @@ async function rows(input: string, over: Partial<AnalysisOptions> = {}): Promise
     input, output: null, emit: "json", appName: "app", neo4jUri: null, neo4jUser: "neo4j",
     neo4jPassword: "", neo4jDatabase: null, analysisLevel: 2, graphs: [], graphFieldDepth: 3, jobs: 1,
     targetFiles: null, skipTests: true, eager: true, noBuild: true, phantoms: true, verbosity: 0,
-    cacheDir: fs.mkdtempSync(path.join(TMP, "cache-")), workspaceRoot: null, ...over,
+    cacheDir: fs.mkdtempSync(path.join(TMP, "cache-")), namespace: undefined, ...over,
   } as AnalysisOptions;
   return project((await analyze(opts)).application);
 }
@@ -80,15 +80,15 @@ containerSuite("neo4j bolt artifact reconciliation", () => {
     num("MATCH (n) WHERE (n:Artifact OR n:ConfigKey) AND n.id STARTS WITH $p AND NOT n.id STARTS WITH $r RETURN count(n)",
       { p: ART, r: ART + rooted });
 
-  test("toggling --workspace-root leaves no old-keyed artifact, config key or edge", async () => {
+  test("an identical re-push keeps artifact keys and edges stable", async () => {
     const { repo: root, input } = repo();
     await boltWriter(await rows(input), cfg, log, true, true);
     expect(await num("MATCH (a:Artifact {id: $id}) RETURN count(a)", { id: ART + "package.json" })).toBe(1);
 
-    const rooted = await rows(input, { workspaceRoot: root });
+    const rooted = await rows(input);
     await boltWriter(rooted, cfg, log, true, true);
 
-    expect(await stale("services/app/")).toBe(0);
+    expect(await stale("")).toBe(0);
     const arts = rooted.nodes.filter((n) => n.labels[0] === "Artifact").length;
     expect(await num("MATCH (:TSApplication)-[r:HAS_ARTIFACT]->() RETURN count(r)")).toBe(arts);
     expect(await num("MATCH ()-[r:DECLARES_DEPENDENCY]->(:Package {id: 'pkg:npm/react'}) RETURN count(r)")).toBe(1);
@@ -100,7 +100,7 @@ containerSuite("neo4j bolt artifact reconciliation", () => {
   test("a targeted or non-eager push reconciles no artifacts", async () => {
     const { repo: root, input } = repo();
     await boltWriter(await rows(input), cfg, log, true, true);
-    const rooted = await rows(input, { workspaceRoot: root });
+    const rooted = await rows(input, { namespace: "other" });
     await boltWriter(rooted, cfg, log, false, true);
     await boltWriter(rooted, cfg, log, true, false);
     expect(await num("MATCH (a:Artifact {id: $id}) RETURN count(a)", { id: ART + "package.json" })).toBe(1);
@@ -142,7 +142,7 @@ containerSuite("neo4j bolt artifact reconciliation", () => {
     // a config key, plus an artifact TypeScript never emits.
     await run(
       "MATCH (a:Artifact {id: $pp}) SET a:PyCanNode " +
-        "MERGE (app:PyApplication {id: 'can://app'}) MERGE (app)-[:HAS_ARTIFACT]->(a) " +
+        "MERGE (app:PyApplication {id: 'can://app/app'}) MERGE (app)-[:HAS_ARTIFACT]->(a) " +
         "MERGE (p:Package {id: 'pkg:pypi/flask'}) MERGE (a)-[:DECLARES_DEPENDENCY {_k: 'runtime'}]->(p) " +
         "MERGE (k:ConfigKey:PyCanNode {id: $pp + '@key/tool.name'}) MERGE (a)-[:DEFINES_CONFIG]->(k) " +
         "MERGE (o:Artifact:PyCanNode {id: $py}) MERGE (app)-[:HAS_ARTIFACT]->(o)",
@@ -175,21 +175,21 @@ containerSuite("neo4j bolt artifact reconciliation", () => {
     const a = repo();
     const b = repo();
     await boltWriter(await rows(b.input, { appName: "apps" }), cfg, log, true, true);
-    const before = await num("MATCH (n) WHERE (n:Artifact OR n:ConfigKey) AND n.id STARTS WITH 'can://apps/' RETURN count(n)");
+    const before = await num("MATCH (n) WHERE (n:Artifact OR n:ConfigKey) AND n.id STARTS WITH 'can://apps/apps/' RETURN count(n)");
     expect(before).toBeGreaterThan(0);
     for (const f of fs.readdirSync(a.input)) if (f !== "src") fs.rmSync(path.join(a.input, f), { recursive: true });
     await boltWriter(await rows(a.input), cfg, log, true, true);
-    expect(await num("MATCH (n:TSCanNode) WHERE (n:Artifact OR n:ConfigKey) AND n.id STARTS WITH 'can://apps/' RETURN count(n)")).toBe(before);
+    expect(await num("MATCH (n:TSCanNode) WHERE (n:Artifact OR n:ConfigKey) AND n.id STARTS WITH 'can://apps/apps/' RETURN count(n)")).toBe(before);
   }, 180_000);
 
-  test("pre-re-key artifacts are released; a sibling's are left alone", async () => {
+  test("legacy artifacts and sibling claims are outside the selected scope", async () => {
     await run(
       "MERGE (a:Artifact {id: 'can://artifact/app/old.json'}) MERGE (k:ConfigKey {id: 'can://artifact/app/old.json@key/x'}) " +
         "MERGE (a)-[:DEFINES_CONFIG]->(k) MERGE (j:Artifact:JCanNode {id: 'can://artifact/app/pom.xml'})",
     );
     const { input } = repo();
     await boltWriter(await rows(input), cfg, log, true, true);
-    expect(await num("MATCH (n) WHERE n.id STARTS WITH 'can://artifact/app/old.json' RETURN count(n)")).toBe(0);
+    expect(await num("MATCH (n) WHERE n.id STARTS WITH 'can://artifact/app/old.json' RETURN count(n)")).toBe(2);
     expect(await num("MATCH (n:JCanNode {id: 'can://artifact/app/pom.xml'}) RETURN count(n)")).toBe(1);
   }, 180_000);
 
@@ -198,7 +198,7 @@ containerSuite("neo4j bolt artifact reconciliation", () => {
     const full = await rows(input);
     await boltWriter(full, cfg, log, true, true);
     // A sibling's claim on the shared package.json: the old purge DETACH-deleted it on every eager run.
-    await run("MATCH (a:Artifact {id: $id}) MERGE (p:PyApplication {id: 'can://app'}) MERGE (p)-[:HAS_ARTIFACT]->(a) " +
+    await run("MATCH (a:Artifact {id: $id}) MERGE (p:PyApplication {id: 'can://app/app'}) MERGE (p)-[:HAS_ARTIFACT]->(a) " +
       "MERGE (k:Package {id: 'pkg:pypi/flask'}) MERGE (a)-[:DECLARES_DEPENDENCY {_k: 'runtime'}]->(k)", { id: ART + "package.json" });
     const shape = "MATCH (a) WHERE a:Artifact OR a:ConfigKey OPTIONAL MATCH (a)-[r]-() " +
       "RETURN count(DISTINCT a) * 1000000 + count(DISTINCT r)";
@@ -211,7 +211,7 @@ containerSuite("neo4j bolt artifact reconciliation", () => {
 
   test("a pre-1.5.1 unmarked artifact a sibling still inventories survives", async () => {
     await run("MERGE (a:Artifact {id: 'can://artifact/app/requirements.txt'}) " +
-      "MERGE (p:PyApplication {id: 'can://app'}) MERGE (p)-[:HAS_ARTIFACT]->(a)");
+      "MERGE (p:PyApplication {id: 'can://app/app'}) MERGE (p)-[:HAS_ARTIFACT]->(a)");
     const { input } = repo();
     await boltWriter(await rows(input), cfg, log, true, true);
     expect(await num("MATCH (:PyApplication)-[:HAS_ARTIFACT]->(a:Artifact {id: 'can://artifact/app/requirements.txt'}) " +

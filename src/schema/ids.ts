@@ -25,25 +25,30 @@ export function languageOf(fileKey: string): string {
   return JS_EXTS.test(fileKey) ? "javascript" : LANGUAGE;
 }
 
-/**
- * `can://<app>` — the application root, and the prefix EVERY id below it shares.
- *
- * The application is the outermost segment and the language sits inside it, so the analyzer's two
- * namespaces (`typescript`, `javascript`) are two children of one application rather than two
- * top-level namespaces that a consumer has to enumerate. The old anchor had to pick a language for
- * a mixed repository and picked the analyzer's own; there is nothing left to pick.
- * See docs/design/specs/js-language-namespace.md.
- */
-export function applicationIdOf(appName: string): string {
-  return `${SCHEME}${appName}`;
+/** Validate and encode one raw namespace or application name without normalizing it. */
+export function identitySegment(value: string): string {
+  if (!value.trim() || value === "." || value === ".." || /[/\\\x00-\x1F\x7F-\x9F]/u.test(value)) throw new Error("Invalid application identity segment");
+  // encodeURIComponent rejects unpaired surrogates; escape its additional punctuation too.
+  return encodeURIComponent(value).replace(/[!'()*]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+export function applicationIdOf(appName: string, namespace?: string): string {
+  return `${SCHEME}${identitySegment(namespace ?? appName)}/${identitySegment(appName)}`;
+}
+
+/** Recover only an artifact suffix; ownership is restamped from validated raw names. */
+export function artifactReferenceOf(appName: string, reference: string, namespace?: string): string {
+  if (!reference.startsWith(SCHEME)) return artifactIdOf(appName, reference, namespace);
+  const match = /^can:\/\/[^/]+\/[^/]+\/artifact\/(.+)$/.exec(reference);
+  if (!match) throw new Error("Unsupported artifact identity reference");
+  return artifactIdOf(appName, match[1]!, namespace);
 }
 
 /**
- * `can://<app>/<lang>/<fileKey>`. Takes the app NAME, not the app id: a module's namespace is its
+ * `can://<namespace>/<app>/<lang>/<fileKey>`. Takes the app NAME, not the app id: a module's namespace is its
  * own, not the application's.
  */
-export function moduleIdOf(appName: string, fileKey: string): string {
-  return `${applicationIdOf(appName)}/${languageOf(fileKey)}/${fileKey}`;
+export function moduleIdOf(appName: string, fileKey: string, namespace?: string): string {
+  return `${applicationIdOf(appName, namespace)}/${languageOf(fileKey)}/${fileKey}`;
 }
 
 /** The module/signature prefix: the file key without its TS/JS extension. */
@@ -61,14 +66,14 @@ export function idFromSig(moduleId: string, modulePrefix: string, sig: string): 
  * Repository-artifact ids. Leading "./" and "/" are dropped as SEPARATORS only — dotfiles
  * (`.env`, `.github/...`) keep their leading dot (python's rule).
  */
-export function artifactIdOf(appName: string, relPath: string): string {
+export function artifactIdOf(appName: string, relPath: string, namespace?: string): string {
   let rel = relPath.replace(/\\/g, "/");
   while (rel.startsWith("./")) rel = rel.slice(2);
   rel = rel.replace(/^\/+/, "");
   // Language-NEUTRAL pseudo-segment (python PR #160): `artifact` sits where a language would, so
   // sibling analyzers over the same repo emit the SAME id for the same file — `<app>` agreement is
   // the precondition, and it always was.
-  return `${applicationIdOf(appName)}/artifact/${rel}`;
+  return `${applicationIdOf(appName, namespace)}/artifact/${rel}`;
 }
 
 /** Config-key id: the owning artifact's id, `@key/`, then the dotted path. */

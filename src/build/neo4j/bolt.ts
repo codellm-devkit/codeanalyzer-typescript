@@ -86,21 +86,20 @@ export const PURGE_PROVIDES =
 /**
  * Release this analyzer's claim on artifacts/config keys the run no longer emits. An artifact is
  * deleted once no HAS_ARTIFACT is left (every analyzer inventories with one, marked or not); a
- * config key once no other analyzer's `*CanNode` claims it. Pre-1.5.1 artifacts carry no marker,
- * so under the legacy prefix an unmarked node counts as ours.
+ * config key once no other analyzer's `*CanNode` claims it. Only the selected scope is touched.
  */
 export const RELEASE_VANISHED_ARTIFACTS =
   "UNWIND $pres AS pre " +
   "MATCH (n) WHERE (n:Artifact OR n:ConfigKey) AND n.id STARTS WITH pre AND NOT n.id IN $keep " +
-  `AND (n:${TS_MARKER} OR (pre = $legacy AND none(l IN labels(n) WHERE l ENDS WITH 'CanNode'))) ` +
+  `AND n:${TS_MARKER} ` +
   `CALL { WITH n REMOVE n:${TS_MARKER} ` +
   "WITH n WHERE (n:Artifact AND NOT ()-[:HAS_ARTIFACT]->(n)) " +
   "OR (n:ConfigKey AND none(l IN labels(n) WHERE l ENDS WITH 'CanNode')) " +
   "DETACH DELETE n } IN TRANSACTIONS OF 1000 ROWS RETURN count(*) AS released";
 
-/** `can://<app>/artifact/`, and `can://artifact/<app>/` for pre-1.5.1 pushes; both `/`-terminated. */
-export function artifactPrefixes(prefix: string): [string, string] {
-  return [`${prefix}artifact/`, `can://artifact/${prefix.slice("can://".length)}`];
+/** Artifact prefix within the selected namespace/application only. */
+export function artifactPrefixes(prefix: string): string[] {
+  return [`${prefix}artifact/`];
 }
 
 const isArtifactLabel = (label: string): boolean => label === "Artifact" || label === "ConfigKey";
@@ -133,11 +132,6 @@ export async function boltWriter(
   const session = () => driver.session(sessionOpts);
 
   try {
-    // 1. schema (DDL runs in its own autocommit transactions).
-    await withSession(session, async (s) => {
-      for (const stmt of [...CONSTRAINTS, ...INDEXES]) await s.run(stmt);
-    });
-
     // Partition nodes by owning module; shared nodes have no _module.
     const byModule = new Map<string, NodeRow[]>();
     const shared: NodeRow[] = [];
@@ -164,12 +158,25 @@ export async function boltWriter(
     if (appId !== null) {
       await withSession(session, async (s) => {
         const res = await s.run(
-          "MATCH (a:Application {id: $appId}) RETURN a.schema_version AS v LIMIT 1",
+          "MATCH (a:Application {id: $appId}) RETURN a.schema_version AS v, a.identity_version AS identity_version, a.application_name AS application_name, a.identity_namespace AS identity_namespace LIMIT 1",
           { appId },
         );
-        dbSchemaVersion = res.records[0]?.get("v") ?? null;
+        const existing = res.records[0];
+        if (existing) {
+          const marker = existing.get("identity_version");
+          const incoming = rows.nodes.find(n => n.labels.includes("Application"))!.props;
+          if (!(neo4j.isInt(marker) && marker.toNumber() === 2) || existing.get("application_name") !== incoming.application_name || existing.get("identity_namespace") !== incoming.identity_namespace) {
+            throw new Error("Incompatible graph application identity; regenerate from source in a compatible scope");
+          }
+        }
+        dbSchemaVersion = existing?.get("v") ?? null;
       });
     }
+    // 1. schema (DDL runs in its own autocommit transactions).
+    await withSession(session, async (s) => {
+      for (const stmt of [...CONSTRAINTS, ...INDEXES]) await s.run(stmt);
+    });
+
     // Version mismatch no longer deletes anything: a schema change forces a full re-UPSERT, and
     // MERGE overwrites in place. Removing nodes is `--eager`'s job alone (#116).
     const forceAll = shouldForceFullUpsert(dbSchemaVersion, SCHEMA_VERSION);
@@ -194,7 +201,7 @@ export async function boltWriter(
     if (reconcile) {
       const pres = artifactPrefixes(prefix);
       const keep = rows.nodes.filter((n) => isArtifactLabel(n.labels[0]!)).map((n) => n.value);
-      const params = { pres, legacy: pres[1], keep, appId, prefix };
+      const params = { pres, keep, appId, prefix };
       let released = 0;
       await withSession(session, async (s) => {
         await s.run(PURGE_ARTIFACT_EDGES, params);

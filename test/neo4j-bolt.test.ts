@@ -235,7 +235,7 @@ containerSuite("neo4j bolt writer", () => {
     "a second application in the same language, with colliding module paths, survives every purge (#140)",
     async () => {
       // Same fixture, two application names — every file key collides. `saX` is chosen so that
-      // `can://sa` is a string prefix of `can://saX`: the boundary case the trailing `/` handles.
+      // `can://sa/sa` is a string prefix of `can://saX/saX`: the boundary case the trailing `/` handles.
       const a = project((await analyze(optsFor({ appName: "sa" }))).application);
       const b = project((await analyze(optsFor({ appName: "saX" }))).application);
       const under = (app: string) => num("MATCH (n:TSCanNode) WHERE n.id STARTS WITH $p RETURN count(n)", { p: `can://${app}/` });

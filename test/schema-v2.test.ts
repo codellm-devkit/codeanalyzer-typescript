@@ -90,6 +90,7 @@ describe("schema v2 — L1 envelope", () => {
     expect(v2.language).toBe("typescript");
     expect(v2.max_level).toBe(1);
     expect(Object.keys(root).sort()).toEqual([
+      "application_name",
       "artifacts",
       "call_graph",
       "config_reads",
@@ -97,6 +98,8 @@ describe("schema v2 — L1 envelope", () => {
       "dependencies",
       "entrypoint_report", // #72 unit 1: level-free coverage report
       "id",
+      "identity_namespace",
+      "identity_version",
       "kind",
       "name",
       "param_in",
@@ -104,23 +107,17 @@ describe("schema v2 — L1 envelope", () => {
       "symbol_table",
       "unresolved_imports",
     ]);
-    expect(root.id).toBe("can://sample-app");
+    expect(root.id).toBe("can://sample-app/sample-app");
     expect(root.name).toBe("sample-app");
     expect(root.kind).toBe("application");
   });
 
-  test("application name and id share the normalized app-name fallback", async () => {
-    for (const [appName, expected] of [["  logical-name  ", "logical-name"], ["   ", "app"]]) {
-      const named = await run({ appName });
-      const namedRoot = named.application.application;
-      const applicationRow = project(named.application).nodes.find((node) => node.labels.includes("TSApplication"));
-
-      expect(namedRoot.name).toBe(expected);
-      expect(namedRoot.id).toBe(`can://${expected}`);
-      expect(applicationRow?.keyProp).toBe("id");
-      expect(applicationRow?.value).toBe(`can://${expected}`);
-      expect(applicationRow?.props.name).toBe(expected);
-    }
+  test("raw application names are encoded without trimming", async () => {
+    const named = (await run({appName: "  logical-name  "})).application;
+    expect(named.application.name).toBe("  logical-name  ");
+    expect(named.application.id).toBe("can://%20%20logical-name%20%20/%20%20logical-name%20%20");
+    expect(project(named).nodes[0]!.props.identity_version).toBe(2);
+    await expect(run({appName: "   "})).rejects.toThrow();
   });
 
   test("edge lists are empty at L1 (populated at L2/L4)", () => {
@@ -151,8 +148,8 @@ describe("schema v2 — L1 identity", () => {
     // The grammar gate: application OUTERMOST, language second. Anchored on the app so an id in
     // the sibling `javascript` namespace would still pass the prefix but be caught by the shape.
     for (const id of ids) {
-      expect(id.startsWith("can://sample-app/")).toBe(true);
-      expect(id).toMatch(/^can:\/\/sample-app\/(typescript|javascript)\/.+/);
+      expect(id.startsWith("can://sample-app/sample-app/")).toBe(true);
+      expect(id).toMatch(/^can:\/\/sample-app\/sample-app\/(typescript|javascript)\/.+/);
       expect(id.startsWith("can://typescript/")).toBe(false);
       expect(id.startsWith("can://javascript/")).toBe(false);
     }
@@ -160,7 +157,7 @@ describe("schema v2 — L1 identity", () => {
 
   test("module ids derive from the file key", () => {
     for (const [key, m] of Object.entries(st) as [string, TSModule][]) {
-      expect(m.id).toBe(`can://sample-app/typescript/${key}`);
+      expect(m.id).toBe(`can://sample-app/sample-app/typescript/${key}`);
       expect(m.kind).toBe("module");
     }
   });

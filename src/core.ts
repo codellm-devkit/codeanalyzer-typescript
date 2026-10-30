@@ -1,3 +1,4 @@
+import { applicationIdOf } from "./schema/ids";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { buildProgramGraphs, startExtraction } from "./dataflow";
@@ -51,22 +52,9 @@ function assertInputDir(input: string): void {
   if (!stat.isDirectory()) throw new InputError(`input path is not a directory: ${input}`);
 }
 
-/**
- * Published keys are relativized against the workspace root, so --input must be that root or inside
- * it — otherwise a key would need `..`, which the schema forbids (relative, never absolute or `..`).
- * Checked before any work, like the input itself.
- */
-function assertInsideWorkspace(input: string, workspaceRoot: string | null | undefined): void {
-  if (!workspaceRoot) return;
-  const rel = path.relative(path.resolve(workspaceRoot), path.resolve(input));
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
-    throw new InputError(`--input ${input} is not inside --workspace-root ${workspaceRoot}`);
-  }
-}
-
 export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   assertInputDir(opts.input);
-  assertInsideWorkspace(opts.input, opts.workspaceRoot);
+  const identity = applicationIdOf(opts.appName ?? path.basename(path.resolve(opts.input)), opts.namespace);
   const log = new Logger(opts.verbosity);
   log.info(`analyzing ${opts.input} (level ${opts.analysisLevel})`);
   resetCheckerFailures();
@@ -80,7 +68,7 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
 
   for (const note of mat.notes) log.debug(note);
 
-  const cached = opts.eager ? null : loadCache(cacheDir);
+  const cached = opts.eager ? null : loadCache(cacheDir, identity);
   const { project, symbol_table, programs } = buildSymbolTable(opts, mat, cached?.symbol_table ?? null, log);
   collectGarbage(); // the symbol-table build leaves the heap mostly garbage
   memlog("symbol_table");
@@ -173,7 +161,7 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
 
   // Cache the id-free base (ids/body/heritage are per-run layers stamped by finalizeAnalysis;
   // the cached tree must stay --app-name-free).
-  saveCache(cacheDir, { symbol_table });
+  saveCache(cacheDir, { symbol_table, identity_version: 2, application_id: identity });
   memlog("save_cache");
   // Never let "some edges are missing" look like "there were no edges": a node the checker could
   // not resolve is skipped (see schema/checker.ts), and the count is said out loud.
