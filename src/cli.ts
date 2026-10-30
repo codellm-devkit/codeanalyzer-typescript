@@ -146,7 +146,7 @@ export function parseArgs(argv: string[]): AnalysisOptions {
     input: o.input ? path.resolve(String(o.input)) : "",
     output: o.output ? path.resolve(String(o.output)) : null,
     emit,
-    appName: o.appName ? String(o.appName) : null,
+    appName: o.appName === undefined ? null : String(o.appName),
     namespace: o.namespace === undefined ? undefined : String(o.namespace),
     neo4jUri: o.neo4jUri ? String(o.neo4jUri) : null,
     neo4jUser: String(o.neo4jUser),

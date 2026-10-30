@@ -70,3 +70,33 @@ test('application metadata is required even for the default namespace', async ()
  delete (wire.application as any).identity_namespace;
  expect(()=>project(wire)).toThrow();
 });
+
+for (const namespaceArgs of [[], ['--namespace', 'team']]) {
+ test(`CLI rejects explicit empty application name ${namespaceArgs.join(' ')}`, () => {
+  const input = fs.mkdtempSync(path.join(os.tmpdir(), 'cants-empty-name-'));
+  const output = path.join(input, 'out');
+  try {
+   const result = Bun.spawnSync(['bun', 'run', path.join(import.meta.dir, '../src/index.ts'),
+    '--input', input, '--output', output, '--no-build', '--app-name', '', ...namespaceArgs],
+    { stdout: 'pipe', stderr: 'pipe' });
+   expect(result.exitCode).not.toBe(0);
+   expect(result.stderr.toString()).toContain('Invalid application identity segment');
+   expect(fs.existsSync(path.join(output, 'analysis.json'))).toBe(false);
+  } finally { fs.rmSync(input, {recursive:true,force:true}); }
+ });
+ test(`CLI omitted application name uses input basename ${namespaceArgs.join(' ')}`, () => {
+  const input = fs.mkdtempSync(path.join(os.tmpdir(), 'cants-default-name-'));
+  const output = path.join(input, 'out');
+  try {
+   const result = Bun.spawnSync(['bun', 'run', path.join(import.meta.dir, '../src/index.ts'),
+    '--input', input, '--output', output, '--no-build', ...namespaceArgs],
+    { stdout: 'pipe', stderr: 'pipe' });
+   expect(result.exitCode).toBe(0);
+   const wire = JSON.parse(fs.readFileSync(path.join(output,'analysis.json'),'utf8'));
+   const name = path.basename(input);
+   expect(wire.application.application_name).toBe(name);
+   expect(wire.application.identity_namespace).toBe(namespaceArgs.length ? 'team' : name);
+   expect(wire.application.id).toBe(applicationIdOf(name, namespaceArgs.length ? 'team' : undefined));
+  } finally { fs.rmSync(input, {recursive:true,force:true}); }
+ });
+}
