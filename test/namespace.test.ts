@@ -100,3 +100,33 @@ for (const namespaceArgs of [[], ['--namespace', 'team']]) {
   } finally { fs.rmSync(input, {recursive:true,force:true}); }
  });
 }
+
+test('Neo4j projection retains relative JS and TS module keys under an encoded owner', async () => {
+ const input = fs.mkdtempSync(path.join(os.tmpdir(), 'cants-graph-module-keys-'));
+ try {
+  fs.mkdirSync(path.join(input, 'nested'));
+  fs.writeFileSync(path.join(input, 'server.js'), 'function serve() { return 1; }\nserve();\n');
+  fs.writeFileSync(path.join(input, 'nested/client.ts'), 'export function client() { return 2; }\n');
+  const result = await analyze({...options, input, appName:'a%b', namespace:'team space', cacheDir:path.join(input, '.cache')});
+  const rows = project(result.application);
+  const modules = rows.nodes.filter(node => node.labels.includes('TSModule'));
+  expect(modules.map(node => node.props.name).sort()).toEqual(['nested/client.ts', 'server.js']);
+  expect(modules.map(node => node.module).sort()).toEqual(['nested/client.ts', 'server.js']);
+  expect(modules.map(node => node.props.id).sort()).toEqual([
+   'can://team%20space/a%25b/javascript/server.js',
+   'can://team%20space/a%25b/typescript/nested/client.ts',
+  ]);
+ } finally { fs.rmSync(input, {recursive:true,force:true}); }
+});
+
+test('projected classes stay in their module during incremental reconciliation', async () => {
+ const input = fs.mkdtempSync(path.join(os.tmpdir(), 'cants-graph-class-owner-'));
+ try {
+  fs.writeFileSync(path.join(input, 'server.js'), 'class Server { constructor() {} ping() { return 1; } }\n');
+  const result = await analyze({...options, input, appName:'svc', namespace:'team', cacheDir:path.join(input, '.cache')});
+  const rows = project(result.application);
+  const declaration = rows.nodes.find(node => node.value === 'can://team/svc/javascript/server.js/Server');
+  expect(declaration?.labels).toContain('TSClass');
+  expect(declaration?.module).toBe('server.js');
+ } finally { fs.rmSync(input, {recursive:true,force:true}); }
+});

@@ -73,8 +73,7 @@ export function project(app: TSAnalysis, _appName?: string, builder?: RowBuilder
     entrypoint_report_json: reportJson(root.entrypoint_report),
   }));
 
-  for (const mod of Object.values(root.symbol_table)) {
-    const fileKey = moduleKeyOf(mod);
+  for (const [fileKey, mod] of Object.entries(root.symbol_table)) {
     const modRef = b.node([CAN, "TSModule"], "id", mod.id, moduleProps(mod, fileKey));
     b.edge("TS_HAS_MODULE", appRef, modRef);
     projectScope(b, mod, modRef, fileKey, mod.source ?? "");
@@ -398,7 +397,7 @@ function typeProps(t: TSType, fileKey: string, source: string): Props {
     is_entrypoint: t.kind === "class" ? (t.is_entrypoint ?? false) : null,
     entrypoint_frameworks: t.kind === "class" ? frameworksOf(t.entrypoints) : null,
     is_exported: t.is_exported, is_ambient: t.is_ambient,
-    code: spanCode(source, t.span), ...span(t),
+    code: spanCode(source, t.span), ...span(t), _module: fileKey,
   });
 }
 
@@ -440,13 +439,6 @@ const edges = (x: unknown): Edge[] => (Array.isArray(x) ? (x as Edge[]) : []);
 
 /** A cross-edge endpoint is already the graph node's can:// id — pass it through unchanged. */
 const idOf = (endpoint: string): string => endpoint;
-
-function moduleKeyOf(mod: TSModule): string {
-  // id = can://<app>/<lang>/<fileKey>; the fileKey is everything past the app and language
-  // segments. Positional, so it survived the segment reorder unchanged.
-  const m = /^can:\/\/[^/]+\/[^/]+\/(.+)$/.exec(mod.id);
-  return m ? (m[1] as string) : mod.id;
-}
 
 function span(n: { span?: { start: [number, number]; end: [number, number]; bytes?: [number, number] } }): Record<string, number | undefined> {
   if (!n.span) return {};
