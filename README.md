@@ -153,7 +153,8 @@ Options:
                                  Neo4j schema.json contract) (default: "json")
   --app-name <name>              logical application name for the graph
                                  :Application anchor (default: input dir name)
-  --namespace <name>             application identity namespace (default: app name)
+  --namespace <name>             application identity namespace (default:
+                                 application name)
   --neo4j-uri <uri>              push the graph to a live Neo4j over Bolt
                                  (incremental); omit to write graph.cypher (env:
                                  NEO4J_URI)
