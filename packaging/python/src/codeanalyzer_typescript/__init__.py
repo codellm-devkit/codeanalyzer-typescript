@@ -18,7 +18,7 @@ import sys
 from importlib import resources
 from pathlib import Path
 
-__version__ = "0.1.0"
+__version__ = "1.7.0"
 
 __all__ = ["bin_path", "schema_path", "__version__"]
 
