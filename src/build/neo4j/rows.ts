@@ -61,9 +61,8 @@ export const CAN_SCHEME = "can://";
 export const TS_MARKER = "TSCanNode";
 export const JS_MARKER = "JSCanNode";
 
-// Positional, never first-segment: the app is segment 1 and may legitimately be NAMED
-// "typescript" or "javascript". The language is segment 2.
-const JS_NAMESPACE = /^can:\/\/[^/]+\/javascript\//;
+// Positional: namespace and application precede the language; either may name a language.
+const JS_NAMESPACE = /^can:\/\/[^/]+\/[^/]+\/javascript\//;
 
 /** The marker labels for a `can://` id — empty for a node keyed on its own natural identity. */
 export function markersFor(id: string): string[] {
@@ -81,13 +80,13 @@ export function descendantPrefix(canId: string): string {
 }
 
 /**
- * The scope of every destructive statement: `can://<app>/`, one prefix spanning both language
+ * The scope of every destructive statement: `can://<namespace>/<app>/`, one prefix spanning both language
  * namespaces. Refuses anything that is not a bare application id — `STARTS WITH ''` would match
  * every node in the database, and a deeper id would silently narrow the scope to a subtree.
  */
 export function applicationPrefix(appId: string | null | undefined): string {
   const name = appId?.startsWith(CAN_SCHEME) ? appId.slice(CAN_SCHEME.length) : "";
-  if (!name || name.includes("/")) {
+  if (!name || !/^[^/]+\/[^/]+$/.test(name)) {
     throw new Error("neo4j: refusing a destructive statement without an application id");
   }
   return descendantPrefix(appId as string);
@@ -141,7 +140,7 @@ export class RowBuilder {
   node(labels: string[], keyProp: string, value: string, props: Props): NodeRef {
     const id = `${labels[0]}\0${value}`;
     // `_module` is lifted off the graph (#140): it groups rows for the incremental diff and is
-    // never emitted. The marker labels ride every `can://<app>/` id, as index anchors.
+    // never emitted. The marker labels ride every `can://<namespace>/<app>/` id, as index anchors.
     const { _module, ...rest } = props as Props & { _module?: unknown };
     const module = typeof _module === "string" ? _module : undefined;
     const markers = keyProp === "id" ? markersFor(value) : [];

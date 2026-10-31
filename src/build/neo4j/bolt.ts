@@ -10,6 +10,8 @@
  *  4. upsert edges owned by changed modules (+ the shared edges).
  *  5. on a FULL run only, prune modules whose source file vanished.
  *
+ * A full `--eager` run also reconciles the app's artifacts (RELEASE_VANISHED_ARTIFACTS).
+ *
  * Nodes are MERGE-upserted, never blindly deleted, so a declaration another (unchanged) module
  * still references survives and its incoming edges stay valid. `:TSExternal` nodes are shared (no
  * `_module`) and are MERGE-only.
@@ -58,7 +60,49 @@ export function shouldForceFullUpsert(dbVersion: string | null, producerVersion:
  * `applicationPrefix`, never a bare app id — a bare id also matches `can://appXtra/...`.
  */
 export const EAGER_PURGE =
-  `MATCH (n:${TS_MARKER}) WHERE n.id STARTS WITH $prefix CALL { WITH n DETACH DELETE n } IN TRANSACTIONS OF 5000 ROWS`;
+  `MATCH (n:${TS_MARKER}) WHERE n.id STARTS WITH $prefix AND NOT (n:Artifact OR n:ConfigKey) ` +
+  `CALL { WITH n DETACH DELETE n } IN TRANSACTIONS OF 5000 ROWS`;
+
+/**
+ * Artifact reconciliation (`--eager` full runs). Artifacts and config keys are shared with the
+ * sibling analyzers, so EAGER_PURGE skips them and only TS-owned edges are dropped and rebuilt:
+ * HAS_ARTIFACT from a :TSApplication, DECLARES_DEPENDENCY/LOCKS to `pkg:npm/`, and incoming TS_
+ * edges. Not sha-diffed: siblings overwrite the shared `sha256`.
+ */
+export const PURGE_ARTIFACT_EDGES =
+  "UNWIND $pres AS pre " +
+  "MATCH (t) WHERE (t:Artifact OR t:ConfigKey) AND t.id STARTS WITH pre " +
+  "CALL { WITH t " +
+  "WITH [(t)<-[r]-(s) WHERE (type(r) = 'HAS_ARTIFACT' AND s:TSApplication) OR type(r) STARTS WITH 'TS_' | r] " +
+  "+ [(t)-[d:DECLARES_DEPENDENCY|LOCKS]->(p:Package) WHERE p.id STARTS WITH 'pkg:npm/' | d] AS rs " +
+  "FOREACH (r IN rs | DELETE r) } IN TRANSACTIONS OF 1000 ROWS";
+/** The app root's unresolved-read/import edges, and dependency → import edges into its ghosts. */
+export const PURGE_APP_IMPORT_EDGES =
+  "MATCH (:TSApplication {id: $appId})-[r:TS_UNRESOLVED_IMPORT|TS_READS_CONFIG_UNRESOLVED]->() " +
+  "CALL { WITH r DELETE r } IN TRANSACTIONS OF 1000 ROWS";
+export const PURGE_PROVIDES =
+  "MATCH (:Package)-[r:TS_PROVIDES]->(g:TSExternal) WHERE g.id STARTS WITH $prefix " +
+  "CALL { WITH r DELETE r } IN TRANSACTIONS OF 1000 ROWS";
+/**
+ * Release this analyzer's claim on artifacts/config keys the run no longer emits. An artifact is
+ * deleted once no HAS_ARTIFACT is left (every analyzer inventories with one, marked or not); a
+ * config key once no other analyzer's `*CanNode` claims it. Only the selected scope is touched.
+ */
+export const RELEASE_VANISHED_ARTIFACTS =
+  "UNWIND $pres AS pre " +
+  "MATCH (n) WHERE (n:Artifact OR n:ConfigKey) AND n.id STARTS WITH pre AND NOT n.id IN $keep " +
+  `AND n:${TS_MARKER} ` +
+  `CALL { WITH n REMOVE n:${TS_MARKER} ` +
+  "WITH n WHERE (n:Artifact AND NOT ()-[:HAS_ARTIFACT]->(n)) " +
+  "OR (n:ConfigKey AND none(l IN labels(n) WHERE l ENDS WITH 'CanNode')) " +
+  "DETACH DELETE n } IN TRANSACTIONS OF 1000 ROWS RETURN count(*) AS released";
+
+/** Artifact prefix within the selected namespace/application only. */
+export function artifactPrefixes(prefix: string): string[] {
+  return [`${prefix}artifact/`];
+}
+
+const isArtifactLabel = (label: string): boolean => label === "Artifact" || label === "ConfigKey";
 /** The per-module purge (#140): the module by equality, its subtree by `/`-prefix; `$keys` survive. */
 const PURGE_MODULE_EDGES =
   `MATCH (x:${TS_MARKER}) WHERE x.id = $mid OR x.id STARTS WITH $pre MATCH (x)-[r]->() DELETE r`;
@@ -88,11 +132,6 @@ export async function boltWriter(
   const session = () => driver.session(sessionOpts);
 
   try {
-    // 1. schema (DDL runs in its own autocommit transactions).
-    await withSession(session, async (s) => {
-      for (const stmt of [...CONSTRAINTS, ...INDEXES]) await s.run(stmt);
-    });
-
     // Partition nodes by owning module; shared nodes have no _module.
     const byModule = new Map<string, NodeRow[]>();
     const shared: NodeRow[] = [];
@@ -119,12 +158,25 @@ export async function boltWriter(
     if (appId !== null) {
       await withSession(session, async (s) => {
         const res = await s.run(
-          "MATCH (a:Application {id: $appId}) RETURN a.schema_version AS v LIMIT 1",
+          "MATCH (a:Application {id: $appId}) RETURN a.schema_version AS v, a.identity_version AS identity_version, a.application_name AS application_name, a.identity_namespace AS identity_namespace LIMIT 1",
           { appId },
         );
-        dbSchemaVersion = res.records[0]?.get("v") ?? null;
+        const existing = res.records[0];
+        if (existing) {
+          const marker = existing.get("identity_version");
+          const incoming = rows.nodes.find(n => n.labels.includes("Application"))!.props;
+          if (!(neo4j.isInt(marker) && marker.toNumber() === 2) || existing.get("application_name") !== incoming.application_name || existing.get("identity_namespace") !== incoming.identity_namespace) {
+            throw new Error("Incompatible graph application identity; regenerate from source in a compatible scope");
+          }
+        }
+        dbSchemaVersion = existing?.get("v") ?? null;
       });
     }
+    // 1. schema (DDL runs in its own autocommit transactions).
+    await withSession(session, async (s) => {
+      for (const stmt of [...CONSTRAINTS, ...INDEXES]) await s.run(stmt);
+    });
+
     // Version mismatch no longer deletes anything: a schema change forces a full re-UPSERT, and
     // MERGE overwrites in place. Removing nodes is `--eager`'s job alone (#116).
     const forceAll = shouldForceFullUpsert(dbSchemaVersion, SCHEMA_VERSION);
@@ -141,6 +193,24 @@ export async function boltWriter(
         await s.run(EAGER_PURGE, { prefix });
       });
       log.info(`neo4j(bolt): --eager, purged the existing graph under ${prefix}`);
+    }
+
+    // Artifacts survive EAGER_PURGE; a full eager run reconciles them instead. Auto-commit and
+    // batched, so a partial failure is finished by the next eager push.
+    const reconcile = fullRun && eager;
+    if (reconcile) {
+      const pres = artifactPrefixes(prefix);
+      const keep = rows.nodes.filter((n) => isArtifactLabel(n.labels[0]!)).map((n) => n.value);
+      const params = { pres, keep, appId, prefix };
+      let released = 0;
+      await withSession(session, async (s) => {
+        await s.run(PURGE_ARTIFACT_EDGES, params);
+        await s.run(PURGE_APP_IMPORT_EDGES, params);
+        await s.run(PURGE_PROVIDES, params);
+        const res = await s.run(RELEASE_VANISHED_ARTIFACTS, params);
+        released = Number(res.records[0]?.get("released") ?? 0);
+      });
+      log.info(`neo4j(bolt): released ${released} vanished artifact/config node(s)`);
     }
 
     // 3. diff content_hash.
@@ -196,10 +266,11 @@ export async function boltWriter(
       await upsertNodes(session, neo4j, nodes);
     }
 
-    // 6. upsert edges owned by a changed module (owner = source node's module) or shared.
+    // 6. upsert edges owned by a changed module (owner = source node's module) or shared; after
+    // reconciliation also every edge into an artifact, which it purged.
     const edges = rows.edges.filter((e) => {
       const owner = moduleOf.get(e.from.value);
-      return owner === undefined || changed.has(owner);
+      return owner === undefined || changed.has(owner) || (reconcile && isArtifactLabel(e.to.label));
     });
     await upsertEdges(session, neo4j, edges);
 

@@ -82,7 +82,7 @@ describe("neo4j schema conformance", () => {
 
     expect(application, "TSApplication row").toBeDefined();
     expect(application!.keyProp).toBe("id");
-    expect(application!.value).toBe("can://dataflow-app");
+    expect(application!.value).toBe("can://dataflow-app/dataflow-app");
     expect(application!.props.name).toBe("dataflow-app");
     expect(declaration?.key).toBe("id");
     expect(declaration?.properties.name).toBe("string");

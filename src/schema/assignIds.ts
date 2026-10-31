@@ -8,7 +8,7 @@
  * id-uniqueness gate's collision list.
  */
 
-import { applicationIdOf, artifactIdOf, configKeyIdOf, idFromSig, memberKey, moduleIdOf, modulePrefixOf } from "./ids";
+import { applicationIdOf, artifactIdOf, artifactReferenceOf, configKeyIdOf, idFromSig, memberKey, moduleIdOf, modulePrefixOf } from "./ids";
 import type { AnalysisInternal, TSCallable, TSField, TSType } from "./schema";
 
 export interface AssignedIds {
@@ -19,8 +19,8 @@ export interface AssignedIds {
   collisions: string[]; // signatures that mapped to two distinct ids (L1 id-uniqueness gate)
 }
 
-export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
-  const appId = applicationIdOf(appName);
+export function assignIds(app: AnalysisInternal, appName: string, namespace?: string): AssignedIds {
+  const appId = applicationIdOf(appName, namespace);
   const idBySig = new Map<string, string>();
   const typeIdBySig = new Map<string, string>();
   const callableBySig = new Map<string, TSCallable>();
@@ -70,7 +70,7 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
   };
 
   for (const [fileKey, mod] of Object.entries(app.symbol_table)) {
-    const moduleId = moduleIdOf(appName, fileKey);
+    const moduleId = moduleIdOf(appName, fileKey, namespace);
     const modulePrefix = modulePrefixOf(fileKey);
     mod.id = moduleId;
     // Module-scope execution is a call-graph SOURCE (python #131 parity: a call in module scope
@@ -86,7 +86,7 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
   // language-NEUTRAL (`can://<app>/artifact/...`); dependency/import records are flat evidence
   // rows with no node id of their own (the graph's :Package node is purl-keyed).
   for (const [relPath, art] of Object.entries(app.artifacts ?? {})) {
-    art.id = artifactIdOf(appName, relPath);
+    art.id = artifactIdOf(appName, relPath, namespace);
     // Deployment-env id disambiguation (#101 unit D fix round 1, python v1.3.0 parity verbatim):
     // the `key` FIELD always stays the bare variable name — env-namespace resolution still joins
     // on a plain `key ===` match — but a bare name can collide across mints on the SAME artifact
@@ -103,10 +103,7 @@ export function assignIds(app: AnalysisInternal, appName: string): AssignedIds {
     }
   }
   for (const dep of app.dependencies ?? []) {
-    const artPath = dep.declared_in; // scanners record the REL PATH; re-stamp onto the id
-    // slice(4) drops `can:`, ``, `<app>`, `artifact` — the same depth the old `can://artifact/<app>/`
-    // shape had, so the reorder left this re-stamp guard alone.
-    dep.declared_in = artifactIdOf(appName, artPath.startsWith("can://") ? artPath.split("/").slice(4).join("/") : artPath);
+    dep.declared_in = artifactReferenceOf(appName, dep.declared_in, namespace);
   }
 
   return { appId, idBySig, typeIdBySig, callableBySig, collisions };

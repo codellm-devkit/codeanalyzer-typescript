@@ -1,3 +1,4 @@
+import { applicationIdOf } from "./schema/ids";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { buildProgramGraphs, startExtraction } from "./dataflow";
@@ -53,6 +54,7 @@ function assertInputDir(input: string): void {
 
 export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
   assertInputDir(opts.input);
+  const identity = applicationIdOf(opts.appName ?? path.basename(path.resolve(opts.input)), opts.namespace);
   const log = new Logger(opts.verbosity);
   log.info(`analyzing ${opts.input} (level ${opts.analysisLevel})`);
   resetCheckerFailures();
@@ -66,7 +68,7 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
 
   for (const note of mat.notes) log.debug(note);
 
-  const cached = opts.eager ? null : loadCache(cacheDir);
+  const cached = opts.eager ? null : loadCache(cacheDir, identity);
   const { project, symbol_table, programs } = buildSymbolTable(opts, mat, cached?.symbol_table ?? null, log);
   collectGarbage(); // the symbol-table build leaves the heap mostly garbage
   memlog("symbol_table");
@@ -159,7 +161,7 @@ export async function analyze(opts: AnalysisOptions): Promise<AnalysisResult> {
 
   // Cache the id-free base (ids/body/heritage are per-run layers stamped by finalizeAnalysis;
   // the cached tree must stay --app-name-free).
-  saveCache(cacheDir, { symbol_table });
+  saveCache(cacheDir, { symbol_table, identity_version: 2, application_id: identity });
   memlog("save_cache");
   // Never let "some edges are missing" look like "there were no edges": a node the checker could
   // not resolve is skipped (see schema/checker.ts), and the count is said out loud.

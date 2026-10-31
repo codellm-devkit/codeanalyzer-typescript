@@ -12,7 +12,7 @@
     "build": "bun build ./src/main.ts ./src/dataflow/worker.ts --compile --outfile dist/cants",
     "gen:schema": "bun run src/index.ts --emit schema > schema.neo4j.json",
     "gen:readme": "bun run scripts/update-readme.ts",
-    "test:container": "RUN_CONTAINER_TESTS=1 bun test test/neo4j-bolt.test.ts",
+    "test:container": "RUN_CONTAINER_TESTS=1 bun test test/neo4j-bolt.test.ts test/neo4j-artifact-reconcile.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "license": "Apache-2.0",

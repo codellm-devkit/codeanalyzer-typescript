@@ -57,8 +57,8 @@ describe("artifact inventory — rules-matched, neutral ids (#101/PR-160)", () =
   });
 
   test("ids are LANGUAGE-NEUTRAL (can://<app>/artifact/<path>); dotfiles keep the dot", () => {
-    expect(arts[".env"]?.id).toBe("can://artifacts-app/artifact/.env");
-    expect(arts["packages/web/package.json"]?.id).toBe("can://artifacts-app/artifact/packages/web/package.json");
+    expect(arts[".env"]?.id).toBe("can://artifacts-app/artifacts-app/artifact/.env");
+    expect(arts["packages/web/package.json"]?.id).toBe("can://artifacts-app/artifacts-app/artifact/packages/web/package.json");
   });
 
   test("roles and formats from the rules table; roles union across matches", () => {
@@ -95,8 +95,8 @@ describe("dependencies — flat, evidence-tagged (#101/PR-160)", () => {
   });
 
   test("declared_in is the manifest's neutral artifact id (workspace member keeps its own)", () => {
-    expect(byName.get("express")?.declared_in).toBe("can://artifacts-app/artifact/package.json");
-    expect(byName.get("lodash")?.declared_in).toBe("can://artifacts-app/artifact/packages/web/package.json");
+    expect(byName.get("express")?.declared_in).toBe("can://artifacts-app/artifacts-app/artifact/package.json");
+    expect(byName.get("lodash")?.declared_in).toBe("can://artifacts-app/artifacts-app/artifact/packages/web/package.json");
   });
 
   test("locks backfill locked_version on declared records only, prov gains lockfile", () => {
@@ -114,7 +114,7 @@ describe("dependencies — flat, evidence-tagged (#101/PR-160)", () => {
     expect(t?.kind).toBe("runtime");
     expect(t?.prov).toEqual(["lockfile"]);
     expect(t?.locked_version).toBe("1.0.0");
-    expect(t?.declared_in).toBe("can://artifacts-app/artifact/package-lock.json");
+    expect(t?.declared_in).toBe("can://artifacts-app/artifacts-app/artifact/package-lock.json");
     // declared packages stay direct
     expect(byName.get("express")?.direct).toBe(true);
     // nested shadow entries are NOT records
@@ -191,20 +191,9 @@ describe("Neo4j projection — neutral :Artifact/:Package (#101)", () => {
   const rows = project(r1.application);
 
   /**
-   * Artifacts are inside the destructive scope: they carry the marker, so the prefix-scoped wipe
-   * reaches them and stale ones are reclaimed instead of accumulating forever. This test pins the
-   * BOTH halves of that trade, because the second half is a real cost paid by polyglot databases.
-   *
-   * What makes it affordable is that this analyzer's artifact walk covers the WHOLE repository,
-   * not only files it can parse: it deletes and then re-creates every :Artifact node, a sibling
-   * analyzer's manifests included. What it does not re-create are the config keys and dependency
-   * edges only that sibling can produce.
-   *
-   * Measured against a live store (neo4j:5, throwaway container): on a second push, python's
-   * :ConfigKey rows under `pyproject.toml` SURVIVE — they never acquired `TSCanNode`, because the
-   * marker is only ever attached by the analyzer that MERGEs the row — while python's
-   * DECLARES_DEPENDENCY edge into `pkg:pypi/flask` is dropped by the DETACH and comes back only on
-   * python's next push. The `:Package` node itself is purl-keyed, never marked, never in scope.
+   * Artifacts carry the marker: it is this analyzer's claim, which a full `--eager` Bolt run
+   * releases when the artifact vanishes (see neo4j-artifact-reconcile.test.ts). The `:Package`
+   * node is purl-keyed, never marked, never in scope.
    */
   test("the wipe reaches artifacts, and the same push restores every one it deletes", () => {
     const canRows = rows.nodes.filter((n) => n.keyProp === "id" && n.value.startsWith("can://"));
@@ -220,21 +209,21 @@ describe("Neo4j projection — neutral :Artifact/:Package (#101)", () => {
   test("a sibling analyzer's manifest is re-created, but only with this analyzer's view of it", () => {
     // The whole-repo walk inventories pyproject.toml even though nothing here can parse it, so the
     // node the wipe deletes is restored by the same push — it is never missing.
-    const py = rows.nodes.find((n) => n.value === "can://artifacts-app/artifact/pyproject.toml");
+    const py = rows.nodes.find((n) => n.value === "can://artifacts-app/artifacts-app/artifact/pyproject.toml");
     expect(py).toBeDefined();
     expect(py?.labels).toEqual(["Artifact", "TSCanNode"]);
     // ...and this is the cost, stated rather than assumed: a degraded view. Unclassified roles,
     // no extraction, no config keys, no dependency edge — python restores all four when it pushes.
     expect(py?.props["roles"]).toEqual(["unknown"]);
     expect(py?.props["extraction"]).toBe("none");
-    expect(rows.nodes.some((n) => n.value.startsWith("can://artifacts-app/artifact/pyproject.toml@key/"))).toBe(false);
+    expect(rows.nodes.some((n) => n.value.startsWith("can://artifacts-app/artifacts-app/artifact/pyproject.toml@key/"))).toBe(false);
     expect(rows.edges.some((e) => e.type === "DECLARES_DEPENDENCY" && e.from.value.endsWith("/pyproject.toml"))).toBe(false);
     // The pypi package this analyzer cannot see is not invented either.
     expect(rows.nodes.some((n) => n.value.startsWith("pkg:pypi/"))).toBe(false);
   });
 
   test("neutral nodes with purl ids; TS-prefixed claims into the ghost space", () => {
-    const art = rows.nodes.find((n) => n.value === "can://artifacts-app/artifact/package.json");
+    const art = rows.nodes.find((n) => n.value === "can://artifacts-app/artifacts-app/artifact/package.json");
     expect(art?.labels).toEqual(["Artifact", "TSCanNode"]);
     expect(art?.props["roles"]).toEqual(["dependency-manifest", "tool-config"]);
     // Artifact text belongs on the graph: python has carried `source` on :Artifact since it

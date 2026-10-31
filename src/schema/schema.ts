@@ -550,6 +550,7 @@ export interface AnalysisInternal {
 // ----------------------------------------------------------------------------------------------
 
 export interface TSAnalysis {
+  identity_version: 2;
   schema_version: string; // "2.0.0"
   language: string; // "typescript"
   max_level: number; // highest level populated; consumers read this, not key-sniffing
@@ -566,8 +567,11 @@ export interface TSAnalyzer {
 
 /** The application ROOT node (python's PyApplication): the containment tree + app-scope overlays. */
 export interface TSApplication {
-  id: string; // can://<app> — the prefix every id below it shares
-  name: string; // normalized --app-name, or the input directory basename
+  identity_version: 2;
+  application_name: string;
+  identity_namespace: string;
+  id: string; // can://<namespace>/<app> — the prefix every id below it shares
+  name: string; // raw --app-name, or the input directory basename
   kind: "application";
   symbol_table: Record<string, TSModule>; // keyed by project-relative POSIX path (with extension)
   call_graph: TSCallGraphEdge[]; // L2 — callable → callable (empty at L1)

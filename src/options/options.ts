@@ -13,6 +13,8 @@ export interface AnalysisOptions {
   emit: EmitTarget;
   /** Logical application name for the graph's :Application anchor; null ⇒ derived from input. */
   appName: string | null;
+  /** Raw application identity namespace; omitted ⇒ resolved application name. */
+  namespace?: string;
   /** Bolt URI for a live Neo4j push (incremental). null ⇒ write a graph.cypher snapshot to -o. */
   neo4jUri: string | null;
   neo4jUser: string;
